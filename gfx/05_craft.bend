@@ -187,10 +187,84 @@ def band(+y: U32) -> U32:
 # too-coarse fork granularity this was the difference between 2529 ms and
 # something playable; at the granularity below it is worth 176 vs 241 ms at
 # 512x512 -- still real, no longer dramatic.
-def refetch(need: Bool, +w: World, +x: U32, +z: U32, +old: U32) -> U32:
+# The subtree of the 8x8 region (rx, rz): two levels down from the root,
+# returning the node itself. A ray keeps this node and walks the last three
+# levels from it, so the root and its children -- the nodes every ray shares --
+# are touched once per region change instead of once per column crossing.
+def wsub(+k: Nat, +w: World, +x: U32, +z: U32) -> World:
+  match k w:
+    case _ WLeaf{b}:
+      WLeaf{b}
+    case 0n WNode{q0, q1, q2, q3}:
+      WNode{q0, q1, q2, q3}
+    case 1n+j WNode{q0, q1, q2, q3}:
+      +bx = ((U32.shrn(x, j) .&. 1) > 0 : U32)
+      +bz = ((U32.shrn(z, j) .&. 1) > 0 : U32)
+      wsub(j, Bool.pick(World, bx, Bool.pick(World, bz, q3, q1),
+                                   Bool.pick(World, bz, q2, q0)), x, z)
+
+# The three-level walk inside the region, unrolled: four non-recursive
+# functions instead of one recursive one, so the GPU hot loop contains no
+# recursive call.
+def q4(+bx: Bool, +bz: Bool, q0: World, q1: World, q2: World, q3: World) -> World:
+  Bool.pick(World, bx, Bool.pick(World, bz, q3, q1), Bool.pick(World, bz, q2, q0))
+
+def wleaf(w: World) -> U32:
+  match w:
+    case WLeaf{b}:
+      b
+    case WNode{q0, q1, q2, q3}:
+      0
+
+def wget1(w: World, +lx: U32, +lz: U32) -> U32:
+  match w:
+    case WLeaf{b}:
+      b
+    case WNode{q0, q1, q2, q3}:
+      wleaf(q4(((lx .&. 1) > 0 : U32), ((lz .&. 1) > 0 : U32), q0, q1, q2, q3))
+
+def wget2(w: World, +lx: U32, +lz: U32) -> U32:
+  match w:
+    case WLeaf{b}:
+      b
+    case WNode{q0, q1, q2, q3}:
+      wget1(q4(((lx .&. 2) > 0 : U32), ((lz .&. 2) > 0 : U32), q0, q1, q2, q3), lx, lz)
+
+def wget3(w: World, +lx: U32, +lz: U32) -> U32:
+  match w:
+    case WLeaf{b}:
+      b
+    case WNode{q0, q1, q2, q3}:
+      wget2(q4(((lx .&. 4) > 0 : U32), ((lz .&. 4) > 0 : U32), q0, q1, q2, q3), lx, lz)
+
+# the two-level walk from the root to a region node, unrolled the same way
+def wsub1(w: World, +rx: U32, +rz: U32) -> World:
+  match w:
+    case WLeaf{b}:
+      WLeaf{b}
+    case WNode{q0, q1, q2, q3}:
+      q4(((rx .&. 1) > 0 : U32), ((rz .&. 1) > 0 : U32), q0, q1, q2, q3)
+
+def wsub2(w: World, +rx: U32, +rz: U32) -> World:
+  match w:
+    case WLeaf{b}:
+      WLeaf{b}
+    case WNode{q0, q1, q2, q3}:
+      wsub1(q4(((rx .&. 2) > 0 : U32), ((rz .&. 2) > 0 : U32), q0, q1, q2, q3), rx, rz)
+
+# keep the cached region, or fetch the new one from the root
+def resub(keep: Bool, +w: World, sub: World, +rx: U32, +rz: U32) -> World:
+  match keep:
+    case True{}:
+      sub
+    case False{}:
+      wsub2(w, rx, rz)
+
+# the column, walked locally inside the ray's own region node
+def rebits(need: Bool, +sub: World, +lx: U32, +lz: U32, +old: U32) -> U32:
   match need:
     case True{}:
-      wget(5n, w, x, z)
+      wget3(sub, lx, lz)
     case False{}:
       old
 
@@ -199,7 +273,8 @@ def dda(fuel: Nat, +w: World,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
         +ex: F32, +ey: F32, +ez: F32,
-        +axis: F32, +col: U32, +bits: U32, +ymask: U32) -> U32:
+        +axis: F32, +col: U32, +bits: U32, +ymask: U32,
+        +sub: World, +rgx: U32, +rgz: U32) -> U32:
   match fuel:
     case 0n:
       col
@@ -219,10 +294,17 @@ def dda(fuel: Nat, +w: World,
       nymask = Bool.pick(U32, uy,
         Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
       # the tree is touched only on a column crossing, and never again once
-      # this ray has already found its block
+      # this ray has already found its block; the root only on a region change
+      +nxu = f2u(nvx)
+      +nzu = f2u(nvz)
+      +nrx = U32.shrn(nxu, 3n)
+      +nrz = U32.shrn(nzu, 3n)
+      +need = Bool.not(uy) && (ncol < 1 : U32)
+      +same = U32.is_eq(nrx, rgx) && U32.is_eq(nrz, rgz)
+      +nsub = resub(Bool.not(need) || same, w, sub, nrx, nrz)
       dda(f, w, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol,
-          refetch(Bool.not(uy) && (ncol < 1 : U32), w, f2u(nvx), f2u(nvz), bits),
-          nymask)
+          rebits(need, nsub, (nxu .&. 7 : U32), (nzu .&. 7 : U32), bits),
+          nymask, nsub, nrx, nrz)
 
 def run_dda(+w: World, +ox: F32, +oy: F32, +oz: F32,
             +dx: F32, +dy: F32, +dz: F32, +v: U32) -> U32:
@@ -238,14 +320,20 @@ def run_dda(+w: World, +ox: F32, +oy: F32, +oz: F32,
   +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
   +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
   +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
+  +x0 = f2u(vx)
+  +z0 = f2u(vz)
+  +rx0 = U32.shrn(x0, 3n)
+  +rz0 = U32.shrn(z0, 3n)
+  +sub0 = wsub2(w, rx0, rz0)
   +c = dda(60n, w, vx, vy, vz,
            Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
            (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-           1.0, 0, wget(5n, w, f2u(vx), f2u(vz)),
-           U32.shln(1, F32.to_nat(F32.max(oy, 0.0))))
+           1.0, 0, wget3(sub0, (x0 .&. 7 : U32), (z0 .&. 7 : U32)),
+           U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
+           sub0, rx0, rz0)
   Bool.pick(U32, (c < 1 : U32), sky_at(v), c)
 
 # A ray that misses the 32-cube reads the tree zero times. Ported from 04,
