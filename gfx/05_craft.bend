@@ -87,7 +87,18 @@ def sel4(bx: Bool, bz: Bool, q0: World, q1: World, q2: World, q3: World) -> Worl
     case True{} True{}:
       q3
 
-# read a column: five levels down, picking the quadrant by bit j of x and z
+# read a column: five levels down, picking the quadrant by bit j of x and z.
+#
+# The quadrant choice is nested `Bool.pick` rather than the `sel4` helper below,
+# which reads better and does the same thing. Measured, identical checksum:
+# 28 -> 26 ms at 128x128, 39 -> 36 at 256, 220 -> 183 at 512. It grows with the
+# number of reads per frame. `sel4` is kept for `wmod`, which runs once per edit
+# and not per pixel.
+#
+# What did NOT work: packing a 2x2 block of columns into the leaf to drop a
+# level, the way bend2-svg-demo's `ByteWord` packs four bytes. It measured 220
+# vs 220 at 512x512. The reason is that it does not remove a selection, it
+# swaps the last `World` one for a `U32` one, so the count is unchanged.
 def wget(+k: Nat, +w: World, +x: U32, +z: U32) -> U32:
   match k w:
     case _ WLeaf{b}:
@@ -97,7 +108,8 @@ def wget(+k: Nat, +w: World, +x: U32, +z: U32) -> U32:
     case 1n+j WNode{q0, q1, q2, q3}:
       +bx = ((U32.shrn(x, j) .&. 1) > 0 : U32)
       +bz = ((U32.shrn(z, j) .&. 1) > 0 : U32)
-      wget(j, sel4(bx, bz, q0, q1, q2, q3), x, z)
+      wget(j, Bool.pick(World, bx, Bool.pick(World, bz, q3, q1),
+                                   Bool.pick(World, bz, q2, q0)), x, z)
 
 # `match` only takes a parameter or a pattern-bound variable, never a computed
 # one -- and Bend forbids mutual recursion, so the quadrant choice splits into
