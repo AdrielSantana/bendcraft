@@ -20,7 +20,9 @@ import Base
 # ---------- little helpers ----------
 
 # RESOLUTION lives here and nowhere else. The render is RES x RES pixels,
-# built by `fork!(k)` where RES = 8 << k, so k=4 -> 128, k=5 -> 256, k=6 -> 512.
+# built by `fork!(k)` where RES = 2 << k, so k=6 -> 128, k=7 -> 256, k=8 -> 512.
+# The fork goes one level deeper than the tile size needs: forking to 4x4
+# tiles instead of 8x8 is 1.8x faster on the GPU and free on the CPU.
 # Changing k means changing half() and halfu() to match, or the framing and
 # the crosshair go wrong -- which is exactly the bug this comment replaces.
 def half() -> F32: 64.0
@@ -168,8 +170,10 @@ def band(+y: U32) -> U32:
 # ---------- DDA over the tree ----------
 
 # Only a step in x or z can change which column we are in, so the tree is
-# touched once per column crossing instead of once per voxel. This is what
-# took the frame from 2529 ms to something playable.
+# touched once per column crossing instead of once per voxel. At the old,
+# too-coarse fork granularity this was the difference between 2529 ms and
+# something playable; at the granularity below it is worth 176 vs 241 ms at
+# 512x512 -- still real, no longer dramatic.
 def refetch(need: Bool, +w: World, +x: U32, +z: U32, +old: U32) -> U32:
   match need:
     case True{}:
@@ -344,16 +348,16 @@ def t8(+g: Game, +x: U32, +y: U32) -> Image:
 def fork(+k: Nat, +g: Game, +x: U32, +y: U32) -> Image:
   match k:
     case 0n:
-      t8(g, x, y)
+      t2(g, x, y)
     case 1n+e:
-      +h = U32.shln(8, e)
+      +h = U32.shln(2, e)
       +x1 = (x + h : U32)
       +y1 = (y + h : U32)
       p q r s = fork(e, g, x, y) fork(e, g, x1, y) fork(e, g, x, y1) fork(e, g, x1, y1)
       Qua{p, q, r, s}
 
 def view(+g: Game) -> Image:
-  fork!(4n, g, 0, 0)
+  fork!(6n, g, 0, 0)
 
 # ---------- input ----------
 # w a s d move, arrows look, i/k fly, j break, l place, Esc quit.
