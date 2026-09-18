@@ -26,7 +26,7 @@ import Base
 # sweep is flat, so this only shows up with `!`.
 # Two things must agree: the `k` in `fork!` below and `halfu()` here. `half()`
 # is derived from `halfu()` so it cannot drift from it on its own.
-def halfu() -> U32: 64
+def halfu() -> U32: 128
 def half() -> F32: U32.to_f32(halfu())
 
 def rgb(r: U32, g: U32, b: U32) -> U32:
@@ -447,7 +447,7 @@ def fork(+k: Nat, +g: Game, +x: U32, +y: U32) -> Image:
       Qua{p, q, r, s}
 
 def view(+g: Game) -> Image:
-  fork!(6n, g, 0, 0)
+  fork!(7n, g, 0, 0)
 
 # ---------- input ----------
 # w a s d move, arrows look, i/k fly, j break, l place, Esc quit.
