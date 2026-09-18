@@ -21,12 +21,13 @@ import Base
 
 # RESOLUTION lives here and nowhere else. The render is RES x RES pixels,
 # built by `fork!(k)` where RES = 2 << k, so k=6 -> 128, k=7 -> 256, k=8 -> 512.
-# The fork goes one level deeper than the tile size needs: forking to 4x4
-# tiles instead of 8x8 is 1.8x faster on the GPU and free on the CPU.
-# Changing k means changing half() and halfu() to match, or the framing and
-# the crosshair go wrong -- which is exactly the bug this comment replaces.
-def half() -> F32: 64.0
+# The leaf is a 2x2 tile, not the 8x8 that reads naturally: measured 234 ms at
+# 8x8, 87 at 4x4, 28 at 2x2, all rendering the same image. On the CPU the same
+# sweep is flat, so this only shows up with `!`.
+# Two things must agree: the `k` in `fork!` below and `halfu()` here. `half()`
+# is derived from `halfu()` so it cannot drift from it on its own.
 def halfu() -> U32: 64
+def half() -> F32: U32.to_f32(halfu())
 
 def rgb(r: U32, g: U32, b: U32) -> U32:
   (r * 65536 + g * 256 + b : U32)
