@@ -31,7 +31,9 @@ def rgb(r: U32, g: U32, b: U32) -> U32:
 
 # `F32.to_u32` / `U32.to_f32` are primitives (declared as `law`, not `def`).
 # The `def` pair in Base -- U32.from_nat / F32.to_nat -- is O(value): it
-# counts up one U32.inc at a time. Easy to miss, and it cost us 60x here.
+# counts up one U32.inc at a time. Easy to miss -- though swapping these in
+# measured NO speedup in this program, so the reason to prefer them is the
+# complexity on paper, not a win I observed.
 def floorf(+x: F32) -> F32:
   U32.to_f32(F32.to_u32(x))
 
