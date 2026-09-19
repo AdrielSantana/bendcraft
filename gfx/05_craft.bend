@@ -8,8 +8,8 @@ import Base
 # of a parallel call -- useless for a renderer where every pixel reads the
 # world at once. So the world is a `Data` quadtree over the 32x32 columns,
 # and each leaf is a U32 whose bit y says "there is a block at height y".
-# Marked `+` it is shared by every pixel; editing rebuilds one path of five
-# nodes and leaves the rest shared.
+# Shared by every pixel and read without counting (see wget); editing
+# rebuilds one path of five nodes and leaves the rest shared.
 #
 # 32 heights in one word is what makes this cheap: a column is a single
 # machine word, and break/place is one bit.
@@ -58,13 +58,12 @@ def on(+mask: U32, +bit: U32) -> Bool:
 # and, wherever it finds WNone, computes the column from the terrain instead.
 # Untouched, the whole world is one WNone; each edit grows one five-node path.
 #
-# This is what made the editable world as fast as the immutable one. Storing
-# every column in the tree cost 155 ms at 512x512 after everything else had
-# been tuned; the overlay costs 26, against 23 for the terrain alone. Same
-# image (checksum-verified at three resolutions) and bit-exact edits. It is
-# Taelin's rule applied: a ref-counted tree shared by every pixel is an atomic
-# per use, so the trick is to touch it as little as possible -- one node, for
-# almost every ray, almost all the time.
+# Storing every column in the tree cost 155 ms at 512x512 after everything
+# else had been tuned; the overlay costs 26, against 23 for the terrain alone.
+# Same image (checksum-verified at three resolutions) and bit-exact edits.
+# What the overlay alone did not fix was an edited world: while the read owned
+# the nodes it chose (see wget), 300 placed blocks cost 26 ms a frame against
+# 4-5 untouched, at 256x256; with the read borrowed they cost 6-8.
 type World is Data:
   WNone{}
   WLeaf{bits: U32}
@@ -92,33 +91,35 @@ def sel4(bx: Bool, bz: Bool, q0: World, q1: World, q2: World, q3: World) -> Worl
     case True{} True{}:
       q3
 
-# read a column, recursively. Only the picking path (`solid`, once per tick)
-# uses this; the render path uses the unrolled `wget5` below, because a
-# recursive call inside the GPU loop measured as a fixed cost of its own.
-#
-# The quadrant choice is nested `Bool.pick` rather than the `sel4` helper below,
-# which reads better and does the same thing. Measured, identical checksum:
-# 28 -> 26 ms at 128x128, 39 -> 36 at 256, 220 -> 183 at 512. It grows with the
-# number of reads per frame. `sel4` is kept for `wmod`, which runs once per edit
-# and not per pixel.
-#
-# What did NOT work: packing a 2x2 block of columns into the leaf to drop a
-# level, the way bend2-svg-demo's `ByteWord` packs four bytes. It measured 220
-# vs 220 at 512x512. The reason is that it does not remove a selection, it
-# swaps the last `World` one for a `U32` one, so the count is unchanged.
-def wget(+k: Nat, +w: World, +x: U32, +z: U32) -> U32:
-  match k w:
-    case _ WNone{}:
+# read a column: one recursive walk, BORROWED. The compiler borrows a boxed
+# parameter that a def only matches or passes to a borrower, so this walk
+# touches no count. The old walk picked its quadrant with `Bool.pick(World, ..)`,
+# and a def that returns its argument shares it: a count on every node, per
+# ray, per column crossing -- the whole cost of an edited world
+# (`bend guide shaders`, Ownership). Two rules shape it: `match` takes only
+# parameters, so each level hands the next its quadrant bits; and the GPU
+# inlines every non-recursive def, so a four-armed unrolled walk is 4^5
+# copies of the leaf (the Metal compile never finished). The tree is indexed
+# low bit first, so the next bits are one shift away.
+def wget(+k: Nat, w: World, bx: Bool, bz: Bool, +xs: U32, +zs: U32, +x: U32, +z: U32) -> U32:
+  match k w bx bz:
+    case _ WNone{} _ _:
       column(x, z)
-    case _ WLeaf{b}:
+    case _ WLeaf{b} _ _:
       b
-    case 0n WNode{q0, q1, q2, q3}:
+    case 0n WNode{q0, q1, q2, q3} _ _:
       0
-    case 1n+j WNode{q0, q1, q2, q3}:
-      +bx = ((U32.shrn(x, j) .&. 1) > 0 : U32)
-      +bz = ((U32.shrn(z, j) .&. 1) > 0 : U32)
-      wget(j, Bool.pick(World, bx, Bool.pick(World, bz, q3, q1),
-                                   Bool.pick(World, bz, q2, q0)), x, z)
+    case 1n+j WNode{q0, q1, q2, q3} False{} False{}:
+      wget(j, q0, ((xs .&. 2) > 0 : U32), ((zs .&. 2) > 0 : U32), U32.shr(xs), U32.shr(zs), x, z)
+    case 1n+j WNode{q0, q1, q2, q3} True{} False{}:
+      wget(j, q1, ((xs .&. 2) > 0 : U32), ((zs .&. 2) > 0 : U32), U32.shr(xs), U32.shr(zs), x, z)
+    case 1n+j WNode{q0, q1, q2, q3} False{} True{}:
+      wget(j, q2, ((xs .&. 2) > 0 : U32), ((zs .&. 2) > 0 : U32), U32.shr(xs), U32.shr(zs), x, z)
+    case 1n+j WNode{q0, q1, q2, q3} True{} True{}:
+      wget(j, q3, ((xs .&. 2) > 0 : U32), ((zs .&. 2) > 0 : U32), U32.shr(xs), U32.shr(zs), x, z)
+
+def wread(w: World, +x: U32, +z: U32) -> U32:
+  wget(5n, w, ((x .&. 1) > 0 : U32), ((z .&. 1) > 0 : U32), x, z, x, z)
 
 # `match` only takes a parameter or a pattern-bound variable, never a computed
 # one -- and Bend forbids mutual recursion, so the quadrant choice splits into
@@ -137,8 +138,9 @@ def put4(bx: Bool, bz: Bool, n: World, q0: World, q1: World, q2: World, q3: Worl
     case True{} True{}:
       WNode{q0, q1, q2, n}
 
-# write a column: rebuild one path, every other subtree stays shared
-def wmod(+k: Nat, +w: World, +x: U32, +z: U32, +ybit: U32, set: Bool) -> World:
+# write a column: rebuild one path, every other subtree stays shared. Once
+# per edit, on the host; the same low-bit-first layout as the read.
+def wmod(+k: Nat, +w: World, +xs: U32, +zs: U32, +x: U32, +z: U32, +ybit: U32, set: Bool) -> World:
   match k w:
     case _ WLeaf{b}:
       WLeaf{setbit(b, ybit, set)}
@@ -147,73 +149,13 @@ def wmod(+k: Nat, +w: World, +x: U32, +z: U32, +ybit: U32, set: Bool) -> World:
     case 0n WNode{q0, q1, q2, q3}:
       WNode{q0, q1, q2, q3}
     case 1n+j WNone{}:
-      +bx = ((U32.shrn(x, j) .&. 1) > 0 : U32)
-      +bz = ((U32.shrn(z, j) .&. 1) > 0 : U32)
-      put4(bx, bz, wmod(j, WNone{}, x, z, ybit, set), WNone{}, WNone{}, WNone{}, WNone{})
+      +bx = ((xs .&. 1) > 0 : U32)
+      +bz = ((zs .&. 1) > 0 : U32)
+      put4(bx, bz, wmod(j, WNone{}, U32.shr(xs), U32.shr(zs), x, z, ybit, set), WNone{}, WNone{}, WNone{}, WNone{})
     case 1n+j WNode{q0, q1, q2, q3}:
-      +bx = ((U32.shrn(x, j) .&. 1) > 0 : U32)
-      +bz = ((U32.shrn(z, j) .&. 1) > 0 : U32)
-      put4(bx, bz, wmod(j, sel4(bx, bz, q0, q1, q2, q3), x, z, ybit, set), q0, q1, q2, q3)
-
-# The five-level column read, unrolled into non-recursive functions. Same
-# walk, same picks; the difference is that the GPU hot loop no longer
-# contains a recursive call.
-def q4(+bx: Bool, +bz: Bool, q0: World, q1: World, q2: World, q3: World) -> World:
-  Bool.pick(World, bx, Bool.pick(World, bz, q3, q1), Bool.pick(World, bz, q2, q0))
-
-def wleaf(w: World, +x: U32, +z: U32) -> U32:
-  match w:
-    case WNone{}:
-      column(x, z)
-    case WLeaf{b}:
-      b
-    case WNode{q0, q1, q2, q3}:
-      0
-
-def wget1(w: World, +x: U32, +z: U32) -> U32:
-  match w:
-    case WNone{}:
-      column(x, z)
-    case WLeaf{b}:
-      b
-    case WNode{q0, q1, q2, q3}:
-      wleaf(q4(((x .&. 1) > 0 : U32), ((z .&. 1) > 0 : U32), q0, q1, q2, q3), x, z)
-
-def wget2(w: World, +x: U32, +z: U32) -> U32:
-  match w:
-    case WNone{}:
-      column(x, z)
-    case WLeaf{b}:
-      b
-    case WNode{q0, q1, q2, q3}:
-      wget1(q4(((x .&. 2) > 0 : U32), ((z .&. 2) > 0 : U32), q0, q1, q2, q3), x, z)
-
-def wget3(w: World, +x: U32, +z: U32) -> U32:
-  match w:
-    case WNone{}:
-      column(x, z)
-    case WLeaf{b}:
-      b
-    case WNode{q0, q1, q2, q3}:
-      wget2(q4(((x .&. 4) > 0 : U32), ((z .&. 4) > 0 : U32), q0, q1, q2, q3), x, z)
-
-def wget4(w: World, +x: U32, +z: U32) -> U32:
-  match w:
-    case WNone{}:
-      column(x, z)
-    case WLeaf{b}:
-      b
-    case WNode{q0, q1, q2, q3}:
-      wget3(q4(((x .&. 8) > 0 : U32), ((z .&. 8) > 0 : U32), q0, q1, q2, q3), x, z)
-
-def wget5(w: World, +x: U32, +z: U32) -> U32:
-  match w:
-    case WNone{}:
-      column(x, z)
-    case WLeaf{b}:
-      b
-    case WNode{q0, q1, q2, q3}:
-      wget4(q4(((x .&. 16) > 0 : U32), ((z .&. 16) > 0 : U32), q0, q1, q2, q3), x, z)
+      +bx = ((xs .&. 1) > 0 : U32)
+      +bz = ((zs .&. 1) > 0 : U32)
+      put4(bx, bz, wmod(j, sel4(bx, bz, q0, q1, q2, q3), U32.shr(xs), U32.shr(zs), x, z, ybit, set), q0, q1, q2, q3)
 
 def inside(+vx: F32, +vy: F32, +vz: F32) -> Bool:
   (vx > (0.0 - 0.5) : F32) && (vx < 31.5 : F32) &&
@@ -221,7 +163,7 @@ def inside(+vx: F32, +vy: F32, +vz: F32) -> Bool:
   (vy > (0.0 - 0.5) : F32) && (vy < 31.5 : F32)
 
 def solid(+w: World, +vx: F32, +vy: F32, +vz: F32) -> Bool:
-  inside(vx, vy, vz) && on(wget5(w, f2u(vx), f2u(vz)), U32.shln(1, F32.to_nat(F32.max(vy, 0.0))))
+  inside(vx, vy, vz) && on(wread(w, f2u(vx), f2u(vz)), U32.shln(1, F32.to_nat(F32.max(vy, 0.0))))
 
 # ---------- looks ----------
 
@@ -267,7 +209,7 @@ def band(+y: U32) -> U32:
 def refetch(need: Bool, +w: World, +x: U32, +z: U32, +old: U32) -> U32:
   match need:
     case True{}:
-      wget5(w, x, z)
+      wread(w, x, z)
     case False{}:
       old
 
@@ -321,7 +263,7 @@ def run_dda(+w: World, +ox: F32, +oy: F32, +oz: F32,
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
            (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-           1.0, 0, wget5(w, f2u(vx), f2u(vz)),
+           1.0, 0, wread(w, f2u(vx), f2u(vz)),
            U32.shln(1, F32.to_nat(F32.max(oy, 0.0))))
   Bool.pick(U32, (c < 1 : U32), sky_at(v), c)
 
@@ -551,7 +493,7 @@ def apply_edit(act: Bool, w: World, +idx: U32, set: Bool) -> World:
     case False{}:
       w
     case True{}:
-      wmod(5n, w, ix_x(idx), ix_z(idx), U32.shln(1, U32.to_nat(ix_y(idx))), set)
+      wmod(5n, w, ix_x(idx), ix_z(idx), ix_x(idx), ix_z(idx), U32.shln(1, U32.to_nat(ix_y(idx))), set)
 
 # ---------- one tick ----------
 
