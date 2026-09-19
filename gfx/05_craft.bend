@@ -258,7 +258,10 @@ def run_dda(+w: World, +ox: F32, +oy: F32, +oz: F32,
   +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
   +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
   +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
-  +c = dda(60n, w, vx, vy, vz,
+  # the fuel as a runtime value, not the literal 60n: a literal fuel is unrolled
+  # by the compiler, 60 copies of the step in one 14k-line device function
+  # (944 keeps), and the frame costs 2x (13 / 26 ms against 6 / 17 at 512x512).
+  +c = dda(U32.to_nat(60), w, vx, vy, vz,
            Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
