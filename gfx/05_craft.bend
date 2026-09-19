@@ -20,13 +20,14 @@ import Base
 # ---------- little helpers ----------
 
 # RESOLUTION lives here and nowhere else. The render is RES x RES pixels,
-# built by `fork!(k)` where RES = 2 << k, so k=6 -> 128, k=7 -> 256, k=8 -> 512.
-# The leaf is a 2x2 tile, not the 8x8 that reads naturally: measured 234 ms at
-# 8x8, 87 at 4x4, 28 at 2x2, all rendering the same image. On the CPU the same
-# sweep is flat, so this only shows up with `!`.
-# Two things must agree: the `k` in `fork!` below and `halfu()` here. `half()`
-# is derived from `halfu()` so it cannot drift from it on its own.
-def halfu() -> U32: 128
+# built by `fork!(k)` over 4x4 leaves, so RES = 4 << k: k=6 -> 256, k=7 -> 512.
+# The fork shape is the lane cube's: a `!` runs 16384 lanes, so 4^7 leaves per
+# bang keep them all busy (`bend guide shaders`). At 512x512, 7 levels over
+# 4x4 tiles measured 13 ms untouched / 26 built; 8 levels over 2x2 tiles, 17 /
+# 38, same image. On the CPU the same sweep is flat, so this only shows up
+# with `!`. Two things must agree: the `k` in `fork!` below and `halfu()`
+# here. `half()` is derived from `halfu()` so it cannot drift from it.
+def halfu() -> U32: 256
 def half() -> F32: U32.to_f32(halfu())
 
 def rgb(r: U32, g: U32, b: U32) -> U32:
@@ -370,19 +371,13 @@ def t4(+g: Game, +x: U32, +y: U32) -> Image:
   +y1 = (y + 2 : U32)
   Qua{t2(g, x, y), t2(g, x1, y), t2(g, x, y1), t2(g, x1, y1)}
 
-def t8(+g: Game, +x: U32, +y: U32) -> Image:
-  +x1 = (x + 4 : U32)
-  +y1 = (y + 4 : U32)
-  Qua{t4(g, x, y), t4(g, x1, y), t4(g, x, y1), t4(g, x1, y1)}
-
-# fork to 8x8 tiles and no further: bend3d's Cell.fork comment says a fork
-# per pixel drowns in scheduling.
+# fork down to 4x4 tiles: see RESOLUTION above.
 def fork(+k: Nat, +g: Game, +x: U32, +y: U32) -> Image:
   match k:
     case 0n:
-      t2(g, x, y)
+      t4(g, x, y)
     case 1n+e:
-      +h = U32.shln(2, e)
+      +h = U32.shln(4, e)
       +x1 = (x + h : U32)
       +y1 = (y + h : U32)
       p q r s = fork(e, g, x, y) fork(e, g, x1, y) fork(e, g, x, y1) fork(e, g, x1, y1)
