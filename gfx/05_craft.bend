@@ -214,6 +214,15 @@ def refetch(need: Bool, +w: World, +x: U32, +z: U32, +old: U32) -> U32:
     case False{}:
       old
 
+# the hit's colour only on a hit: Bool.pick is strict, so it would light every
+# step of every ray (measured: 1 ms of 6 at 512x512)
+def hit(here: Bool, +bits: U32, +ymask: U32, +axis: F32, +col: U32) -> U32:
+  match here:
+    case True{}:
+      lit(bits, ymask, axis)
+    case False{}:
+      col
+
 def dda(fuel: Nat, +w: World,
         +vx: F32, +vy: F32, +vz: F32,
         +sx: F32, +sy: F32, +sz: F32,
@@ -225,7 +234,7 @@ def dda(fuel: Nat, +w: World,
       col
     case 1n+f:
       +here = inside(vx, vy, vz) && on(bits, ymask) && (col < 1 : U32)
-      +ncol = Bool.pick(U32, here, lit(bits, ymask, axis), col)
+      +ncol = hit(here, bits, ymask, axis, col)
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
       +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
