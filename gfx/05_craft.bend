@@ -535,5 +535,5 @@ def start() -> Game:
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    IO.print("WASD move | setas olham | I/K sobe-desce | J quebra | L coloca | Esc sai")
+    IO.print("WASD move | arrows look | I/K up/down | J break | L place | Esc quit")
     App.run(~Game, ~App{+g => (g, view(g)), tick}, "Bendcraft", 512, 512, start())
