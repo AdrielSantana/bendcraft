@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>index</title>
+<style>
+  body { margin: 16px; background: #111; color: #ccc; display: flex;
+    flex-direction: column; align-items: center; gap: 12px;
+    font: 14px/1.4 ui-monospace, monospace; }
+  canvas { max-width: 100%; image-rendering: pixelated; }
+  pre { margin: 0; white-space: pre-wrap; max-width: 100%; }
+  select { font: inherit; color: inherit; background: #222; border: 1px solid #444; }
+</style>
+<canvas id="bend"></canvas>
+<pre><select id="bend-threads"></select> threads, <span id="bend-rate"></span></pre>
+<pre id="bend-out"></pre>
+<!-- bendcraft notes -->
+<p style="max-width: 512px">
+  <b>Bendcraft</b>: an endless voxel world written in <a href="https://github.com/bendlang/bend">Bend</a>,
+  rendered by one parallel call on every core of your machine.
+  <b>WASD</b> walk · <b>space</b> jumps · drag the mouse to look (or arrows) · click breaks ·
+  right click places (or J/L) · Esc quits. The world is seeded noise; what you build is kept
+  when you walk away and come back.
+  Source and the native GPU build: <a href="https://github.com/AdrielSantana/bendcraft">AdrielSantana/bendcraft</a>.
+</p>
+<p style="max-width: 512px; color: #888">
+  Needs a browser with SharedArrayBuffer and wasm tail calls: Chrome 112+, Firefox 121+, Safari 18.2+.
+  GitHub Pages sends no COOP/COEP headers, so a small service worker adds them and reloads the page once on your first visit.
+</p>
+<script>
+  var cores   = navigator.hardwareConcurrency;
+  var threads = Math.min(Number(new URLSearchParams(location.search)
+    .get("threads")) || cores, cores);
+  var select  = document.getElementById("bend-threads");
+  for (var i = 1; i <= cores; i += 1) {
+    select.appendChild(new Option(i, i));
+  }
+  select.value = threads;
+  select.onchange = function() { location.search = "?threads=" + select.value; };
+  var say = function(text) {
+    document.getElementById("bend-out").append(text + "\n");
+  };
+  var Module = {
+    arguments: ["--threads", String(threads)],
+    print: say,
+    printErr: say,
+    onExit: function(code) { say("exit " + code); },
+  };
+  if (!crossOriginIsolated) {
+    say("no threads: the page needs the Cross-Origin-Opener-Policy: "
+      + "same-origin and Cross-Origin-Embedder-Policy: require-corp headers");
+  }
+  var frames = 0;
+  setInterval(function() {
+    var n = Module.bendFrames | 0;
+    document.getElementById("bend-rate").textContent = (n - frames) + " fps";
+    frames = n;
+  }, 1000);
+</script>
+<script src="coi-serviceworker.js"></script>
+<script src="index.js"></script>
