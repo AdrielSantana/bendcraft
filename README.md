@@ -8,7 +8,8 @@ on the GPU through Metal, or on every core of your machine as WebAssembly.
 
 `W A S D` walk · `space` jumps · drag the mouse to look (or the arrows) ·
 click breaks · right click places (or `J` / `L`) · `1`–`8` choose the block
-to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `Esc` quits.
+to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `P` saves ·
+`Esc` quits and saves.
 
 ![Bendcraft](site/bendcraft.png)
 
@@ -67,6 +68,14 @@ a second DDA toward the sun for shadows, a pixel-art tile of four shades per
 face, ambient occlusion per vertex from the eight cells around the hit, fog
 into the sky by distance. The `!` runs a 4^7 tree of 4×4 tiles, 512×512.
 
+**The world is saved.** `bendcraft.save` in the working directory holds
+the corner, the position, the look and the chosen block on its first line,
+then one line per edited column: its key and its five words. The game
+loads it at start, if it is there, and writes it on `P` and on quit; the
+untouched columns are never stored, they come back from the noise. On the
+page the file lives in the browser's memory, so it lasts until the tab is
+closed.
+
 **The player** is 1.8 blocks tall with the eye at 1.6. Walking tests the
 feet and the head per axis and stops at walls; gravity pulls, landing snaps
 the feet onto the block, space pushes off it. A block is never placed on
@@ -81,8 +90,10 @@ src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
 src/player.bend    Game, events, picking, the tick
+src/save.bend      the save file, and the tick that writes it
 LAWS.bend          the rules the checker proves; PROOF.bend closes them
 test/physics.bend  the game without a window: events through feed and step
+test/save.bend     place, walk, save, load: the brick and the position come back
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/terrain.bend  rows of the terrain, to see the noise
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
@@ -92,7 +103,7 @@ site/              the page: notes.mjs post-processes the built index.html
 
 ```sh
 make check      # the modules, the tests, the laws
-make test       # physics and terrain, windowless
+make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
 make page-test  # the page in headless Chrome, hashes and fps
 ```

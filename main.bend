@@ -1,5 +1,6 @@
 import Base
 import ./src/player.bend as Player
+import ./src/save.bend as Save
 
 # Bendcraft: an endless voxel world you can walk, jump, break and build,
 # written in Bend and rendered by a `!` on the GPU (Metal) or on every core
@@ -9,5 +10,6 @@ import ./src/player.bend as Player
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    IO.print("WASD move | space jump | drag to look | click break | right click place | J/L break/place | Esc quit")
-    App.run(~Player.Game, ~App{g => Player.view(g), Player.tick}, "Bendcraft", 512, 512, Player.start())
+    IO.print("WASD move | space jump | drag to look | click break | right click place | J/L break/place | 1-8 choose | P save | Esc quit")
+    g : Player.Game <- Save.load()
+    App.run(~Player.Game, ~App{g => Player.view(g), Save.tick}, "Bendcraft", 512, 512, g)

@@ -5,7 +5,8 @@ import ./render.bend as Render
 
 # THE PLAYER: the game state, the events, the tick, the edits.
 #
-#   W A S D  move   space  jump   arrows  look   1-8  choose a block   Esc  quit
+#   W A S D  move   space  jump   arrows  look   1-8  choose a block
+#   P  save   Esc  quit (and save)
 #   mouse: drag to look, left click breaks, right click places (or J / L)
 
 type Game is Type:
@@ -29,8 +30,8 @@ def view(g: Game) -> Game & Image:
   view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, w)
 
 # ---------- input ----------
-# Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, j l 1024 2048,
-# Esc 4096, space 8192) and the edge of a press in `edge`. The mouse keeps
+# Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, p 256, j l
+# 1024 2048, Esc 4096, space 8192) and the edge of a press in `edge`. The mouse keeps
 # its last place in `mx`, `my` and two bits above the keys: 16384 while the
 # left button is down, 32768 once that press has dragged. A drag looks, a
 # left click (press and release without a drag) breaks, a right click places.
@@ -42,7 +43,7 @@ def kmask(+c: U32) -> U32:
   (kbit(c, 119, 1) .|. kbit(c, 97, 2) .|. kbit(c, 115, 4) .|. kbit(c, 100, 8)
     .|. kbit(c, 63232, 16) .|. kbit(c, 63233, 32)
     .|. kbit(c, 63234, 64) .|. kbit(c, 63235, 128)
-    .|. kbit(c, 106, 1024) .|. kbit(c, 108, 2048)
+    .|. kbit(c, 106, 1024) .|. kbit(c, 108, 2048) .|. kbit(c, 112, 256)
     .|. kbit(c, 27, 4096) .|. kbit(c, 32, 8192) : U32)
 
 def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,

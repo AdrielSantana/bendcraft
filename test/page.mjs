@@ -38,6 +38,14 @@ try {
   await send("Input.dispatchKeyEvent", { type: "keyDown", key: " ", code: "Space", windowsVirtualKeyCode: 32 }); await sleep(60);
   await send("Input.dispatchKeyEvent", { type: "keyUp", key: " ", code: "Space", windowsVirtualKeyCode: 32 }); await sleep(500);
   const h4 = await grab("4"); await sleep(3000); const h5 = await grab("5");
+  // 4 then a right click: a sand block, not the grass one; then P saves
+  const key = async (k, code, vk) => { await send("Input.dispatchKeyEvent", { type: "keyDown", key: k, code, windowsVirtualKeyCode: vk }); await sleep(60); await send("Input.dispatchKeyEvent", { type: "keyUp", key: k, code, windowsVirtualKeyCode: vk }); await sleep(300); };
+  await mouse("mousePressed", cx, cy, "left"); await sleep(50); await mouse("mouseReleased", cx, cy, "left"); await sleep(600);
+  await key("4", "Digit4", 52);
+  await mouse("mousePressed", cx, cy, "right"); await sleep(50); await mouse("mouseReleased", cx, cy, "right"); await sleep(600);
+  const h6 = await grab("6");
+  await key("p", "KeyP", 80); await sleep(600);
+  const out = await send("Runtime.evaluate", { expression: "document.getElementById('bend-out').textContent", returnByValue: true });
   const f = await send("Runtime.evaluate", { expression: "document.body.innerText.match(/\\d+ fps/)?.[0] || ''", returnByValue: true });
-  console.log("hashes", h0, h1, h2, h3, h4, h5, "| drag turned:", h0 !== h1, "click broke:", h1 !== h2, "right placed:", h2 !== h3, "jump rose:", h3 !== h4, "landed back:", h5 === h3, "|", f.result.value, errors.length ? "ERRORS " + errors.join(" | ") : "");
+  console.log("hashes", h0, h1, h2, h3, h4, h5, h6, "| drag turned:", h0 !== h1, "click broke:", h1 !== h2, "right placed:", h2 !== h3, "jump rose:", h3 !== h4, "landed back:", h5 === h3, "sand differs:", h6 !== h3, "saved:", !out.result.value.includes("could not save"), "|", f.result.value, errors.length ? "ERRORS " + errors.join(" | ") : "");
 } finally { try { process.kill(-chrome.pid, "SIGKILL"); } catch {} chrome.kill(); }

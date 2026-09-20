@@ -14,12 +14,15 @@ run: build/bendcraft
 check:
 	$(BEND) main.bend --check-only
 	$(BEND) test/physics.bend --check-only
+	$(BEND) test/save.bend --check-only
 	$(BEND) test/bench.bend --check-only
 	$(BEND) PROOF.bend
 
 # the game without a window: events through feed and step
 test:
+	@mkdir -p build
 	$(BEND) test/physics.bend
+	$(BEND) test/save.bend
 	$(BEND) test/terrain.bend
 
 # five frames on the GPU, untouched and with 300 blocks placed, with checksums

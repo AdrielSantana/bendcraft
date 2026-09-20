@@ -120,7 +120,7 @@ law grass_under_the_trunk:
 law keys_off_the_mouse_bits:
   {((Player.kmask(119) .|. Player.kmask(97) .|. Player.kmask(115) .|. Player.kmask(100)
      .|. Player.kmask(63232) .|. Player.kmask(63233) .|. Player.kmask(63234) .|. Player.kmask(63235)
-     .|. Player.kmask(106) .|. Player.kmask(108) .|. Player.kmask(27) .|. Player.kmask(32)) .&. 49152 : U32) == 0 : U32}
+     .|. Player.kmask(106) .|. Player.kmask(108) .|. Player.kmask(112) .|. Player.kmask(27) .|. Player.kmask(32)) .&. 49152 : U32) == 0 : U32}
 
 law unknown_key_is_no_bit:
   {Player.kmask(65) == 0 : U32}
