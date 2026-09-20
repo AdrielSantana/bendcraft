@@ -118,7 +118,7 @@ def voxel_color(+bits: U32, +ymask: U32) -> U32:
   Bool.pick(U32, top, rgb(117, 176, 73), rgb(134, 96, 67)))
 
 def scale(+c: U32, +k: F32) -> U32:
-  F32.to_u32((U32.to_f32(c) * k : F32))
+  F32.to_u32(F32.min((U32.to_f32(c) * k : F32), 255.0))
 
 def dim(+c: U32, +k: F32) -> U32:
   +r = (c / 65536 : U32)
@@ -155,23 +155,23 @@ def refetch(need: Bool, w: Array<U32>, +x: U32, +z: U32, +old: U32) -> Array<U32
 def hit(here: Bool, +bits: U32, +ymask: U32, +axis: F32, +col: U32) -> U32:
   match here:
     case True{}:
-      lit(bits, ymask, axis)
+      (lit(bits, ymask, axis) + f2u(axis) * 16777216 : U32)
     case False{}:
       col
 
-def dda_end(+col: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+def dda_end(+col: U32, +t: F32, r: Array<U32> & U32) -> Array<U32> & (U32 & F32):
   (w, b) = r
-  (w, col)
+  (w, (col, t))
 
 def dda(fuel: Nat,
         +vx: F32, +vy: F32, +vz: F32,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
         +ex: F32, +ey: F32, +ez: F32,
-        +axis: F32, +col: U32, +ymask: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+        +axis: F32, +col: U32, +t: F32, +ymask: U32, r: Array<U32> & U32) -> Array<U32> & (U32 & F32):
   match fuel:
     case 0n:
-      dda_end(col, r)
+      dda_end(col, t, r)
     case 1n+f:
       (w, +bits) = r
       +here = inside(vx, vy, vz) && on(bits, ymask) && (col < 1 : U32)
@@ -188,12 +188,110 @@ def dda(fuel: Nat,
       # the mask moves one bit, never by a variable amount
       nymask = Bool.pick(U32, uy,
         Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
-      dda(f, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nymask,
+      # t is where the ray enters the next voxel; it stops moving at the hit
+      nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
+      dda(f, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nymask,
           refetch(Bool.not(uy) && (ncol < 1 : U32), w, f2u(nvx), f2u(nvz), bits))
 
-def sky_or(+v: U32, r: Array<U32> & U32) -> Array<U32> & U32:
-  (w, +c) = r
-  (w, Bool.pick(U32, (c < 1 : U32), sky_at(v), c))
+# ---------- the hit's look: texture, ambient occlusion, fog ----------
+# The hit point is o + d t, on a face of the voxel V; the cell before the
+# face, O, is air. The point's two coordinates along the face, u and w,
+# pick one of 8x8 texels, and a hash of the texel brightens or darkens the
+# block's colour a little, the same on every block, as a tile. The four
+# cells beside O along the face each darken the half of the face they
+# touch, more towards their edge: the ambient occlusion, four column reads
+# through the handle the ray brought back. The fog blends the result into
+# this row's sky by the square of t / 48.
+
+def fracf(+x: F32) -> F32:
+  (x - floorf(x) : F32)
+
+def lerp(+x: U32, +y: U32, +f: F32) -> U32:
+  F32.to_u32((u2f(x) * (1.0 - f) + u2f(y) * f : F32))
+
+def mix(+a: U32, +b: U32, +f: F32) -> U32:
+  rgb(lerp((a / 65536 : U32), (b / 65536 : U32), f),
+      lerp((a / 256 % 256 : U32), (b / 256 % 256 : U32), f),
+      lerp((a % 256 : U32), (b % 256 : U32), f))
+
+def weight(s: Bool, +k: F32) -> F32:
+  Bool.pick(F32, s, F32.max(k, 0.0), 0.0)
+
+# the four neighbours, read one after the other: +u, -u, +w, -w; then the colour
+def ao4(+v: U32, +col: U32, +f: F32, +acc: F32, +wk: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  +ao = F32.max((1.0 - 0.45 * (acc + weight(s, wk)) : F32), 0.2)
+  (w, mix(dim(col, ao), sky_at(v), (f * f : F32)))
+
+def ao3(+v: U32, +col: U32, +f: F32, +acc: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
+        +ex: F32, +ey: F32, +ez: F32, +w4: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao4(v, col, f, (acc + weight(s, wk) : F32), w4,
+      solid(w, (ox - ex : F32), (oy - ey : F32), (oz - ez : F32)))
+
+def ao2(+v: U32, +col: U32, +f: F32, +acc: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
+        +ex: F32, +ey: F32, +ez: F32, +w3: F32, +w4: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao3(v, col, f, (acc + weight(s, wk) : F32), w3, ox, oy, oz, ex, ey, ez, w4,
+      solid(w, (ox + ex : F32), (oy + ey : F32), (oz + ez : F32)))
+
+def ao1(+v: U32, +col: U32, +f: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
+        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +w2: F32, +w3: F32, +w4: F32,
+        r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao2(v, col, f, weight(s, wk), w2, ox, oy, oz, ex, ey, ez, w3, w4,
+      solid(w, (ox - ux : F32), (oy - uy : F32), (oz - uz : F32)))
+
+def shade_go(sky: Bool, w: Array<U32>, +v: U32, +ox: F32, +oy: F32, +oz: F32,
+             +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32) -> Array<U32> & U32:
+  match sky:
+    case True{}:
+      (w, sky_at(v))
+    case False{}:
+      +axis = (c / 16777216 : U32)
+      +px = (ox + dx * t : F32)
+      +py = (oy + dy * t : F32)
+      +pz = (oz + dz * t : F32)
+      # the face's coordinates: u along z on an x face and along x otherwise,
+      # w along z on a y face and along y otherwise
+      +ax = U32.is_eq(axis, 0)
+      +ay = U32.is_eq(axis, 1)
+      +u = Bool.pick(F32, ax, pz, px)
+      +wf = Bool.pick(F32, ay, pz, py)
+      +i = f2u((fracf(u) * 8.0 : F32))
+      +j = f2u((fracf(wf) * 8.0 : F32))
+      +k = (U32.xor((i * 73856093 : U32), (j * 19349663 : U32)) / 8192 % 8 : U32)
+      +col = dim((c % 16777216 : U32), (0.8 + 0.04 * u2f(k) : F32))
+      +f = F32.min((t / 48.0 : F32), 1.0)
+      # O, the air cell before the face: floor of p, except along the face's
+      # axis, where p sits on the boundary and O is the side the ray came from
+      +bx = floorf((px + 0.5 : F32))
+      +by = floorf((py + 0.5 : F32))
+      +bz = floorf((pz + 0.5 : F32))
+      +cx = Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), (bx - 1.0 : F32), bx), floorf(px))
+      +cy = Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), (by - 1.0 : F32), by), floorf(py))
+      +cz = Bool.pick(F32, U32.is_eq(axis, 2), Bool.pick(F32, (dz > 0.0 : F32), (bz - 1.0 : F32), bz), floorf(pz))
+      # the unit steps of u and w in space
+      +ux = Bool.pick(F32, ax, 0.0, 1.0)
+      +uz = Bool.pick(F32, ax, 1.0, 0.0)
+      +ey = Bool.pick(F32, ay, 0.0, 1.0)
+      +ez = Bool.pick(F32, ay, 1.0, 0.0)
+      # each neighbour darkens from the middle of the face to its own edge
+      +fu = fracf(u)
+      +fw = fracf(wf)
+      ao1(v, col, f, (2.0 * fu - 1.0 : F32), cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez,
+          (1.0 - 2.0 * fu : F32), (2.0 * fw - 1.0 : F32), (1.0 - 2.0 * fw : F32),
+          solid(w, (cx + ux : F32), cy, (cz + uz : F32)))
+
+def shade(+v: U32, w: Array<U32>, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+          ct: U32 & F32) -> Array<U32> & U32:
+  (+c, t) = ct
+  shade_go((c < 1 : U32), w, v, ox, oy, oz, dx, dy, dz, c, t)
+
+def finish(+v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+           r: Array<U32> & (U32 & F32)) -> Array<U32> & U32:
+  (w, ct) = r
+  shade(v, w, ox, oy, oz, dx, dy, dz, ct)
 
 def run_dda(w: Array<U32>, +ox: F32, +oy: F32, +oz: F32,
             +dx: F32, +dy: F32, +dz: F32, +v: U32) -> Array<U32> & U32:
@@ -209,13 +307,13 @@ def run_dda(w: Array<U32>, +ox: F32, +oy: F32, +oz: F32,
   +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
   +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
   +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
-  sky_or(v, dda(60n, vx, vy, vz,
+  finish(v, ox, oy, oz, dx, dy, dz, dda(60n, vx, vy, vz,
            Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
            (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-           1.0, 0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
+           1.0, 0, 0.0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
            Array.get(U32, w, col_at(f2u(vx), f2u(vz)))))
 
 # A ray that misses the 32-cube reads the world zero times.
