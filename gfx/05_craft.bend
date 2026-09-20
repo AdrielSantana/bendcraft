@@ -2,14 +2,16 @@ import Base
 
 # An interactive voxel world: walk, jump, break blocks, place blocks.
 #
-# THE WORLD IS A TREE, NOT AN ARRAY.
+# THE WORLD IS ONE ARRAY, SHARED BY EVERY PIXEL.
 #
-# `Array` in Bend is a `Type`: one owner, so it cannot be read by both sides
-# of a parallel call -- useless for a renderer where every pixel reads the
-# world at once. So the world is a `Data` quadtree over the 32x32 columns,
-# and each leaf is a U32 whose bit y says "there is a block at height y".
-# Shared by every pixel and read without counting (see wget); editing
-# rebuilds one path of five nodes and leaves the rest shared.
+# `Array` in Bend is a `Type`: one owner. Since Bend 2.0.22 an `@unsafe` def
+# may hand one array to both sides of a fork anyway (two handles to one
+# block, `Array.join` gives it back), so the world is an `Array<U32>` of the
+# 32x32 columns, each a word whose bit y says "there is a block at height
+# y". Every ray reads it through its handle, an edit is one `Array.set` on
+# the host, and a built world costs what an untouched one does. Before
+# 2.0.22 the world was a quadtree of edits over the terrain function, read
+# by a borrowed walk (bendlang/bend#885).
 #
 # 32 heights in one word is what makes this cheap: a column is a single
 # machine word, and break/place is one bit.
@@ -22,22 +24,14 @@ import Base
 # RESOLUTION lives here and nowhere else. The render is RES x RES pixels,
 # built by `fork!(k)` over 4x4 leaves, so RES = 4 << k: k=6 -> 256, k=7 -> 512.
 # The fork shape is the lane cube's: a `!` runs 16384 lanes, so 4^7 leaves per
-# bang keep them all busy (`bend guide shaders`). At 512x512, 7 levels over
-# 4x4 tiles measured 13 ms untouched / 26 built; 8 levels over 2x2 tiles, 17 /
-# 38, same image. On the CPU the same sweep is flat, so this only shows up
-# with `!`. Two things must agree: the `k` in `fork!` below and `halfu()`
-# here. `half()` is derived from `halfu()` so it cannot drift from it.
+# bang keep them all busy (`bend guide shaders`). Two things must agree: the
+# `k` in `fork!` below and `halfu()` here.
 def halfu() -> U32: 256
 def half() -> F32: U32.to_f32(halfu())
 
 def rgb(r: U32, g: U32, b: U32) -> U32:
   (r * 65536 + g * 256 + b : U32)
 
-# `F32.to_u32` / `U32.to_f32` are primitives (declared as `law`, not `def`).
-# The `def` pair in Base -- U32.from_nat / F32.to_nat -- is O(value): it
-# counts up one U32.inc at a time. Easy to miss -- though swapping these in
-# measured NO speedup in this program, so the reason to prefer them is the
-# complexity on paper, not a win I observed.
 def floorf(+x: F32) -> F32:
   U32.to_f32(F32.to_u32(x))
 
@@ -55,20 +49,9 @@ def on(+mask: U32, +bit: U32) -> Bool:
 
 # ---------- the world ----------
 
-# The world is a terrain FUNCTION plus a tree of EDITS. A ray reads the tree
-# and, wherever it finds WNone, computes the column from the terrain instead.
-# Untouched, the whole world is one WNone; each edit grows one five-node path.
-#
-# Storing every column in the tree cost 155 ms at 512x512 after everything
-# else had been tuned; the overlay costs 26, against 23 for the terrain alone.
-# Same image (checksum-verified at three resolutions) and bit-exact edits.
-# What the overlay alone did not fix was an edited world: while the read owned
-# the nodes it chose (see wget), 300 placed blocks cost 26 ms a frame against
-# 4-5 untouched, at 256x256; with the read borrowed they cost 6-8.
-type World is Data:
-  WNone{}
-  WLeaf{bits: U32}
-  WNode{q0: World, q1: World, q2: World, q3: World}
+# 1024 columns, index x * 32 + z. `Array.get` hands the array back next to
+# the element, so every reader takes the handle and returns it: that pair
+# is the thread the world runs on, from the host's edit to the last DDA step.
 
 def terrain(+x: U32, +z: U32) -> U32:
   +h = (12.0 + 5.0 * F32.sin((u2f(x) * 0.26 : F32)) + 4.0 * F32.cos((u2f(z) * 0.19 : F32)) : F32)
@@ -78,99 +61,53 @@ def terrain(+x: U32, +z: U32) -> U32:
 def column(+x: U32, +z: U32) -> U32:
   (U32.shln(1, U32.to_nat(terrain(x, z))) - 1 : U32)
 
-# The world is the terrain function plus this tree of edits. It starts
-# empty: a single WNone.
+def col_at(+x: U32, +z: U32) -> U32:
+  (x * 32 + z : U32)
 
-def sel4(bx: Bool, bz: Bool, q0: World, q1: World, q2: World, q3: World) -> World:
-  match bx bz:
-    case False{} False{}:
-      q0
-    case True{} False{}:
-      q1
-    case False{} True{}:
-      q2
-    case True{} True{}:
-      q3
+def world_fill(n: Nat, +i: U32, w: Array<U32>) -> Array<U32>:
+  match n:
+    case 0n:
+      w
+    case 1n+m:
+      world_fill(m, (i + 1 : U32), Array.set(U32, w, i, column((i / 32 : U32), (i % 32 : U32))))
 
-# read a column: one recursive walk, BORROWED. The compiler borrows a boxed
-# parameter that a def only matches or passes to a borrower, so this walk
-# touches no count. The old walk picked its quadrant with `Bool.pick(World, ..)`,
-# and a def that returns its argument shares it: a count on every node, per
-# ray, per column crossing -- the whole cost of an edited world
-# (`bend guide shaders`, Ownership). Two rules shape it: `match` takes only
-# parameters, so each level hands the next its quadrant bits; and the GPU
-# inlines every non-recursive def, so a four-armed unrolled walk is 4^5
-# copies of the leaf (the Metal compile never finished). The tree is indexed
-# low bit first, so the next bits are one shift away.
-def wget(+k: Nat, w: World, bx: Bool, bz: Bool, +xs: U32, +zs: U32, +x: U32, +z: U32) -> U32:
-  match k w bx bz:
-    case _ WNone{} _ _:
-      column(x, z)
-    case _ WLeaf{b} _ _:
-      b
-    case 0n WNode{q0, q1, q2, q3} _ _:
-      0
-    case 1n+j WNode{q0, q1, q2, q3} False{} False{}:
-      wget(j, q0, ((xs .&. 2) > 0 : U32), ((zs .&. 2) > 0 : U32), U32.shr(xs), U32.shr(zs), x, z)
-    case 1n+j WNode{q0, q1, q2, q3} True{} False{}:
-      wget(j, q1, ((xs .&. 2) > 0 : U32), ((zs .&. 2) > 0 : U32), U32.shr(xs), U32.shr(zs), x, z)
-    case 1n+j WNode{q0, q1, q2, q3} False{} True{}:
-      wget(j, q2, ((xs .&. 2) > 0 : U32), ((zs .&. 2) > 0 : U32), U32.shr(xs), U32.shr(zs), x, z)
-    case 1n+j WNode{q0, q1, q2, q3} True{} True{}:
-      wget(j, q3, ((xs .&. 2) > 0 : U32), ((zs .&. 2) > 0 : U32), U32.shr(xs), U32.shr(zs), x, z)
+def world() -> Array<U32>:
+  world_fill(1024n, 0, [0 : U32^10n])
 
-def wread(w: World, +x: U32, +z: U32) -> U32:
-  wget(5n, w, ((x .&. 1) > 0 : U32), ((z .&. 1) > 0 : U32), x, z, x, z)
-
-# `match` only takes a parameter or a pattern-bound variable, never a computed
-# one -- and Bend forbids mutual recursion, so the quadrant choice splits into
-# two NON-recursive helpers that take the bits as parameters.
 def setbit(+b: U32, +ybit: U32, set: Bool) -> U32:
   Bool.pick(U32, set, (b .|. ybit : U32), (b .&. U32.not(ybit) : U32))
 
-def put4(bx: Bool, bz: Bool, n: World, q0: World, q1: World, q2: World, q3: World) -> World:
-  match bx bz:
-    case False{} False{}:
-      WNode{n, q1, q2, q3}
-    case True{} False{}:
-      WNode{q0, n, q2, q3}
-    case False{} True{}:
-      WNode{q0, q1, n, q3}
-    case True{} True{}:
-      WNode{q0, q1, q2, n}
+# an edit: read the column, flip one bit, write it back
+def wedit(+x: U32, +z: U32, +ybit: U32, set: Bool, r: Array<U32> & U32) -> Array<U32>:
+  (w, b) = r
+  Array.set(U32, w, col_at(x, z), setbit(b, ybit, set))
 
-# write a column: rebuild one path, every other subtree stays shared. Once
-# per edit, on the host; the same low-bit-first layout as the read.
-def wmod(+k: Nat, +w: World, +xs: U32, +zs: U32, +x: U32, +z: U32, +ybit: U32, set: Bool) -> World:
-  match k w:
-    case _ WLeaf{b}:
-      WLeaf{setbit(b, ybit, set)}
-    case 0n WNone{}:
-      WLeaf{setbit(column(x, z), ybit, set)}
-    case 0n WNode{q0, q1, q2, q3}:
-      WNode{q0, q1, q2, q3}
-    case 1n+j WNone{}:
-      +bx = ((xs .&. 1) > 0 : U32)
-      +bz = ((zs .&. 1) > 0 : U32)
-      put4(bx, bz, wmod(j, WNone{}, U32.shr(xs), U32.shr(zs), x, z, ybit, set), WNone{}, WNone{}, WNone{}, WNone{})
-    case 1n+j WNode{q0, q1, q2, q3}:
-      +bx = ((xs .&. 1) > 0 : U32)
-      +bz = ((zs .&. 1) > 0 : U32)
-      put4(bx, bz, wmod(j, sel4(bx, bz, q0, q1, q2, q3), U32.shr(xs), U32.shr(zs), x, z, ybit, set), q0, q1, q2, q3)
+def wmod(w: Array<U32>, +x: U32, +z: U32, +ybit: U32, set: Bool) -> Array<U32>:
+  wedit(x, z, ybit, set, Array.get(U32, w, col_at(x, z)))
 
 def inside(+vx: F32, +vy: F32, +vz: F32) -> Bool:
   (vx > (0.0 - 0.5) : F32) && (vx < 31.5 : F32) &&
   (vz > (0.0 - 0.5) : F32) && (vz < 31.5 : F32) &&
   (vy > (0.0 - 0.5) : F32) && (vy < 31.5 : F32)
 
-def solid(+w: World, +vx: F32, +vy: F32, +vz: F32) -> Bool:
-  inside(vx, vy, vz) && on(wread(w, f2u(vx), f2u(vz)), U32.shln(1, F32.to_nat(F32.max(vy, 0.0))))
+def solid_bit(+ybit: U32, r: Array<U32> & U32) -> Array<U32> & Bool:
+  (w, b) = r
+  (w, on(b, ybit))
+
+def solid_at(ok: Bool, w: Array<U32>, +x: U32, +z: U32, +ybit: U32) -> Array<U32> & Bool:
+  match ok:
+    case False{}:
+      (w, False{})
+    case True{}:
+      solid_bit(ybit, Array.get(U32, w, col_at(x, z)))
+
+def solid(w: Array<U32>, +vx: F32, +vy: F32, +vz: F32) -> Array<U32> & Bool:
+  solid_at(inside(vx, vy, vz), w, f2u(vx), f2u(vz), U32.shln(1, F32.to_nat(F32.max(vy, 0.0))))
 
 # ---------- looks ----------
 
 # The column word already holds all 32 heights, so "is the block above me
-# empty?" and "am I three deep?" are bit tests on a value we already have --
-# no second trip down the tree.
+# empty?" and "am I three deep?" are bit tests on a value we already have.
 # `U32.shln(a, n)` is O(n) -- a recursive shl per unit of n. So nothing here
 # ever shifts by a variable: the DDA carries the mask 1<<y and moves it one
 # bit per y step, and "above" / "three deep" are constant shl of that mask.
@@ -201,18 +138,17 @@ def sky_at(+yq: U32) -> U32:
 def band(+y: U32) -> U32:
   (y / 8 * 8 : U32)
 
-# ---------- DDA over the tree ----------
+# ---------- DDA over the array ----------
 
 # Only a step in x or z can change which column we are in, so the column is
-# re-read once per crossing instead of once per voxel. With the edit overlay
-# a read is usually a single WNone match plus the terrain function, so this
-# matters much less than it did when every column lived in the tree.
-def refetch(need: Bool, +w: World, +x: U32, +z: U32, +old: U32) -> U32:
+# read once per crossing instead of once per voxel, and never again once
+# this ray has found its block.
+def refetch(need: Bool, w: Array<U32>, +x: U32, +z: U32, +old: U32) -> Array<U32> & U32:
   match need:
     case True{}:
-      wread(w, x, z)
+      Array.get(U32, w, col_at(x, z))
     case False{}:
-      old
+      (w, old)
 
 # the hit's colour only on a hit: Bool.pick is strict, so it would light every
 # step of every ray (measured: 1 ms of 6 at 512x512)
@@ -223,16 +159,21 @@ def hit(here: Bool, +bits: U32, +ymask: U32, +axis: F32, +col: U32) -> U32:
     case False{}:
       col
 
-def dda(fuel: Nat, +w: World,
+def dda_end(+col: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, b) = r
+  (w, col)
+
+def dda(fuel: Nat,
         +vx: F32, +vy: F32, +vz: F32,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
         +ex: F32, +ey: F32, +ez: F32,
-        +axis: F32, +col: U32, +bits: U32, +ymask: U32) -> U32:
+        +axis: F32, +col: U32, +ymask: U32, r: Array<U32> & U32) -> Array<U32> & U32:
   match fuel:
     case 0n:
-      col
+      dda_end(col, r)
     case 1n+f:
+      (w, +bits) = r
       +here = inside(vx, vy, vz) && on(bits, ymask) && (col < 1 : U32)
       +ncol = hit(here, bits, ymask, axis, col)
       +ux = (mx < my : F32) && (mx < mz : F32)
@@ -247,14 +188,15 @@ def dda(fuel: Nat, +w: World,
       # the mask moves one bit, never by a variable amount
       nymask = Bool.pick(U32, uy,
         Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
-      # the tree is touched only on a column crossing, and never again once
-      # this ray has already found its block
-      dda(f, w, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol,
-          refetch(Bool.not(uy) && (ncol < 1 : U32), w, f2u(nvx), f2u(nvz), bits),
-          nymask)
+      dda(f, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nymask,
+          refetch(Bool.not(uy) && (ncol < 1 : U32), w, f2u(nvx), f2u(nvz), bits))
 
-def run_dda(+w: World, +ox: F32, +oy: F32, +oz: F32,
-            +dx: F32, +dy: F32, +dz: F32, +v: U32) -> U32:
+def sky_or(+v: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, +c) = r
+  (w, Bool.pick(U32, (c < 1 : U32), sky_at(v), c))
+
+def run_dda(w: Array<U32>, +ox: F32, +oy: F32, +oz: F32,
+            +dx: F32, +dy: F32, +dz: F32, +v: U32) -> Array<U32> & U32:
   +vx = floorf(F32.max(ox, 0.0))
   +vy = floorf(F32.max(oy, 0.0))
   +vz = floorf(F32.max(oz, 0.0))
@@ -267,30 +209,26 @@ def run_dda(+w: World, +ox: F32, +oy: F32, +oz: F32,
   +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
   +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
   +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
-  # 60 steps: before Bend 2.0.19 a literal fuel unrolled the whole loop into
-  # its caller (bendlang/bend#886); now it is a loop either way.
-  +c = dda(60n, w, vx, vy, vz,
+  sky_or(v, dda(60n, vx, vy, vz,
            Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
            (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-           1.0, 0, wread(w, f2u(vx), f2u(vz)),
-           U32.shln(1, F32.to_nat(F32.max(oy, 0.0))))
-  Bool.pick(U32, (c < 1 : U32), sky_at(v), c)
+           1.0, 0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
+           Array.get(U32, w, col_at(f2u(vx), f2u(vz)))))
 
-# A ray that misses the 32-cube reads the tree zero times. Ported from 04,
-# where it was the single biggest win.
-def shoot(go: Bool, +w: World, +ox: F32, +oy: F32, +oz: F32,
-          +dx: F32, +dy: F32, +dz: F32, +v: U32) -> U32:
+# A ray that misses the 32-cube reads the world zero times.
+def shoot(go: Bool, w: Array<U32>, +ox: F32, +oy: F32, +oz: F32,
+          +dx: F32, +dy: F32, +dz: F32, +v: U32) -> Array<U32> & U32:
   match go:
     case False{}:
-      sky_at(v)
+      (w, sky_at(v))
     case True{}:
       run_dda(w, ox, oy, oz, dx, dy, dz, v)
 
-def clipped(+w: World, +ox: F32, +oy: F32, +oz: F32,
-            +dx: F32, +dy: F32, +dz: F32, +v: U32) -> U32:
+def clipped(w: Array<U32>, +ox: F32, +oy: F32, +oz: F32,
+            +dx: F32, +dy: F32, +dz: F32, +v: U32) -> Array<U32> & U32:
   +rx = (1.0 / F32.max(absf(dx), 0.00001) * Bool.pick(F32, (dx > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
   +ry = (1.0 / F32.max(absf(dy), 0.00001) * Bool.pick(F32, (dy > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
   +rz = (1.0 / F32.max(absf(dz), 0.00001) * Bool.pick(F32, (dz > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
@@ -307,8 +245,12 @@ def clipped(+w: World, +ox: F32, +oy: F32, +oz: F32,
 
 # ---------- the player ----------
 
-type Game is Data:
-  G{w: World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
+# The camera is Data, shared down the fork; the world is the array, threaded.
+type Cam is Data:
+  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32}
+
+type Game is Type:
+  G{w: Array<U32>, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
     held: U32, edge: U32, mx: U32, my: U32}
 
 def look_x(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.sin(yaw) : F32)
@@ -318,13 +260,11 @@ def look_z(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.cos(yaw) : F32)
 def norm3(+x: F32, +y: F32, +z: F32) -> F32:
   F32.sqrt((x * x + y * y + z * z : F32))
 
-# ---------- rendering one pixel ----------
-
 def p2f(+p: U32) -> F32:
   (U32.to_f32(p) / half() - 1.0 : F32)
 
-def shade_px(+g: Game, +pxi: U32, +pyi: U32) -> U32:
-  G{w, ox, oy, oz, yaw, pit, vy, held, edge, mx, my} = g
+def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
+  Cam{ox, oy, oz, yaw, pit} = cam
   +u = p2f(pxi)
   +v = p2f(pyi)
   +fx = look_x(yaw, pit)
@@ -350,17 +290,19 @@ def cross_at(+pxi: U32, +pyi: U32) -> Bool:
   +dy = Bool.pick(U32, (pyi > halfu() : U32), (pyi - halfu() : U32), (halfu() - pyi : U32))
   ((dx < 1 : U32) && (dy < 5 : U32)) || ((dy < 1 : U32) && (dx < 5 : U32))
 
-def paint(hair: Bool, +g: Game, +pxi: U32, +pyi: U32) -> U32:
+def paint(hair: Bool, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
   match hair:
     case True{}:
-      rgb(255, 255, 255)
+      (w, rgb(255, 255, 255))
     case False{}:
-      shade_px(g, pxi, pyi)
+      shade_px(cam, w, pxi, pyi)
 
-def pixel(+g: Game, +pxi: U32, +pyi: U32) -> U32:
-  paint(cross_at(pxi, pyi), g, pxi, pyi)
+def pixel(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
+  paint(cross_at(pxi, pyi), cam, w, pxi, pyi)
 
 # ---------- tile, straight-line ----------
+# Four pixels in a row, the handle passed from one to the next; a 2x2 of one
+# colour collapses to a Pix.
 
 def one4(same: Bool, +k0: U32, +k1: U32, +k2: U32, +k3: U32) -> Image:
   match same:
@@ -369,34 +311,85 @@ def one4(same: Bool, +k0: U32, +k1: U32, +k2: U32, +k3: U32) -> Image:
     case False{}:
       Qua{Pix{k0}, Pix{k1}, Pix{k2}, Pix{k3}}
 
-def t2(+g: Game, +x: U32, +y: U32) -> Image:
-  +x1 = (x + 1 : U32)
-  +y1 = (y + 1 : U32)
-  +k0 = pixel(g, x, y)
-  +k1 = pixel(g, x1, y)
-  +k2 = pixel(g, x, y1)
-  +k3 = pixel(g, x1, y1)
-  one4(U32.is_eq(k0, k1) && U32.is_eq(k1, k2) && U32.is_eq(k2, k3), k0, k1, k2, k3)
+def t2d(+k0: U32, +k1: U32, +k2: U32, r: Array<U32> & U32) -> Array<U32> & Image:
+  (w, +k3) = r
+  (w, one4(U32.is_eq(k0, k1) && U32.is_eq(k1, k2) && U32.is_eq(k2, k3), k0, k1, k2, k3))
 
-def t4(+g: Game, +x: U32, +y: U32) -> Image:
-  +x1 = (x + 2 : U32)
-  +y1 = (y + 2 : U32)
-  Qua{t2(g, x, y), t2(g, x1, y), t2(g, x, y1), t2(g, x1, y1)}
+def t2c(+cam: Cam, +x: U32, +y: U32, +k0: U32, +k1: U32, r: Array<U32> & U32) -> Array<U32> & Image:
+  (w, k2) = r
+  t2d(k0, k1, k2, pixel(cam, w, (x + 1 : U32), (y + 1 : U32)))
+
+def t2b(+cam: Cam, +x: U32, +y: U32, +k0: U32, r: Array<U32> & U32) -> Array<U32> & Image:
+  (w, k1) = r
+  t2c(cam, x, y, k0, k1, pixel(cam, w, x, (y + 1 : U32)))
+
+def t2a(+cam: Cam, +x: U32, +y: U32, r: Array<U32> & U32) -> Array<U32> & Image:
+  (w, k0) = r
+  t2b(cam, x, y, k0, pixel(cam, w, (x + 1 : U32), y))
+
+def t2(+cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
+  t2a(cam, x, y, pixel(cam, w, x, y))
+
+def t4d(a: Image, b: Image, c: Image, r: Array<U32> & Image) -> Array<U32> & Image:
+  (w, d) = r
+  (w, Qua{a, b, c, d})
+
+def t4c(+cam: Cam, +x: U32, +y: U32, a: Image, b: Image, r: Array<U32> & Image) -> Array<U32> & Image:
+  (w, c) = r
+  t4d(a, b, c, t2(cam, w, (x + 2 : U32), (y + 2 : U32)))
+
+def t4b(+cam: Cam, +x: U32, +y: U32, a: Image, r: Array<U32> & Image) -> Array<U32> & Image:
+  (w, b) = r
+  t4c(cam, x, y, a, b, t2(cam, w, x, (y + 2 : U32)))
+
+def t4a(+cam: Cam, +x: U32, +y: U32, r: Array<U32> & Image) -> Array<U32> & Image:
+  (w, a) = r
+  t4b(cam, x, y, a, t2(cam, w, (x + 2 : U32), y))
+
+def t4(+cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
+  t4a(cam, x, y, t2(cam, w, x, y))
+
+# ---------- the fork ----------
+# Each level hands its one handle to four kids and joins the four that come
+# back; the images become a Qua.
+
+def two(l: Array<U32> & Image, r: Array<U32> & Image) -> Array<U32> & (Image & Image):
+  (wl, p) = l
+  (wr, q) = r
+  (Array.join(U32, wl, wr), (p, q))
+
+def quad_fin(wl: Array<U32>, wm: Array<U32>, pq: Image & Image, rs: Image & Image) -> Array<U32> & Image:
+  (p, q) = pq
+  (r, s) = rs
+  (Array.join(U32, wl, wm), Qua{p, q, r, s})
+
+def quad(l: Array<U32> & (Image & Image), m: Array<U32> & (Image & Image)) -> Array<U32> & Image:
+  (wl, pq) = l
+  (wm, rs) = m
+  quad_fin(wl, wm, pq, rs)
 
 # fork down to 4x4 tiles: see RESOLUTION above.
-def fork(+k: Nat, +g: Game, +x: U32, +y: U32) -> Image:
+@unsafe
+def fork(+k: Nat, +cam: Cam, +w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
   match k:
     case 0n:
-      t4(g, x, y)
+      t4(cam, w, x, y)
     case 1n+e:
       +h = U32.shln(4, e)
       +x1 = (x + h : U32)
       +y1 = (y + h : U32)
-      p q r s = fork(e, g, x, y) fork(e, g, x1, y) fork(e, g, x, y1) fork(e, g, x1, y1)
-      Qua{p, q, r, s}
+      p q r s = fork(e, cam, w, x, y) fork(e, cam, w, x1, y) fork(e, cam, w, x, y1) fork(e, cam, w, x1, y1)
+      quad(two(p, q), two(r, s))
 
-def view(+g: Game) -> Image:
-  fork!(7n, g, 0, 0)
+def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
+             held: U32, edge: U32, mx: U32, my: U32, r: Array<U32> & Image) -> Game & Image:
+  (w, img) = r
+  (G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my}, img)
+
+def view(g: Game) -> Game & Image:
+  G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my} = g
+  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my,
+           fork!(7n, Cam{px, py, pz, yaw, pit}, w, 0, 0))
 
 # ---------- input ----------
 # Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, j l 1024 2048,
@@ -415,7 +408,7 @@ def kmask(+c: U32) -> U32:
     .|. kbit(c, 106, 1024) .|. kbit(c, 108, 2048)
     .|. kbit(c, 27, 4096) .|. kbit(c, 32, 8192) : U32)
 
-def key_apply(down: Bool, w: World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
+def key_apply(down: Bool, w: Array<U32>, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
               +held: U32, edge: U32, mx: U32, my: U32, +m: U32) -> Game:
   match down:
     case True{}:
@@ -480,29 +473,35 @@ def feed(evs: List<Event>, g: Game) -> Game:
 def pk(+x: F32, +y: F32, +z: F32) -> U32:
   ((f2u(x) * 32 + f2u(y)) * 32 + f2u(z) : U32)
 
-def pick(fuel: Nat, +w: World,
+def pick_end(+res: U32, r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  (w, res)
+
+def pick(fuel: Nat,
          +vx: F32, +vy: F32, +vz: F32,
          +sx: F32, +sy: F32, +sz: F32,
          +mx: F32, +my: F32, +mz: F32,
          +ex: F32, +ey: F32, +ez: F32,
-         +prev: U32, +res: U32) -> U32:
+         +prev: U32, +res: U32, r: Array<U32> & Bool) -> Array<U32> & U32:
   match fuel:
     case 0n:
-      res
+      pick_end(res, r)
     case 1n+f:
-      +take = solid(w, vx, vy, vz) && (res < 1 : U32)
+      (w, sol) = r
+      +take = sol && (res < 1 : U32)
       nres = Bool.pick(U32, take, (1 + prev * 32768 + pk(vx, vy, vz) : U32), res)
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
       +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
-      nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
+      +nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
       +nvz = Bool.pick(F32, ux, vz, Bool.pick(F32, uy, vz, (vz + sz : F32)))
       nmx = Bool.pick(F32, ux, (mx + ex : F32), mx)
       nmy = Bool.pick(F32, uy, (my + ey : F32), my)
       nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + ez : F32)))
-      pick(f, w, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, pk(vx, vy, vz), nres)
+      pick(f, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, pk(vx, vy, vz), nres,
+           solid(w, nvx, nvy, nvz))
 
-def aim(+w: World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
+def aim(w: Array<U32>, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> Array<U32> & U32:
   +vx = floorf(F32.max(ox, 0.0))
   +vy = floorf(F32.max(oy, 0.0))
   +vz = floorf(F32.max(oz, 0.0))
@@ -515,25 +514,25 @@ def aim(+w: World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -
   +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
   +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
   +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
-  pick(40n, w, vx, vy, vz,
+  pick(40n, vx, vy, vz,
        Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
        Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
        Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
        (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
        (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-       0, 0)
+       0, 0, solid(w, vx, vy, vz))
 
 # unpack: index -> x, y, z
 def ix_x(+i: U32) -> U32: (i / 1024 : U32)
 def ix_y(+i: U32) -> U32: (i / 32 % 32 : U32)
 def ix_z(+i: U32) -> U32: (i % 32 : U32)
 
-def apply_edit(act: Bool, w: World, +idx: U32, set: Bool) -> World:
+def apply_edit(act: Bool, w: Array<U32>, +idx: U32, set: Bool) -> Array<U32>:
   match act:
     case False{}:
       w
     case True{}:
-      wmod(5n, w, ix_x(idx), ix_z(idx), ix_x(idx), ix_z(idx), U32.shln(1, U32.to_nat(ix_y(idx))), set)
+      wmod(w, ix_x(idx), ix_z(idx), U32.shln(1, U32.to_nat(ix_y(idx))), set)
 
 # ---------- one tick ----------
 # The player is 1.8 blocks tall with the eye at 1.6, so they stand in the
@@ -541,49 +540,84 @@ def apply_edit(act: Bool, w: World, +idx: U32, set: Bool) -> World:
 # per axis and stops at a wall (the feet test sits 0.05 up, so the block
 # under the feet never counts). Gravity pulls `vy`; landing snaps the feet
 # onto the block; space pushes off it. A block is never placed on the player.
+# Every test reads the world, so the tick is a chain that passes it along.
 
 def eye() -> F32: 1.6
 
-def blocked(+w: World, +x: F32, +y: F32, +z: F32) -> Bool:
-  solid(w, x, (y - 1.55 : F32), z) || solid(w, x, (y + 0.2 : F32), z)
+def blocked_fin(feet: Bool, r: Array<U32> & Bool) -> Array<U32> & Bool:
+  (w, head) = r
+  (w, feet || head)
+
+def blocked_head(+x: F32, +y: F32, +z: F32, r: Array<U32> & Bool) -> Array<U32> & Bool:
+  (w, feet) = r
+  blocked_fin(feet, solid(w, x, (y + 0.2 : F32), z))
+
+def blocked(w: Array<U32>, +x: F32, +y: F32, +z: F32) -> Array<U32> & Bool:
+  blocked_head(x, y, z, solid(w, x, (y - 1.55 : F32), z))
 
 def ax2(+held: U32, +negbit: U32, +posbit: U32) -> F32:
   (Bool.pick(F32, on(held, posbit), 1.0, 0.0)
    - Bool.pick(F32, on(held, negbit), 1.0, 0.0) : F32)
 
+def step_aim(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
+             held: U32, +edge: U32, mx: U32, my: U32, r: Array<U32> & U32) -> Game:
+  (w, +hit) = r
+  +got = (hit > 0 : U32)
+  +tgt = ((hit - 1) / 32768 : U32)
+  +onme = U32.is_eq(tgt, pk(npx, (npy - 1.55 : F32), npz)) || U32.is_eq(tgt, pk(npx, (npy + 0.2 : F32), npz))
+  +brk = got && on(edge, 1024)
+  +put = got && on(edge, 2048) && Bool.not(onme)
+  G{apply_edit(put, apply_edit(brk, w, ((hit - 1) % 32768 : U32), False{}), tgt, True{}),
+    npx, npy, npz, nyaw, npit, nvy, held, (edge .&. 4096 : U32), mx, my}
+
+def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool,
+              +nyaw: F32, +npit: F32, +held: U32, edge: U32, mx: U32, my: U32,
+              r: Array<U32> & Bool) -> Game:
+  (w, above) = r
+  +bump = (vy1 > 0.0 : F32) && above
+  +feet = (ty - eye() : F32)
+  +npy = F32.clamp(Bool.pick(F32, land, (floorf(feet) + 1.0 + eye() : F32),
+                             Bool.pick(F32, bump, py, ty)), eye(), 31.5)
+  +nvy = Bool.pick(F32, land && on(held, 8192), 0.2,
+                   Bool.pick(F32, land || bump, 0.0, vy1))
+  step_aim(npx, npy, npz, nvy, nyaw, npit, held, edge, mx, my,
+           aim(w, npx, npy, npz, look_x(nyaw, npit), look_y(npit), look_z(nyaw, npit)))
+
+def step_land(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32,
+              nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32,
+              r: Array<U32> & Bool) -> Game:
+  (w, below) = r
+  step_bump(npx, py, npz, ty, vy1, (vy1 < 0.0 : F32) && below, nyaw, npit, held, edge, mx, my,
+            solid(w, npx, (ty + 0.2 : F32), npz))
+
+def step_z(+npx: F32, +py: F32, +pz: F32, +tz: F32, +vy1: F32,
+           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32,
+           r: Array<U32> & Bool) -> Game:
+  (w, bz) = r
+  +npz = Bool.pick(F32, bz, pz, tz)
+  +ty = (py + vy1 : F32)
+  step_land(npx, py, npz, ty, vy1, nyaw, npit, held, edge, mx, my,
+            solid(w, npx, (ty - eye() : F32), npz))
+
+def step_x(+px: F32, +py: F32, +pz: F32, +tx: F32, +tz: F32, +vy1: F32,
+           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32,
+           r: Array<U32> & Bool) -> Game:
+  (w, bx) = r
+  +npx = Bool.pick(F32, bx, px, tx)
+  step_z(npx, py, pz, tz, vy1, nyaw, npit, held, edge, mx, my, blocked(w, npx, py, tz))
+
 def step(g: Game) -> Game:
-  G{+w, +px, +py, +pz, yaw, pit, vy, +held, +edge, mx, my} = g
+  G{w, +px, +py, +pz, yaw, pit, vy, +held, edge, mx, my} = g
   +nyaw = (yaw + 0.055 * ax2(held, 64, 128) : F32)
   +npit = F32.clamp((pit + 0.045 * ax2(held, 32, 16) : F32), (0.0 - 1.45 : F32), 1.45)
   +sy = F32.sin(nyaw)
   +cy = F32.cos(nyaw)
   +fw = ax2(held, 4, 1)
   +st = ax2(held, 2, 8)
-  # walk, one axis at a time
   +tx = F32.clamp((px + 0.16 * (fw * sy + st * cy) : F32), 0.5, 31.5)
-  +npx = Bool.pick(F32, blocked(w, tx, py, pz), px, tx)
   +tz = F32.clamp((pz + 0.16 * (fw * cy - st * sy) : F32), 0.5, 31.5)
-  +npz = Bool.pick(F32, blocked(w, npx, py, tz), pz, tz)
-  # fall, land, jump
   +vy1 = F32.max((vy - 0.012 : F32), (0.0 - 0.9 : F32))
-  +ty = (py + vy1 : F32)
-  +feet = (ty - eye() : F32)
-  +land = (vy1 < 0.0 : F32) && solid(w, npx, feet, npz)
-  +bump = (vy1 > 0.0 : F32) && solid(w, npx, (ty + 0.2 : F32), npz)
-  +npy = F32.clamp(Bool.pick(F32, land, (floorf(feet) + 1.0 + eye() : F32),
-                             Bool.pick(F32, bump, py, ty)), eye(), 31.5)
-  +nvy = Bool.pick(F32, land && on(held, 8192), 0.2,
-                   Bool.pick(F32, land || bump, 0.0, vy1))
-  # what the crosshair is on
-  +hit = aim(w, npx, npy, npz, look_x(nyaw, npit), look_y(npit), look_z(nyaw, npit))
-  +got = (hit > 0 : U32)
-  +at = ((hit - 1) / 32768 : U32)
-  +onme = U32.is_eq(at, pk(npx, (npy - 1.55 : F32), npz)) || U32.is_eq(at, pk(npx, (npy + 0.2 : F32), npz))
-  +brk = got && on(edge, 1024)
-  +put = got && on(edge, 2048) && Bool.not(onme)
-  +w1 = apply_edit(brk, w, ((hit - 1) % 32768 : U32), False{})
-  +w2 = apply_edit(put, w1, at, True{})
-  G{w2, npx, npy, npz, nyaw, npit, nvy, held, (edge .&. 4096 : U32), mx, my}
+  step_x(px, py, pz, tx, tz, vy1, nyaw, npit, held, edge, mx, my, blocked(w, tx, py, pz))
 
 def alive(g: Game) -> IO(Maybe<Game>):
   G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my} = g
@@ -595,9 +629,9 @@ def tick(evs: List<Event>, g: Game) -> IO(Maybe<Game>):
   alive(step(feed(evs, g)))
 
 def start() -> Game:
-  G{WNone{}, 16.5, 22.0, 4.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0}
+  G{world(), 16.5, 22.0, 4.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0}
 
 def main() -> IO(Unit):
   do IO<Unit>:
     IO.print("WASD move | space jump | drag to look | click break | right click place | J/L break/place | Esc quit")
-    App.run(~Game, ~App{+g => (g, view(g)), tick}, "Bendcraft", 512, 512, start())
+    App.run(~Game, ~App{g => view(g), tick}, "Bendcraft", 512, 512, start())
