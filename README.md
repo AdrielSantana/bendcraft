@@ -45,7 +45,11 @@ the ray sees a column as a machine word, and break or place is one bit.
 
 **The world is endless.** The terrain is seeded value noise, three octaves,
 a pure function of `(x, z)`: grass on top, sand where it is low and snow
-where it is high, three of dirt under the top, stone below. The array holds
+where it is high, three of dirt under the top, stone below. About one grass
+column in eighty grows a tree, a trunk of four wood with a canopy of leaves
+over the columns around it; a column takes its wood and leaf bits from the
+trees of the 25 columns around it, so a canopy crosses columns without
+anyone writing across. The array holds
 a ring of 128×128 columns around the player, and a `Map` holds the columns
 the player edited. World column `(x, z)` sits at slot `(x·128 + z)·8`; the
 array reads its index modulo its size, so any 128×128 window falls
@@ -113,9 +117,10 @@ the ring spans its 16384 column slots exactly; placing sets one bit,
 breaking clears it, breaking air changes nothing; a type's nibble writes
 and reads back without touching its neighbours, and the device's read (a
 select, since the GPU never shifts by a variable) agrees with the host's;
-the terrain's layers are what they should be, and the packed word the
-loader writes reads back the same; no key touches the mouse's bits of the
-held mask. `bend PROOF.bend` is the gate. The float physics, a player
+the terrain's layers are what they should be, a trunk packs as wood with
+leaves over it and grass under it, and the packed word the loader writes
+reads back the same; no key touches the mouse's bits of the held mask.
+`bend PROOF.bend` is the gate. The float physics, a player
 never inside a block or a jump that lands where it left, is checked by
 `test/physics.bend`, whose lines the README of the history records.
 

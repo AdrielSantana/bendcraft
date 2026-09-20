@@ -86,25 +86,76 @@ def tnib(+y: U32, +h: U32) -> U32:
   +cap = Bool.pick(U32, (h <= 6 : U32), 3, Bool.pick(U32, (h >= 25 : U32), 7, 0))
   Bool.pick(U32, U32.is_eq((y + 1 : U32), h), cap, Bool.pick(U32, ((y + 4 : U32) >= h : U32), 1, 2))
 
+# Trees. A column of grass between 7 and 24 high grows one when its hash
+# says so, about one in eighty: a trunk of four wood on the top, two of
+# leaves above it, and a canopy on the columns around: three layers one
+# column out, two layers two columns out, none on the far corners. A
+# column takes its wood and leaf bits from the trees of the 25 columns
+# around it, so a canopy crosses columns without anyone writing across.
+def tree_at(+x: U32, +z: U32) -> Bool:
+  +h = (x * 2654435761 + z * 2246822519 + seed() * 3266489917 : U32)
+  +g = (U32.xor(h, (h / 65536 : U32)) * 2654435761 : U32)
+  U32.is_eq((U32.xor(g, (g / 8192 : U32)) % 80 : U32), 0)
+
+type Masks is Data:
+  Masks{wood: U32, leaf: U32}
+
+# the tree at (tx, tz), d columns away: its bits in this column
+def tree_bits(grows: Bool, +d: U32, +corner: Bool, +th: U32, m: Masks) -> Masks:
+  match grows:
+    case False{}:
+      m
+    case True{}:
+      Masks{+wood, +leaf} = m
+      +low = U32.shln(1, U32.to_nat(th))
+      Masks{Bool.pick(U32, U32.is_eq(d, 0), (wood .|. (low * 15 : U32) : U32), wood),
+            (leaf .|. Bool.pick(U32, U32.is_eq(d, 0), (low * 48 : U32),
+                       Bool.pick(U32, U32.is_eq(d, 1), (low * 28 : U32),
+                       Bool.pick(U32, corner, 0, (low * 12 : U32)))) : U32)}
+
+def tree_here(+tx: U32, +tz: U32, +d: U32, +corner: Bool, m: Masks) -> Masks:
+  +th = terrain(tx, tz)
+  tree_bits(tree_at(tx, tz) && (th >= 7 : U32) && (th <= 24 : U32), d, corner, th, m)
+
+def canopy(n: Nat, +x: U32, +z: U32, +i: U32, m: Masks) -> Masks:
+  match n:
+    case 0n:
+      m
+    case 1n+k:
+      +dx = (i / 5 : U32)
+      +dz = (i % 5 : U32)
+      +ax = Bool.pick(U32, (dx > 2 : U32), (dx - 2 : U32), (2 - dx : U32))
+      +az = Bool.pick(U32, (dz > 2 : U32), (dz - 2 : U32), (2 - dz : U32))
+      canopy(k, x, z, (i + 1 : U32),
+             tree_here((x + dx - 2 : U32), (z + dz - 2 : U32), U32.max(ax, az), U32.is_eq(ax, 2) && U32.is_eq(az, 2), m))
+
+# the type at height y: wood or leaves where a tree is, the terrain's else
+def tnib2(+y: U32, +ybit: U32, +h: U32, +wood: U32, +leaf: U32) -> U32:
+  Bool.pick(U32, Util.on(wood, ybit), 4, Bool.pick(U32, Util.on(leaf, ybit), 5, tnib(y, h)))
+
 # the word of eight nibbles from height y down, so height y - 7 lands in
 # the low nibble
-def tword(n: Nat, +y: U32, +h: U32, +acc: U32) -> U32:
+def tword(n: Nat, +y: U32, +ybit: U32, +h: U32, +wood: U32, +leaf: U32, +acc: U32) -> U32:
   match n:
     case 0n:
       acc
     case 1n+k:
-      tword(k, (y - 1 : U32), h, (acc * 16 + tnib(y, h) : U32))
+      tword(k, (y - 1 : U32), U32.shr(ybit), h, wood, leaf, (acc * 16 + tnib2(y, ybit, h, wood, leaf) : U32))
 
-def types_word(+k: U32, +h: U32) -> U32:
-  tword(8n, (k * 8 + 7 : U32), h, 0)
+def types_word(+k: U32, +h: U32, +wood: U32, +leaf: U32) -> U32:
+  tword(8n, (k * 8 + 7 : U32), U32.shln(128, U32.to_nat((k * 8 : U32))), h, wood, leaf, 0)
 
 # a column: the mask of its solid heights and the four words of its types
 type Col is Data:
   Col{mask: U32, t0: U32, t1: U32, t2: U32, t3: U32}
 
+def column_fin(+h: U32, m: Masks) -> Col:
+  Masks{+wood, +leaf} = m
+  Col{((U32.shln(1, U32.to_nat(h)) - 1) .|. wood .|. leaf : U32),
+      types_word(0, h, wood, leaf), types_word(1, h, wood, leaf), types_word(2, h, wood, leaf), types_word(3, h, wood, leaf)}
+
 def column(+x: U32, +z: U32) -> Col:
-  +h = terrain(x, z)
-  Col{(U32.shln(1, U32.to_nat(h)) - 1 : U32), types_word(0, h), types_word(1, h), types_word(2, h), types_word(3, h)}
+  column_fin(terrain(x, z), canopy(25n, x, z, 0, Masks{0, 0}))
 
 def put_col(ring: Array<U32>, +slot: U32, c: Col) -> Array<U32>:
   Col{+m, +a, +b, +cc, +d} = c

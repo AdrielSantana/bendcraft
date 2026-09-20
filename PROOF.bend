@@ -30,5 +30,8 @@ def Laws.low_top_is_sand(): {==}
 def Laws.high_top_is_snow(): {==}
 def Laws.packed_word_reads_back(): {==}
 def Laws.packed_word_reads_back_dirt(): {==}
+def Laws.trunk_is_wood(): {==}
+def Laws.leaves_over_the_trunk(): {==}
+def Laws.grass_under_the_trunk(): {==}
 def Laws.keys_off_the_mouse_bits(): {==}
 def Laws.unknown_key_is_no_bit(): {==}

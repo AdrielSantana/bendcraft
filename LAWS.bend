@@ -98,10 +98,22 @@ law high_top_is_snow:
   {World.tnib(25, 26) == 7 : U32}
 
 law packed_word_reads_back:
-  {World.nib_get(World.types_word(1, 10), 9) == 0 : U32}
+  {World.nib_get(World.types_word(1, 10, 0, 0), 9) == 0 : U32}
 
 law packed_word_reads_back_dirt:
-  {World.nib_get(World.types_word(0, 10), 7) == 1 : U32}
+  {World.nib_get(World.types_word(0, 10, 0, 0), 7) == 1 : U32}
+
+# a trunk on a column of height 10 sits at 10..13 as wood, its leaves at
+# 14 and 15; one column out the leaves are at 12..14
+
+law trunk_is_wood:
+  {World.nib_get(World.types_word(1, 10, 15360, 49152), 12) == 4 : U32}
+
+law leaves_over_the_trunk:
+  {World.nib_get(World.types_word(1, 10, 15360, 49152), 14) == 5 : U32}
+
+law grass_under_the_trunk:
+  {World.nib_get(World.types_word(1, 10, 15360, 49152), 9) == 0 : U32}
 
 # --- the keys never touch the mouse's bits of `held` (16384, 32768) --------
 
