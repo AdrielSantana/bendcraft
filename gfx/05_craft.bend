@@ -111,11 +111,11 @@ def solid(w: Array<U32>, +vx: F32, +vy: F32, +vz: F32) -> Array<U32> & Bool:
 # `U32.shln(a, n)` is O(n) -- a recursive shl per unit of n. So nothing here
 # ever shifts by a variable: the DDA carries the mask 1<<y and moves it one
 # bit per y step, and "above" / "three deep" are constant shl of that mask.
-def voxel_color(+bits: U32, +ymask: U32) -> U32:
+# 0 grass (nothing above), 2 stone (three deep), 1 dirt
+def kind(+bits: U32, +ymask: U32) -> U32:
   +top = Bool.not(on(bits, U32.shl(ymask)))
   +deep = on(bits, U32.shl(U32.shl(U32.shl(ymask))))
-  Bool.pick(U32, deep, rgb(130, 130, 130),
-  Bool.pick(U32, top, rgb(117, 176, 73), rgb(134, 96, 67)))
+  Bool.pick(U32, deep, 2, Bool.pick(U32, top, 0, 1))
 
 def scale(+c: U32, +k: F32) -> U32:
   F32.to_u32(F32.min((U32.to_f32(c) * k : F32), 255.0))
@@ -125,11 +125,6 @@ def dim(+c: U32, +k: F32) -> U32:
   +g = (c / 256 % 256 : U32)
   +b = (c % 256 : U32)
   rgb(scale(r, k), scale(g, k), scale(b, k))
-
-def lit(+bits: U32, +ymask: U32, +axis: F32) -> U32:
-  +k = Bool.pick(F32, (axis < 0.5 : F32), 0.68,
-       Bool.pick(F32, (axis < 1.5 : F32), 1.0, 0.48))
-  dim(voxel_color(bits, ymask), k)
 
 def sky_at(+yq: U32) -> U32:
   +g = (yq * 55 / (halfu() * 2) : U32)
@@ -150,12 +145,12 @@ def refetch(need: Bool, w: Array<U32>, +x: U32, +z: U32, +old: U32) -> Array<U32
     case False{}:
       (w, old)
 
-# the hit's colour only on a hit: Bool.pick is strict, so it would light every
-# step of every ray (measured: 1 ms of 6 at 512x512)
+# the hit is a word: 0 none, else 1 + kind + 4 * face; its look comes after
+# the loop (a match, not the strict Bool.pick, so only a hit pays for it)
 def hit(here: Bool, +bits: U32, +ymask: U32, +axis: F32, +col: U32) -> U32:
   match here:
     case True{}:
-      (lit(bits, ymask, axis) + f2u(axis) * 16777216 : U32)
+      (1 + kind(bits, ymask) + f2u(axis) * 4 : U32)
     case False{}:
       col
 
@@ -193,15 +188,17 @@ def dda(fuel: Nat,
       dda(f, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nymask,
           refetch(Bool.not(uy) && (ncol < 1 : U32), w, f2u(nvx), f2u(nvz), bits))
 
-# ---------- the hit's look: texture, ambient occlusion, fog ----------
+# ---------- the hit's look: sun, texture, ambient occlusion, fog ----------
 # The hit point is o + d t, on a face of the voxel V; the cell before the
-# face, O, is air. The point's two coordinates along the face, u and w,
-# pick one of 8x8 texels, and a hash of the texel brightens or darkens the
-# block's colour a little, the same on every block, as a tile. The four
-# cells beside O along the face each darken the half of the face they
-# touch, more towards their edge: the ambient occlusion, four column reads
-# through the handle the ray brought back. The fog blends the result into
-# this row's sky by the square of t / 48.
+# face, O, is air. A face turned to the sun casts a second, shorter DDA
+# towards it, and is lit if nothing is in the way (24 steps); a face turned
+# away is in shadow. The point's two coordinates along the face, u and w,
+# sample a value noise (two octaves, continuous across blocks) that
+# brightens or darkens the block's colour; a grass block's sides are dirt
+# under a green band. The four cells beside O along the face each darken
+# the half of the face they touch, more towards their edge: the ambient
+# occlusion, four column reads through the handle the ray brought back.
+# The fog blends the result into this row's sky by the square of t / 48.
 
 def fracf(+x: F32) -> F32:
   (x - floorf(x) : F32)
@@ -214,33 +211,113 @@ def mix(+a: U32, +b: U32, +f: F32) -> U32:
       lerp((a / 256 % 256 : U32), (b / 256 % 256 : U32), f),
       lerp((a % 256 : U32), (b % 256 : U32), f))
 
+# value noise: a hash on a lattice, blended smoothly
+def h01(+i: U32, +j: U32) -> F32:
+  (u2f((U32.xor((i * 73856093 : U32), (j * 19349663 : U32)) / 256 % 256 : U32)) / 255.0 : F32)
+
+def smooth(+f: F32) -> F32:
+  (f * f * (3.0 - 2.0 * f) : F32)
+
+def vnoise(+u: F32, +v: F32) -> F32:
+  +i = f2u(u)
+  +j = f2u(v)
+  +fu = smooth((u - u2f(i) : F32))
+  +fv = smooth((v - u2f(j) : F32))
+  +a = h01(i, j)
+  +b = h01((i + 1 : U32), j)
+  +c = h01(i, (j + 1 : U32))
+  +d = h01((i + 1 : U32), (j + 1 : U32))
+  ((a * (1.0 - fu) + b * fu) * (1.0 - fv) + (c * (1.0 - fu) + d * fu) * fv : F32)
+
+def texture(+u: F32, +v: F32) -> F32:
+  (0.8 + 0.4 * (0.65 * vnoise((u * 4.0 : F32), (v * 4.0 : F32))
+                + 0.35 * vnoise((u * 9.0 + 7.0 : F32), (v * 9.0 + 3.0 : F32))) : F32)
+
+# grass green, dirt brown, stone grey; a grass block's side is dirt below
+# the top quarter
+def base(+kind: U32, +side: Bool, +yf: F32) -> U32:
+  +grassy = U32.is_eq(kind, 0) && (Bool.not(side) || (yf > 0.72 : F32))
+  Bool.pick(U32, U32.is_eq(kind, 2), rgb(130, 130, 130),
+  Bool.pick(U32, grassy, rgb(117, 176, 73), rgb(134, 96, 67)))
+
+# the sun: direction (0.48, 0.80, 0.36), so every step is +1 and the
+# crossings advance by 1 / that component
+def shadow_end(hit: Bool, r: Array<U32> & U32) -> Array<U32> & Bool:
+  (w, b) = r
+  (w, hit)
+
+def shadow(fuel: Nat, +vx: F32, +vy: F32, +vz: F32, +mx: F32, +my: F32, +mz: F32,
+           +ymask: U32, +hit: Bool, r: Array<U32> & U32) -> Array<U32> & Bool:
+  match fuel:
+    case 0n:
+      shadow_end(hit, r)
+    case 1n+f:
+      (w, +bits) = r
+      +here = hit || (inside(vx, vy, vz) && on(bits, ymask))
+      +ux = (mx < my : F32) && (mx < mz : F32)
+      +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
+      +nvx = Bool.pick(F32, ux, (vx + 1.0 : F32), vx)
+      nvy = Bool.pick(F32, uy, (vy + 1.0 : F32), vy)
+      +nvz = Bool.pick(F32, ux, vz, Bool.pick(F32, uy, vz, (vz + 1.0 : F32)))
+      nmx = Bool.pick(F32, ux, (mx + 2.0833 : F32), mx)
+      nmy = Bool.pick(F32, uy, (my + 1.25 : F32), my)
+      nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + 2.7778 : F32)))
+      nymask = Bool.pick(U32, uy, U32.shl(ymask), ymask)
+      shadow(f, nvx, nvy, nvz, nmx, nmy, nmz, nymask, here,
+             refetch(Bool.not(uy) && Bool.not(here), w, f2u(nvx), f2u(nvz), bits))
+
+def run_shadow(w: Array<U32>, +ox: F32, +oy: F32, +oz: F32) -> Array<U32> & Bool:
+  +vx = floorf(ox)
+  +vy = floorf(oy)
+  +vz = floorf(oz)
+  shadow(24n, vx, vy, vz,
+         ((vx + 1.0 - ox) * 2.0833 : F32), ((vy + 1.0 - oy) * 1.25 : F32), ((vz + 1.0 - oz) * 2.7778 : F32),
+         U32.shln(1, F32.to_nat(F32.max(oy, 0.0))), False{},
+         Array.get(U32, w, col_at(f2u(vx), f2u(vz))))
+
+# a face turned away from the sun is in shadow without a ray
+def shadow_if(sunny: Bool, w: Array<U32>, +ox: F32, +oy: F32, +oz: F32) -> Array<U32> & Bool:
+  match sunny:
+    case False{}:
+      (w, True{})
+    case True{}:
+      run_shadow(w, ox, oy, oz)
+
 def weight(s: Bool, +k: F32) -> F32:
   Bool.pick(F32, s, F32.max(k, 0.0), 0.0)
 
 # the four neighbours, read one after the other: +u, -u, +w, -w; then the colour
-def ao4(+v: U32, +col: U32, +f: F32, +acc: F32, +wk: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
+def ao4(+v: U32, +col: U32, +f: F32, +sun: F32, +acc: F32, +wk: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, s) = r
   +ao = F32.max((1.0 - 0.45 * (acc + weight(s, wk)) : F32), 0.2)
-  (w, mix(dim(col, ao), sky_at(v), (f * f : F32)))
+  (w, mix(dim(col, (ao * sun : F32)), sky_at(v), (f * f : F32)))
 
-def ao3(+v: U32, +col: U32, +f: F32, +acc: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
+def ao3(+v: U32, +col: U32, +f: F32, +sun: F32, +acc: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
         +ex: F32, +ey: F32, +ez: F32, +w4: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, s) = r
-  ao4(v, col, f, (acc + weight(s, wk) : F32), w4,
+  ao4(v, col, f, sun, (acc + weight(s, wk) : F32), w4,
       solid(w, (ox - ex : F32), (oy - ey : F32), (oz - ez : F32)))
 
-def ao2(+v: U32, +col: U32, +f: F32, +acc: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
+def ao2(+v: U32, +col: U32, +f: F32, +sun: F32, +acc: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
         +ex: F32, +ey: F32, +ez: F32, +w3: F32, +w4: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, s) = r
-  ao3(v, col, f, (acc + weight(s, wk) : F32), w3, ox, oy, oz, ex, ey, ez, w4,
+  ao3(v, col, f, sun, (acc + weight(s, wk) : F32), w3, ox, oy, oz, ex, ey, ez, w4,
       solid(w, (ox + ex : F32), (oy + ey : F32), (oz + ez : F32)))
 
-def ao1(+v: U32, +col: U32, +f: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
+def ao1(+v: U32, +col: U32, +f: F32, +sun: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
         +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +w2: F32, +w3: F32, +w4: F32,
         r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, s) = r
-  ao2(v, col, f, weight(s, wk), w2, ox, oy, oz, ex, ey, ez, w3, w4,
+  ao2(v, col, f, sun, weight(s, wk), w2, ox, oy, oz, ex, ey, ez, w3, w4,
       solid(w, (ox - ux : F32), (oy - uy : F32), (oz - uz : F32)))
+
+# after the sun: the first neighbour read
+def after_sun(+v: U32, +col: U32, +f: F32, +w1: F32, +ox: F32, +oy: F32, +oz: F32,
+              +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +w2: F32, +w3: F32, +w4: F32,
+              r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, dark) = r
+  ao1(v, col, f, Bool.pick(F32, dark, 0.6, 1.0), w1, ox, oy, oz, ux, uy, uz, ex, ey, ez, w2, w3, w4,
+      solid(w, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
 
 def shade_go(sky: Bool, w: Array<U32>, +v: U32, +ox: F32, +oy: F32, +oz: F32,
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32) -> Array<U32> & U32:
@@ -248,7 +325,8 @@ def shade_go(sky: Bool, w: Array<U32>, +v: U32, +ox: F32, +oy: F32, +oz: F32,
     case True{}:
       (w, sky_at(v))
     case False{}:
-      +axis = (c / 16777216 : U32)
+      +kind = ((c - 1) % 4 : U32)
+      +axis = ((c - 1) / 4 : U32)
       +px = (ox + dx * t : F32)
       +py = (oy + dy * t : F32)
       +pz = (oz + dz * t : F32)
@@ -258,10 +336,8 @@ def shade_go(sky: Bool, w: Array<U32>, +v: U32, +ox: F32, +oy: F32, +oz: F32,
       +ay = U32.is_eq(axis, 1)
       +u = Bool.pick(F32, ax, pz, px)
       +wf = Bool.pick(F32, ay, pz, py)
-      +i = f2u((fracf(u) * 8.0 : F32))
-      +j = f2u((fracf(wf) * 8.0 : F32))
-      +k = (U32.xor((i * 73856093 : U32), (j * 19349663 : U32)) / 8192 % 8 : U32)
-      +col = dim((c % 16777216 : U32), (0.8 + 0.04 * u2f(k) : F32))
+      +shade = Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7))
+      +col = dim(base(kind, Bool.not(ay), fracf(py)), (shade * texture(u, wf) : F32))
       +f = F32.min((t / 48.0 : F32), 1.0)
       # O, the air cell before the face: floor of p, except along the face's
       # axis, where p sits on the boundary and O is the side the ray came from
@@ -279,9 +355,16 @@ def shade_go(sky: Bool, w: Array<U32>, +v: U32, +ox: F32, +oy: F32, +oz: F32,
       # each neighbour darkens from the middle of the face to its own edge
       +fu = fracf(u)
       +fw = fracf(wf)
-      ao1(v, col, f, (2.0 * fu - 1.0 : F32), cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez,
-          (1.0 - 2.0 * fu : F32), (2.0 * fw - 1.0 : F32), (1.0 - 2.0 * fw : F32),
-          solid(w, (cx + ux : F32), cy, (cz + uz : F32)))
+      # the face looks at the sun when the ray came against that axis; the
+      # shadow ray starts a hair before the face, in O
+      +da = Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz))
+      +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
+      after_sun(v, col, f, (2.0 * fu - 1.0 : F32), cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez,
+                (1.0 - 2.0 * fu : F32), (2.0 * fw - 1.0 : F32), (1.0 - 2.0 * fw : F32),
+                shadow_if((da < 0.0 : F32), w,
+                          Bool.pick(F32, ax, (px + nudge : F32), px),
+                          Bool.pick(F32, ay, (py + nudge : F32), py),
+                          Bool.pick(F32, U32.is_eq(axis, 2), (pz + nudge : F32), pz)))
 
 def shade(+v: U32, w: Array<U32>, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: U32 & F32) -> Array<U32> & U32:
