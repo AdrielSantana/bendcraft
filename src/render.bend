@@ -34,16 +34,9 @@ def vnoise(+u: F32, +v: F32) -> F32:
 
 # ---------- looks ----------
 
-# The column word already holds all 32 heights, so "is the block above me
-# empty?" and "am I three deep?" are bit tests on a value we already have.
 # `U32.shln(a, n)` is O(n) -- a recursive shl per unit of n. So nothing here
 # ever shifts by a variable: the DDA carries the mask 1<<y and moves it one
-# bit per y step, and "above" / "three deep" are constant shl of that mask.
-# 0 grass (nothing above), 2 stone (three deep), 1 dirt
-def kind(+bits: U32, +ymask: U32) -> U32:
-  +top = Bool.not(Util.on(bits, U32.shl(ymask)))
-  +deep = Util.on(bits, U32.shl(U32.shl(U32.shl(ymask))))
-  Bool.pick(U32, deep, 2, Bool.pick(U32, top, 0, 1))
+# bit per y step, and the type's nibble is picked with a select.
 
 def scale(+c: U32, +k: F32) -> U32:
   F32.to_u32(F32.min((U32.to_f32(c) * k : F32), 255.0))
@@ -73,12 +66,12 @@ def refetch(need: Bool, w: Array<U32>, +base: U32, +x: U32, +z: U32, +old: U32) 
     case False{}:
       (w, old)
 
-# the hit is a word: 0 none, else 1 + kind + 4 * face; its look comes after
+# the hit is a word: 0 none, else 1 + the face's axis; its look comes after
 # the loop (a match, not the strict Bool.pick, so only a hit pays for it)
-def hit(here: Bool, +bits: U32, +ymask: U32, +axis: F32, +col: U32) -> U32:
+def hit(here: Bool, +axis: F32, +col: U32) -> U32:
   match here:
     case True{}:
-      (1 + kind(bits, ymask) + Util.f2u(axis) * 4 : U32)
+      (1 + Util.f2u(axis) : U32)
     case False{}:
       col
 
@@ -98,7 +91,7 @@ def dda(fuel: Nat, +base: U32,
     case 1n+f:
       (w, +bits) = r
       +here = World.inside(vx, vy, vz) && Util.on(bits, ymask) && (col < 1 : U32)
-      +ncol = hit(here, bits, ymask, axis, col)
+      +ncol = hit(here, axis, col)
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
       +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
@@ -147,10 +140,18 @@ def texture(+u: F32, +v: F32) -> F32:
 
 # grass green, dirt brown, stone grey; a grass block's side is dirt below
 # the top quarter
+# the colour of a block type: 0 grass (dirt on the sides under a green
+# band), 1 dirt, 2 stone, 3 sand, 4 wood (rings on top), 5 leaves,
+# 6 brick, 7 snow
 def blockcol(+what: U32, +side: Bool, +yf: F32) -> U32:
-  +grassy = U32.is_eq(what, 0) && (Bool.not(side) || (yf > 0.72 : F32))
-  Bool.pick(U32, U32.is_eq(what, 2), rgb(130, 130, 130),
-  Bool.pick(U32, grassy, rgb(117, 176, 73), rgb(134, 96, 67)))
+  +grass_side = side && (yf <= 0.72 : F32)
+  Bool.pick(U32, (what < 4 : U32),
+    Bool.pick(U32, (what < 2 : U32),
+      Bool.pick(U32, U32.is_eq(what, 0), Bool.pick(U32, grass_side, rgb(134, 96, 67), rgb(117, 176, 73)), rgb(134, 96, 67)),
+      Bool.pick(U32, U32.is_eq(what, 2), rgb(130, 130, 130), rgb(219, 205, 150))),
+    Bool.pick(U32, (what < 6 : U32),
+      Bool.pick(U32, U32.is_eq(what, 4), Bool.pick(U32, side, rgb(107, 76, 44), rgb(160, 130, 80)), rgb(58, 125, 42)),
+      Bool.pick(U32, U32.is_eq(what, 6), rgb(160, 70, 55), Bool.pick(U32, side, rgb(210, 220, 230), rgb(240, 245, 250)))))
 
 # the sun: direction (0.48, 0.80, 0.36), so every step is +1 and the
 # crossings advance by 1 / that component
@@ -270,14 +271,23 @@ def after_sun(+v: U32, +col: U32, +f: F32, +base: U32, +ox: F32, +oy: F32, +oz: 
   ao1(v, col, f, Bool.pick(F32, dark, 0.6, 1.0), base, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
       World.solid(w, base, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
 
+# the type read: one word through the handle, then the look
+def typed(+v: U32, +base: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
+          +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+          +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, word) = r
+  +what = World.nib_at(word, hy)
+  +col = dim(blockcol(what, side, yf), (tone * texture(u, wf) : F32))
+  after_sun(v, col, f, base, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
+            shadow_if(sunny, w, base, sx, sy, sz))
+
 def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32) -> Array<U32> & U32:
   match sky:
     case True{}:
       (w, sky_at(v))
     case False{}:
-      +what = ((c - 1) % 4 : U32)
-      +axis = ((c - 1) / 4 : U32)
+      +axis = (c - 1 : U32)
       +px = (ox + dx * t : F32)
       +py = (oy + dy * t : F32)
       +pz = (oz + dz * t : F32)
@@ -288,7 +298,6 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
       +u = Bool.pick(F32, ax, pz, px)
       +wf = Bool.pick(F32, ay, pz, py)
       +tone = Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7))
-      +col = dim(blockcol(what, Bool.not(ay), Util.fracf(py)), (tone * texture(u, wf) : F32))
       +f = F32.min((t / 48.0 : F32), 1.0)
       # O, the air cell before the face: floor of p, except along the face's
       # axis, where p sits on the boundary and O is the side the ray came from
@@ -298,6 +307,10 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
       +cx = Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), (bx - 1.0 : F32), bx), Util.floorf(px))
       +cy = Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), (by - 1.0 : F32), by), Util.floorf(py))
       +cz = Bool.pick(F32, U32.is_eq(axis, 2), Bool.pick(F32, (dz > 0.0 : F32), (bz - 1.0 : F32), bz), Util.floorf(pz))
+      # the block itself is on the other side of the face
+      +hx = Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), bx, (bx - 1.0 : F32)), cx)
+      +hy = Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), by, (by - 1.0 : F32)), cy)
+      +hz = Bool.pick(F32, U32.is_eq(axis, 2), Bool.pick(F32, (dz > 0.0 : F32), bz, (bz - 1.0 : F32)), cz)
       # the unit steps of u and w in space
       +ux = Bool.pick(F32, ax, 0.0, 1.0)
       +uz = Bool.pick(F32, ax, 1.0, 0.0)
@@ -310,11 +323,12 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
       # shadow ray starts a hair before the face, in O
       +da = Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz))
       +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
-      after_sun(v, col, f, base, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
-                shadow_if((da < 0.0 : F32), w, base,
-                          Bool.pick(F32, ax, (px + nudge : F32), px),
-                          Bool.pick(F32, ay, (py + nudge : F32), py),
-                          Bool.pick(F32, U32.is_eq(axis, 2), (pz + nudge : F32), pz)))
+      typed(v, base, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, tone, f,
+            cx, cy, cz, ux, uz, ey, ez, fu, fw, (da < 0.0 : F32),
+            Bool.pick(F32, ax, (px + nudge : F32), px),
+            Bool.pick(F32, ay, (py + nudge : F32), py),
+            Bool.pick(F32, U32.is_eq(axis, 2), (pz + nudge : F32), pz),
+            Array.get(U32, w, (World.col_at(base, Util.f2u(hx), Util.f2u(hz)) + 1 + Util.f2u(hy) / 8 : U32)))
 
 def shade(+v: U32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: U32 & F32) -> Array<U32> & U32:
@@ -378,7 +392,7 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 
 # The camera is Data, shared down the fork; the world is the array, threaded.
 type Cam is Data:
-  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32}
+  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32}
 
 def look_x(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.sin(yaw) : F32)
 def look_y(+pit: F32) -> F32: F32.sin(pit)
@@ -391,7 +405,7 @@ def p2f(+p: U32) -> F32:
   (U32.to_f32(p) / half() - 1.0 : F32)
 
 def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  Cam{ox, oy, oz, yaw, pit, base} = cam
+  Cam{ox, oy, oz, yaw, pit, base, sel} = cam
   +u = p2f(pxi)
   +v = p2f(pyi)
   +fx = look_x(yaw, pit)
@@ -417,15 +431,44 @@ def cross_at(+pxi: U32, +pyi: U32) -> Bool:
   +dy = Bool.pick(U32, (pyi > halfu() : U32), (pyi - halfu() : U32), (halfu() - pyi : U32))
   ((dx < 1 : U32) && (dy < 5 : U32)) || ((dy < 1 : U32) && (dx < 5 : U32))
 
-def paint(hair: Bool, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  match hair:
+# the hotbar: the eight block types in a row along the bottom, 20 px each
+# 4 apart, the chosen one framed in white
+def slot_at(+pxi: U32, +pyi: U32) -> U32:
+  +x0 = (halfu() - 94 : U32)
+  +y0 = (halfu() * 2 - 30 : U32)
+  +inx = (pxi >= x0 : U32) && (pxi < (x0 + 188 : U32) : U32)
+  +iny = (pyi >= y0 : U32) && (pyi < (y0 + 20 : U32) : U32)
+  +inslot = ((pxi - x0) % 24 < 20 : U32)
+  Bool.pick(U32, inx && iny && inslot, ((pxi - x0) / 24 + 1 : U32), 0)
+
+def slot_col(+sel: U32, +slot: U32, +pxi: U32, +pyi: U32) -> U32:
+  +i = (slot - 1 : U32)
+  +lx = ((pxi - (halfu() - 94)) % 24 : U32)
+  +ly = (pyi - (halfu() * 2 - 30) : U32)
+  +border = (lx < 2 : U32) || (lx >= 18 : U32) || (ly < 2 : U32) || (ly >= 18 : U32)
+  Bool.pick(U32, border, Bool.pick(U32, U32.is_eq(i, sel), rgb(255, 255, 255), rgb(40, 40, 40)),
+            blockcol(i, False{}, 1.0))
+
+# what lies over the scene at this pixel: 0 nothing, else 1 + the colour
+def hud(+sel: U32, +pxi: U32, +pyi: U32) -> U32:
+  +slot = slot_at(pxi, pyi)
+  Bool.pick(U32, cross_at(pxi, pyi), (1 + rgb(255, 255, 255) : U32),
+    Bool.pick(U32, (slot > 0 : U32), (1 + slot_col(sel, slot, pxi, pyi) : U32), 0))
+
+def sel_of(+cam: Cam) -> U32:
+  Cam{ox, oy, oz, yaw, pit, base, sel} = cam
+  sel
+
+def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
+  match over:
     case True{}:
-      (w, rgb(255, 255, 255))
+      (w, (code - 1 : U32))
     case False{}:
       shade_px(cam, w, pxi, pyi)
 
 def pixel(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  paint(cross_at(pxi, pyi), cam, w, pxi, pyi)
+  +code = hud(sel_of(cam), pxi, pyi)
+  paint((code > 0 : U32), code, cam, w, pxi, pyi)
 
 # ---------- tile, straight-line ----------
 # Four pixels in a row, the handle passed from one to the next; a 2x2 of one

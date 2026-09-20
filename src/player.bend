@@ -5,28 +5,28 @@ import ./render.bend as Render
 
 # THE PLAYER: the game state, the events, the tick, the edits.
 #
-#   W A S D  move   space  jump   arrows  look   Esc  quit
+#   W A S D  move   space  jump   arrows  look   1-8  choose a block   Esc  quit
 #   mouse: drag to look, left click breaks, right click places (or J / L)
 
 type Game is Type:
   G{w: World.World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-    held: U32, edge: U32, mx: U32, my: U32}
+    held: U32, edge: U32, mx: U32, my: U32, sel: U32}
 
 def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-             held: U32, edge: U32, mx: U32, my: U32, m: Map<&2, U32>, ox: U32, oz: U32,
+             held: U32, edge: U32, mx: U32, my: U32, sel: U32, m: Map<&2, World.Col>, ox: U32, oz: U32,
              r: Array<U32> & Image) -> Game & Image:
   (ring, img) = r
-  (G{World.W{ring, m, ox, oz}, px, py, pz, yaw, pit, vy, held, edge, mx, my}, img)
+  (G{World.W{ring, m, ox, oz}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel}, img)
 
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
-           held: U32, edge: U32, mx: U32, my: U32, w: World.World) -> Game & Image:
+           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, w: World.World) -> Game & Image:
   World.W{ring, m, +ox, +oz} = w
-  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, m, ox, oz,
-           Render.frame(Render.Cam{px, py, pz, yaw, pit, (ox * 128 + oz : U32)}, ring))
+  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, m, ox, oz,
+           Render.frame(Render.Cam{px, py, pz, yaw, pit, (ox * 128 + oz : U32), sel}, ring))
 
 def view(g: Game) -> Game & Image:
-  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my} = g
-  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, w)
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel} = g
+  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, w)
 
 # ---------- input ----------
 # Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, j l 1024 2048,
@@ -46,22 +46,25 @@ def kmask(+c: U32) -> U32:
     .|. kbit(c, 27, 4096) .|. kbit(c, 32, 8192) : U32)
 
 def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-              +held: U32, edge: U32, mx: U32, my: U32, +m: U32) -> Game:
+              +held: U32, edge: U32, mx: U32, my: U32, sel: U32, +m: U32) -> Game:
   match down:
     case True{}:
       G{w, px, py, pz, yaw, pit, vy, (held .|. m : U32),
-        (edge .|. (m .&. U32.not(held)) : U32), mx, my}
+        (edge .|. (m .&. U32.not(held)) : U32), mx, my, sel}
     case False{}:
-      G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, mx, my}
+      G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, mx, my, sel}
 
-def on_key(g: Game, +code: U32, down: Bool) -> Game:
-  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my} = g
+# the digits 1..8 choose the block to place
+def on_key(g: Game, +code: U32, +down: Bool) -> Game:
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, +sel} = g
   +lower = Bool.pick(U32, ((code >= 65) && (code <= 90) : U32), (code + 32 : U32), code)
-  key_apply(down, w, px, py, pz, yaw, pit, vy, held, edge, mx, my, kmask(lower))
+  +digit = down && (code >= 49 : U32) && (code <= 56 : U32)
+  key_apply(down, w, px, py, pz, yaw, pit, vy, held, edge, mx, my,
+            Bool.pick(U32, digit, (code - 49 : U32), sel), kmask(lower))
 
 # button 0 is the left one, 1 the right one, on both windows
 def on_button(g: Game, +x: U32, +y: U32, +b: U32, +down: Bool) -> Game:
-  G{w, px, py, pz, yaw, pit, vy, +held, +edge, mx, my} = g
+  G{w, px, py, pz, yaw, pit, vy, +held, +edge, mx, my, sel} = g
   +press = U32.is_eq(b, 0) && down
   +release = U32.is_eq(b, 0) && Bool.not(down)
   +click = release && U32.is_eq((held .&. 49152 : U32), 16384)
@@ -70,11 +73,11 @@ def on_button(g: Game, +x: U32, +y: U32, +b: U32, +down: Bool) -> Game:
   G{w, px, py, pz, yaw, pit, vy,
     Bool.pick(U32, release, (held1 .&. U32.not(16384) : U32), held1),
     (edge .|. Bool.pick(U32, click, 1024, 0) .|. Bool.pick(U32, place, 2048, 0) : U32),
-    Bool.pick(U32, press, x, mx), Bool.pick(U32, press, y, my)}
+    Bool.pick(U32, press, x, mx), Bool.pick(U32, press, y, my), sel}
 
 # a drag turns the camera, 0.0045 rad per pixel; y grows downwards
 def on_move(g: Game, +x: U32, +y: U32) -> Game:
-  G{w, px, py, pz, +yaw, +pit, vy, +held, edge, +mx, +my} = g
+  G{w, px, py, pz, +yaw, +pit, vy, +held, edge, +mx, +my, sel} = g
   +drag = Util.on(held, 16384)
   +dx = (Util.u2f(x) - Util.u2f(mx) : F32)
   +dy = (Util.u2f(y) - Util.u2f(my) : F32)
@@ -85,11 +88,11 @@ def on_move(g: Game, +x: U32, +y: U32) -> Game:
     vy,
     Bool.pick(U32, drag && far, (held .|. 32768 : U32), held),
     edge,
-    Bool.pick(U32, drag, x, mx), Bool.pick(U32, drag, y, my)}
+    Bool.pick(U32, drag, x, mx), Bool.pick(U32, drag, y, my), sel}
 
 def quit_now(g: Game) -> Game:
-  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my} = g
-  G{w, px, py, pz, yaw, pit, vy, held, (edge .|. 4096 : U32), mx, my}
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel} = g
+  G{w, px, py, pz, yaw, pit, vy, held, (edge .|. 4096 : U32), mx, my, sel}
 
 def feed(evs: List<Event>, g: Game) -> Game:
   match evs:
@@ -164,7 +167,7 @@ def aim(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: 
        (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
        0, 0, 0, World.solid(w, base, vx, vy, vz))
 
-def waim_fin(m: Map<&2, U32>, ox: U32, oz: U32, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
+def waim_fin(m: Map<&2, World.Col>, ox: U32, oz: U32, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
   (ring, ph) = r
   (World.W{ring, m, ox, oz}, ph)
 
@@ -177,12 +180,12 @@ def ix_x(+i: U32) -> U32: (i / 4096 : U32)
 def ix_y(+i: U32) -> U32: (i / 128 % 32 : U32)
 def ix_z(+i: U32) -> U32: (i % 128 : U32)
 
-def apply_edit(act: Bool, w: World.World, +idx: U32, set: Bool) -> World.World:
+def apply_edit(act: Bool, w: World.World, +idx: U32, set: Bool, +what: U32) -> World.World:
   match act:
     case False{}:
       w
     case True{}:
-      World.edit(w, ix_x(idx), ix_z(idx), U32.shln(1, U32.to_nat(ix_y(idx))), set)
+      World.edit(w, ix_x(idx), ix_z(idx), ix_y(idx), set, what)
 
 # ---------- one tick ----------
 # The player is 1.8 blocks tall with the eye at 1.6, so they stand in the
@@ -212,23 +215,23 @@ def ax2(+held: U32, +negbit: U32, +posbit: U32) -> F32:
    - Bool.pick(F32, Util.on(held, negbit), 1.0, 0.0) : F32)
 
 def step_edit(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
-              held: U32, +edge: U32, mx: U32, my: U32, w: World.World, ph: U32 & U32) -> Game:
+              held: U32, +edge: U32, mx: U32, my: U32, +sel: U32, w: World.World, ph: U32 & U32) -> Game:
   (+prev, +hit) = ph
   +got = (hit > 0 : U32)
   +tgt = (prev - 1 : U32)
   +onme = U32.is_eq(tgt, pk(npx, (npy - 1.55 : F32), npz)) || U32.is_eq(tgt, pk(npx, (npy + 0.2 : F32), npz))
   +brk = got && Util.on(edge, 1024)
   +put = got && (prev > 0 : U32) && Util.on(edge, 2048) && Bool.not(onme)
-  G{apply_edit(put, apply_edit(brk, w, (hit - 1 : U32), False{}), tgt, True{}),
-    npx, npy, npz, nyaw, npit, nvy, held, (edge .&. 4096 : U32), mx, my}
+  G{apply_edit(put, apply_edit(brk, w, (hit - 1 : U32), False{}, 0), tgt, True{}, sel),
+    npx, npy, npz, nyaw, npit, nvy, held, (edge .&. 4096 : U32), mx, my, sel}
 
 def step_aim(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
-             held: U32, edge: U32, mx: U32, my: U32, r: World.World & (U32 & U32)) -> Game:
+             held: U32, edge: U32, mx: U32, my: U32, sel: U32, r: World.World & (U32 & U32)) -> Game:
   (w, ph) = r
-  step_edit(npx, npy, npz, nvy, nyaw, npit, held, edge, mx, my, w, ph)
+  step_edit(npx, npy, npz, nvy, nyaw, npit, held, edge, mx, my, sel, w, ph)
 
 def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool,
-              +nyaw: F32, +npit: F32, +held: U32, edge: U32, mx: U32, my: U32,
+              +nyaw: F32, +npit: F32, +held: U32, edge: U32, mx: U32, my: U32, sel: U32,
               r: World.World & Bool) -> Game:
   (w, above) = r
   +bump = (vy1 > 0.0 : F32) && above
@@ -242,36 +245,36 @@ def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool,
   +cz = Util.f2u(npz)
   +lx = (npx - Util.u2f(cx) + 64.0 : F32)
   +lz = (npz - Util.u2f(cz) + 64.0 : F32)
-  step_aim(lx, npy, lz, nvy, nyaw, npit, held, edge, mx, my,
+  step_aim(lx, npy, lz, nvy, nyaw, npit, held, edge, mx, my, sel,
            waim(World.follow_z(U32.to_nat(Bool.pick(U32, (cz > 64 : U32), (cz - 64 : U32), (64 - cz : U32))), (cz > 64 : U32),
                 World.follow_x(U32.to_nat(Bool.pick(U32, (cx > 64 : U32), (cx - 64 : U32), (64 - cx : U32))), (cx > 64 : U32), w)),
                 lx, npy, lz, Render.look_x(nyaw, npit), Render.look_y(npit), Render.look_z(nyaw, npit)))
 
 def step_land(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32,
-              nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32,
+              nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32,
               r: World.World & Bool) -> Game:
   (w, below) = r
-  step_bump(npx, py, npz, ty, vy1, (vy1 < 0.0 : F32) && below, nyaw, npit, held, edge, mx, my,
+  step_bump(npx, py, npz, ty, vy1, (vy1 < 0.0 : F32) && below, nyaw, npit, held, edge, mx, my, sel,
             World.wsolid(w, npx, (ty + 0.2 : F32), npz))
 
 def step_z(+npx: F32, +py: F32, +pz: F32, +tz: F32, +vy1: F32,
-           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32,
+           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32,
            r: World.World & Bool) -> Game:
   (w, bz) = r
   +npz = Bool.pick(F32, bz, pz, tz)
   +ty = (py + vy1 : F32)
-  step_land(npx, py, npz, ty, vy1, nyaw, npit, held, edge, mx, my,
+  step_land(npx, py, npz, ty, vy1, nyaw, npit, held, edge, mx, my, sel,
             World.wsolid(w, npx, (ty - eye() : F32), npz))
 
 def step_x(+px: F32, +py: F32, +pz: F32, +tx: F32, +tz: F32, +vy1: F32,
-           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32,
+           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32,
            r: World.World & Bool) -> Game:
   (w, bx) = r
   +npx = Bool.pick(F32, bx, px, tx)
-  step_z(npx, py, pz, tz, vy1, nyaw, npit, held, edge, mx, my, blocked(w, npx, py, tz))
+  step_z(npx, py, pz, tz, vy1, nyaw, npit, held, edge, mx, my, sel, blocked(w, npx, py, tz))
 
 def step(g: Game) -> Game:
-  G{w, +px, +py, +pz, yaw, pit, vy, +held, edge, mx, my} = g
+  G{w, +px, +py, +pz, yaw, pit, vy, +held, edge, mx, my, sel} = g
   +nyaw = (yaw + 0.055 * ax2(held, 64, 128) : F32)
   +npit = F32.clamp((pit + 0.045 * ax2(held, 32, 16) : F32), (0.0 - 1.45 : F32), 1.45)
   +sy = F32.sin(nyaw)
@@ -281,18 +284,18 @@ def step(g: Game) -> Game:
   +tx = (px + 0.16 * (fw * sy + st * cy) : F32)
   +tz = (pz + 0.16 * (fw * cy - st * sy) : F32)
   +vy1 = F32.max((vy - 0.012 : F32), (0.0 - 0.9 : F32))
-  step_x(px, py, pz, tx, tz, vy1, nyaw, npit, held, edge, mx, my, blocked(w, tx, py, pz))
+  step_x(px, py, pz, tx, tz, vy1, nyaw, npit, held, edge, mx, my, sel, blocked(w, tx, py, pz))
 
 def alive(g: Game) -> IO(Maybe<Game>):
-  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my} = g
+  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel} = g
   Bool.pick(IO(Maybe<Game>), Util.on(edge, 4096),
     IO.pure(Maybe<Game>, None{}),
-    IO.pure(Maybe<Game>, Some{G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my}}))
+    IO.pure(Maybe<Game>, Some{G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel}}))
 
 def tick(evs: List<Event>, g: Game) -> IO(Maybe<Game>):
   alive(step(feed(evs, g)))
 
 # the world's corner starts far from zero, so walking west never wraps it
 def start() -> Game:
-  G{World.load_all(128n, World.W{[0 : U32^14n], Map.new(&2, U32), 1048512, 1048512}, 1048512, 1048512),
-    64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0}
+  G{World.load_all(128n, World.W{[0 : U32^17n], Map.new(&2, World.Col), 1048512, 1048512}, 1048512, 1048512),
+    64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0, 0}

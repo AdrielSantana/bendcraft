@@ -25,8 +25,8 @@ def total(+k: Nat, img: Image) -> U32:
           (a + b + c + d : U32)
 
 def turn(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my} = g
-  Player.G{w, px, py, pz, (yaw + 0.01 : F32), pit, vy, held, edge, mx, my}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel} = g
+  Player.G{w, px, py, pz, (yaw + 0.01 : F32), pit, vy, held, edge, mx, my, sel}
 
 law bench:
   for  n: Nat
@@ -59,11 +59,11 @@ def build(n: Nat, w: World.World, +i: U32) -> World.World:
     case 0n:
       w
     case 1n+m:
-      build(m, World.edit(w, (56 + i % 16 : U32), (70 + i / 16 % 12 : U32), U32.shln(1, U32.to_nat((19 + i % 2 : U32))), True{}), (i + 1 : U32))
+      build(m, World.edit(w, (56 + i % 16 : U32), (70 + i / 16 % 12 : U32), (19 + i % 2 : U32), True{}, (i % 8 : U32)), (i + 1 : U32))
 
 def edited(n: Nat, g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my} = g
-  Player.G{build(n, w, 0), px, py, pz, yaw, pit, vy, held, edge, mx, my}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel} = g
+  Player.G{build(n, w, 0), px, py, pz, yaw, pit, vy, held, edge, mx, my, sel}
 
 def main() -> IO(Unit):
   do IO<Unit>:

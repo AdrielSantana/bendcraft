@@ -32,17 +32,17 @@ law pick_inside:
 law pick_inside_z:
   {Player.ix_z(Player.pk_u(64, 19, 65)) == 65 : U32}
 
-# --- the ring: a 128x128 window falls one-to-one on the 16384 slots -------
-# world column (x, z) at slot x * 128 + z, read mod 16384 by the array; the
-# far corner of a window is 16383 slots after the near one, and the column
-# after the end of a row is the slot after it, so the window's 16384
-# columns are the 16384 slots, each once
+# --- the ring: a 128x128 window falls one-to-one on the 16384 columns ------
+# world column (x, z) at slot (x * 128 + z) * 8, read mod 2^17 by the array;
+# the far corner of a window is 16383 columns after the near one, and the
+# column after the end of a row is the next one, so the window's 16384
+# columns are the 16384 column slots, each once
 
 law ring_window_spans_the_slots:
-  {(World.col_at((1048512 * 128 + 1048512 : U32), 127, 127) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 0) : U32) == 16383 : U32}
+  {(World.col_at((1048512 * 128 + 1048512 : U32), 127, 127) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 0) : U32) == (16383 * 8 : U32) : U32}
 
 law ring_rows_are_consecutive:
-  {(World.col_at((1048512 * 128 + 1048512 : U32), 1, 0) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 127) : U32) == 1 : U32}
+  {(World.col_at((1048512 * 128 + 1048512 : U32), 1, 0) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 127) : U32) == 8 : U32}
 
 # --- an edit is one bit ----------------------------------------------------
 
@@ -54,6 +54,54 @@ law break_clears_the_bit:
 
 law break_of_air_is_nothing:
   {World.setbit(1023, 1048576, False{}) == 1023 : U32}
+
+# --- a block's type: four bits in the column's words -----------------------
+# nib_set writes one nibble and keeps the others; nib_get reads it back;
+# nib_at, the device's read with a select in place of a shift, agrees
+
+law nib_roundtrip:
+  {World.nib_get(World.nib_set(0, 5, 7), 5) == 7 : U32}
+
+law nib_keeps_the_one_below:
+  {World.nib_get(World.nib_set(4294967295, 5, 0), 4) == 15 : U32}
+
+law nib_keeps_the_one_above:
+  {World.nib_get(World.nib_set(4294967295, 5, 0), 6) == 15 : U32}
+
+law nib_top_of_the_word:
+  {World.nib_get(World.nib_set(0, 7, 9), 7) == 9 : U32}
+
+law nib_device_agrees:
+  {World.nib_at(World.nib_set(0, 6, 9), 6) == 9 : U32}
+
+law nib_device_agrees_high:
+  {World.nib_at(World.nib_set(0, 7, 3), 7) == 3 : U32}
+
+# --- what the terrain is made of ---------------------------------------------
+# a column of height 10: grass on top, three of dirt, stone below; a low
+# column is capped with sand, a high one with snow; and the packed word
+# the loader writes reads back the same
+
+law top_is_grass:
+  {World.tnib(9, 10) == 0 : U32}
+
+law under_the_top_is_dirt:
+  {World.tnib(7, 10) == 1 : U32}
+
+law deep_is_stone:
+  {World.tnib(5, 10) == 2 : U32}
+
+law low_top_is_sand:
+  {World.tnib(5, 6) == 3 : U32}
+
+law high_top_is_snow:
+  {World.tnib(25, 26) == 7 : U32}
+
+law packed_word_reads_back:
+  {World.nib_get(World.types_word(1, 10), 9) == 0 : U32}
+
+law packed_word_reads_back_dirt:
+  {World.nib_get(World.types_word(0, 10), 7) == 1 : U32}
 
 # --- the keys never touch the mouse's bits of `held` (16384, 32768) --------
 
