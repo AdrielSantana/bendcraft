@@ -1,0 +1,5 @@
+.env
+build/
+*.gpu
+site/index.js
+site/index.wasm

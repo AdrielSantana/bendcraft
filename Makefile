@@ -1,0 +1,49 @@
+# Bendcraft. `make` builds the native game; `make run` starts it on the GPU.
+BEND ?= bend
+# the web-wasm fork of the compiler (bendlang/bend#866), for the page
+BEND_WEB ?= ../bend-web/bend2/main.ts
+
+build/bendcraft: main.bend src/*.bend
+	@mkdir -p build
+	$(BEND) main.bend -o build/bendcraft
+
+run: build/bendcraft
+	./build/bendcraft --gpu 2GB
+
+# the checker: the modules, the tests and the laws
+check:
+	$(BEND) main.bend --check-only
+	$(BEND) test/physics.bend --check-only
+	$(BEND) test/bench.bend --check-only
+	$(BEND) PROOF.bend
+
+# the game without a window: events through feed and step
+test:
+	$(BEND) test/physics.bend
+	$(BEND) test/terrain.bend
+
+# five frames on the GPU, untouched and with 300 blocks placed, with checksums
+bench: test/bench.bend src/*.bend
+	@mkdir -p build
+	$(BEND) test/bench.bend -o build/bench
+	./build/bench
+
+# the page: WebAssembly, a worker a core, the service worker for the headers
+page: main.bend src/*.bend
+	bun $(BEND_WEB) main.bend -o site/index.html
+	node site/notes.mjs site/index.html
+
+# the page onto the gh-pages branch (a worktree under build/)
+publish: page
+	@test -d build/ghp || git worktree add build/ghp gh-pages
+	cp site/index.html site/index.js site/index.wasm site/coi-serviceworker.js build/ghp/
+	cd build/ghp && git add -A && git commit -q -m "page: $$(git -C ../.. log --format=%s -1)" && git push -q origin gh-pages
+
+# the page in headless Chrome: drag, click, place, jump; hashes and fps
+page-test:
+	cd site && python3 ../test/serve.py 8770 & sleep 1; \
+	node test/page.mjs 'http://127.0.0.1:8770/index.html?threads=10' build/shot_; \
+	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
+	kill %1
+
+.PHONY: run check test bench page publish page-test
