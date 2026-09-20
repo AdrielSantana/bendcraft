@@ -229,9 +229,14 @@ def vnoise(+u: F32, +v: F32) -> F32:
   +d = h01((i + 1 : U32), (j + 1 : U32))
   ((a * (1.0 - fu) + b * fu) * (1.0 - fv) + (c * (1.0 - fu) + d * fu) * fv : F32)
 
+# a tile of 8x8 texels, the same on every block: each texel is one of four
+# shades, from a smooth noise sampled at its centre, so the shades come in
+# patches, as pixel art does
 def texture(+u: F32, +v: F32) -> F32:
-  (0.8 + 0.4 * (0.65 * vnoise((u * 4.0 : F32), (v * 4.0 : F32))
-                + 0.35 * vnoise((u * 9.0 + 7.0 : F32), (v * 9.0 + 3.0 : F32))) : F32)
+  +i = (u2f(f2u((fracf(u) * 8.0 : F32))) + 0.5 : F32)
+  +j = (u2f(f2u((fracf(v) * 8.0 : F32))) + 0.5 : F32)
+  +n = (0.6 * vnoise((i * 0.55 : F32), (j * 0.55 : F32)) + 0.4 * vnoise((i * 1.3 + 5.0 : F32), (j * 1.3 + 9.0 : F32)) : F32)
+  (0.76 + 0.12 * u2f(f2u((n * 3.99 : F32))) : F32)
 
 # grass green, dirt brown, stone grey; a grass block's side is dirt below
 # the top quarter
@@ -283,40 +288,79 @@ def shadow_if(sunny: Bool, w: Array<U32>, +ox: F32, +oy: F32, +oz: F32) -> Array
     case True{}:
       run_shadow(w, ox, oy, oz)
 
-def weight(s: Bool, +k: F32) -> F32:
-  Bool.pick(F32, s, F32.max(k, 0.0), 0.0)
+# The eight cells around O along the face, as bits of m: 1 +u, 2 -u, 4 +w,
+# 8 -w, 16 +u+w, 32 -u+w, 64 +u-w, 128 -u-w. A vertex of the face is lit by
+# its two sides and its corner: 3 steps of light, none when both sides are
+# solid; the face blends its four vertices.
+def vao(+s1: Bool, +s2: Bool, c: Bool) -> F32:
+  +n = (Bool.pick(U32, s1, 1, 0) + Bool.pick(U32, s2, 1, 0) + Bool.pick(U32, c, 1, 0) : U32)
+  Bool.pick(F32, s1 && s2, 0.4, (1.0 - 0.2 * u2f(n) : F32))
 
-# the four neighbours, read one after the other: +u, -u, +w, -w; then the colour
-def ao4(+v: U32, +col: U32, +f: F32, +sun: F32, +acc: F32, +wk: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
+def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +fu: F32, +fw: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, s) = r
-  +ao = F32.max((1.0 - 0.45 * (acc + weight(s, wk)) : F32), 0.2)
+  +m8 = Bool.pick(U32, s, (m .|. 128 : U32), m)
+  +pp = vao(on(m8, 1), on(m8, 4), on(m8, 16))
+  +mp = vao(on(m8, 2), on(m8, 4), on(m8, 32))
+  +pm = vao(on(m8, 1), on(m8, 8), on(m8, 64))
+  +mm = vao(on(m8, 2), on(m8, 8), on(m8, 128))
+  +ao = ((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)
   (w, mix(dim(col, (ao * sun : F32)), sky_at(v), (f * f : F32)))
 
-def ao3(+v: U32, +col: U32, +f: F32, +sun: F32, +acc: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
-        +ex: F32, +ey: F32, +ez: F32, +w4: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao4(v, col, f, sun, (acc + weight(s, wk) : F32), w4,
-      solid(w, (ox - ex : F32), (oy - ey : F32), (oz - ez : F32)))
-
-def ao2(+v: U32, +col: U32, +f: F32, +sun: F32, +acc: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
-        +ex: F32, +ey: F32, +ez: F32, +w3: F32, +w4: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao3(v, col, f, sun, (acc + weight(s, wk) : F32), w3, ox, oy, oz, ex, ey, ez, w4,
-      solid(w, (ox + ex : F32), (oy + ey : F32), (oz + ez : F32)))
-
-def ao1(+v: U32, +col: U32, +f: F32, +sun: F32, +wk: F32, +ox: F32, +oy: F32, +oz: F32,
-        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +w2: F32, +w3: F32, +w4: F32,
+def ao7(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
+        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
         r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, s) = r
-  ao2(v, col, f, sun, weight(s, wk), w2, ox, oy, oz, ex, ey, ez, w3, w4,
+  ao_fin(v, col, f, sun, Bool.pick(U32, s, (m .|. 64 : U32), m), fu, fw,
+         solid(w, (ox - ux - ex : F32), (oy - uy - ey : F32), (oz - uz - ez : F32)))
+
+def ao6(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
+        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+        r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao7(v, col, f, sun, Bool.pick(U32, s, (m .|. 32 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      solid(w, (ox + ux - ex : F32), (oy + uy - ey : F32), (oz + uz - ez : F32)))
+
+def ao5(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
+        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+        r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao6(v, col, f, sun, Bool.pick(U32, s, (m .|. 16 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      solid(w, (ox - ux + ex : F32), (oy - uy + ey : F32), (oz - uz + ez : F32)))
+
+def ao4(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
+        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+        r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao5(v, col, f, sun, Bool.pick(U32, s, (m .|. 8 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      solid(w, (ox + ux + ex : F32), (oy + uy + ey : F32), (oz + uz + ez : F32)))
+
+def ao3(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
+        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+        r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao4(v, col, f, sun, Bool.pick(U32, s, (m .|. 4 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      solid(w, (ox - ex : F32), (oy - ey : F32), (oz - ez : F32)))
+
+def ao2(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
+        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+        r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao3(v, col, f, sun, Bool.pick(U32, s, (m .|. 2 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      solid(w, (ox + ex : F32), (oy + ey : F32), (oz + ez : F32)))
+
+def ao1(+v: U32, +col: U32, +f: F32, +sun: F32, +ox: F32, +oy: F32, +oz: F32,
+        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+        r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  ao2(v, col, f, sun, Bool.pick(U32, s, 1, 0), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
       solid(w, (ox - ux : F32), (oy - uy : F32), (oz - uz : F32)))
 
 # after the sun: the first neighbour read
-def after_sun(+v: U32, +col: U32, +f: F32, +w1: F32, +ox: F32, +oy: F32, +oz: F32,
-              +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +w2: F32, +w3: F32, +w4: F32,
+def after_sun(+v: U32, +col: U32, +f: F32, +ox: F32, +oy: F32, +oz: F32,
+              +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
               r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, dark) = r
-  ao1(v, col, f, Bool.pick(F32, dark, 0.6, 1.0), w1, ox, oy, oz, ux, uy, uz, ex, ey, ez, w2, w3, w4,
+  ao1(v, col, f, Bool.pick(F32, dark, 0.6, 1.0), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
       solid(w, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
 
 def shade_go(sky: Bool, w: Array<U32>, +v: U32, +ox: F32, +oy: F32, +oz: F32,
@@ -352,15 +396,14 @@ def shade_go(sky: Bool, w: Array<U32>, +v: U32, +ox: F32, +oy: F32, +oz: F32,
       +uz = Bool.pick(F32, ax, 1.0, 0.0)
       +ey = Bool.pick(F32, ay, 0.0, 1.0)
       +ez = Bool.pick(F32, ay, 1.0, 0.0)
-      # each neighbour darkens from the middle of the face to its own edge
+      # where on the face, for the blend of the four vertices
       +fu = fracf(u)
       +fw = fracf(wf)
       # the face looks at the sun when the ray came against that axis; the
       # shadow ray starts a hair before the face, in O
       +da = Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz))
       +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
-      after_sun(v, col, f, (2.0 * fu - 1.0 : F32), cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez,
-                (1.0 - 2.0 * fu : F32), (2.0 * fw - 1.0 : F32), (1.0 - 2.0 * fw : F32),
+      after_sun(v, col, f, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
                 shadow_if((da < 0.0 : F32), w,
                           Bool.pick(F32, ax, (px + nudge : F32), px),
                           Bool.pick(F32, ay, (py + nudge : F32), py),
