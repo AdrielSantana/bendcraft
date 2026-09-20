@@ -1,6 +1,6 @@
 import Base
 
-# An interactive voxel world: fly around, break blocks, place blocks.
+# An interactive voxel world: walk, jump, break blocks, place blocks.
 #
 # THE WORLD IS A TREE, NOT AN ARRAY.
 #
@@ -14,8 +14,8 @@ import Base
 # 32 heights in one word is what makes this cheap: a column is a single
 # machine word, and break/place is one bit.
 #
-#   W A S D  move      arrows  look      I / K  up / down
-#   J  break block     L  place block    Esc  quit
+#   W A S D  move   space  jump   arrows  look   Esc  quit
+#   mouse: drag to look, left click breaks, right click places (or J / L)
 
 # ---------- little helpers ----------
 
@@ -308,7 +308,8 @@ def clipped(+w: World, +ox: F32, +oy: F32, +oz: F32,
 # ---------- the player ----------
 
 type Game is Data:
-  G{w: World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, held: U32, edge: U32}
+  G{w: World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
+    held: U32, edge: U32, mx: U32, my: U32}
 
 def look_x(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.sin(yaw) : F32)
 def look_y(+pit: F32) -> F32: F32.sin(pit)
@@ -323,7 +324,7 @@ def p2f(+p: U32) -> F32:
   (U32.to_f32(p) / half() - 1.0 : F32)
 
 def shade_px(+g: Game, +pxi: U32, +pyi: U32) -> U32:
-  G{w, ox, oy, oz, yaw, pit, held, edge} = g
+  G{w, ox, oy, oz, yaw, pit, vy, held, edge, mx, my} = g
   +u = p2f(pxi)
   +v = p2f(pyi)
   +fx = look_x(yaw, pit)
@@ -398,7 +399,11 @@ def view(+g: Game) -> Image:
   fork!(7n, g, 0, 0)
 
 # ---------- input ----------
-# w a s d move, arrows look, i/k fly, j break, l place, Esc quit.
+# Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, j l 1024 2048,
+# Esc 4096, space 8192) and the edge of a press in `edge`. The mouse keeps
+# its last place in `mx`, `my` and two bits above the keys: 16384 while the
+# left button is down, 32768 once that press has dragged. A drag looks, a
+# left click (press and release without a drag) breaks, a right click places.
 
 def kbit(+c: U32, +code: U32, +bit: U32) -> U32:
   Bool.pick(U32, U32.is_eq(c, code), bit, 0)
@@ -407,27 +412,54 @@ def kmask(+c: U32) -> U32:
   (kbit(c, 119, 1) .|. kbit(c, 97, 2) .|. kbit(c, 115, 4) .|. kbit(c, 100, 8)
     .|. kbit(c, 63232, 16) .|. kbit(c, 63233, 32)
     .|. kbit(c, 63234, 64) .|. kbit(c, 63235, 128)
-    .|. kbit(c, 105, 256) .|. kbit(c, 107, 512)
     .|. kbit(c, 106, 1024) .|. kbit(c, 108, 2048)
-    .|. kbit(c, 27, 4096) : U32)
+    .|. kbit(c, 27, 4096) .|. kbit(c, 32, 8192) : U32)
 
-def key_apply(down: Bool, w: World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32,
-              +held: U32, edge: U32, +m: U32) -> Game:
+def key_apply(down: Bool, w: World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
+              +held: U32, edge: U32, mx: U32, my: U32, +m: U32) -> Game:
   match down:
     case True{}:
-      G{w, px, py, pz, yaw, pit, (held .|. m : U32),
-        (edge .|. (m .&. U32.not(held)) : U32)}
+      G{w, px, py, pz, yaw, pit, vy, (held .|. m : U32),
+        (edge .|. (m .&. U32.not(held)) : U32), mx, my}
     case False{}:
-      G{w, px, py, pz, yaw, pit, (held .&. U32.not(m) : U32), edge}
+      G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, mx, my}
 
 def on_key(g: Game, +code: U32, down: Bool) -> Game:
-  G{w, px, py, pz, yaw, pit, held, edge} = g
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my} = g
   +lower = Bool.pick(U32, ((code >= 65) && (code <= 90) : U32), (code + 32 : U32), code)
-  key_apply(down, w, px, py, pz, yaw, pit, held, edge, kmask(lower))
+  key_apply(down, w, px, py, pz, yaw, pit, vy, held, edge, mx, my, kmask(lower))
+
+# button 0 is the left one, 1 the right one, on both windows
+def on_button(g: Game, +x: U32, +y: U32, +b: U32, +down: Bool) -> Game:
+  G{w, px, py, pz, yaw, pit, vy, +held, +edge, mx, my} = g
+  +press = U32.is_eq(b, 0) && down
+  +release = U32.is_eq(b, 0) && Bool.not(down)
+  +click = release && U32.is_eq((held .&. 49152 : U32), 16384)
+  +place = U32.is_eq(b, 1) && down
+  +held1 = Bool.pick(U32, press, ((held .|. 16384) .&. U32.not(32768) : U32), held)
+  G{w, px, py, pz, yaw, pit, vy,
+    Bool.pick(U32, release, (held1 .&. U32.not(16384) : U32), held1),
+    (edge .|. Bool.pick(U32, click, 1024, 0) .|. Bool.pick(U32, place, 2048, 0) : U32),
+    Bool.pick(U32, press, x, mx), Bool.pick(U32, press, y, my)}
+
+# a drag turns the camera, 0.0045 rad per pixel; y grows downwards
+def on_move(g: Game, +x: U32, +y: U32) -> Game:
+  G{w, px, py, pz, +yaw, +pit, vy, +held, edge, +mx, +my} = g
+  +drag = on(held, 16384)
+  +dx = (u2f(x) - u2f(mx) : F32)
+  +dy = (u2f(y) - u2f(my) : F32)
+  +far = ((absf(dx) + absf(dy) : F32) > 2.0 : F32)
+  G{w, px, py, pz,
+    Bool.pick(F32, drag, (yaw + 0.0045 * dx : F32), yaw),
+    Bool.pick(F32, drag, F32.clamp((pit - 0.0045 * dy : F32), (0.0 - 1.45 : F32), 1.45), pit),
+    vy,
+    Bool.pick(U32, drag && far, (held .|. 32768 : U32), held),
+    edge,
+    Bool.pick(U32, drag, x, mx), Bool.pick(U32, drag, y, my)}
 
 def quit_now(g: Game) -> Game:
-  G{w, px, py, pz, yaw, pit, held, edge} = g
-  G{w, px, py, pz, yaw, pit, held, (edge .|. 4096 : U32)}
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my} = g
+  G{w, px, py, pz, yaw, pit, vy, held, (edge .|. 4096 : U32), mx, my}
 
 def feed(evs: List<Event>, g: Game) -> Game:
   match evs:
@@ -435,10 +467,12 @@ def feed(evs: List<Event>, g: Game) -> Game:
       g
     case Con{Key{code, down}, rest}:
       feed(rest, on_key(g, code, down))
+    case Con{Mouse{x, y, b, down}, rest}:
+      feed(rest, on_button(g, x, y, b, down))
+    case Con{Move{x, y}, rest}:
+      feed(rest, on_move(g, x, y))
     case Con{Close{}, rest}:
       feed(rest, quit_now(g))
-    case Con{e, rest}:
-      feed(rest, g)
 
 # ---------- picking the block under the crosshair ----------
 # Packs two voxels into one word: 0 = nothing, else 1 + prev*32768 + hit.
@@ -502,44 +536,68 @@ def apply_edit(act: Bool, w: World, +idx: U32, set: Bool) -> World:
       wmod(5n, w, ix_x(idx), ix_z(idx), ix_x(idx), ix_z(idx), U32.shln(1, U32.to_nat(ix_y(idx))), set)
 
 # ---------- one tick ----------
+# The player is 1.8 blocks tall with the eye at 1.6, so they stand in the
+# block of `py - 1.6` and the one of `py + 0.2`. Walking tests those two
+# per axis and stops at a wall (the feet test sits 0.05 up, so the block
+# under the feet never counts). Gravity pulls `vy`; landing snaps the feet
+# onto the block; space pushes off it. A block is never placed on the player.
+
+def eye() -> F32: 1.6
+
+def blocked(+w: World, +x: F32, +y: F32, +z: F32) -> Bool:
+  solid(w, x, (y - 1.55 : F32), z) || solid(w, x, (y + 0.2 : F32), z)
 
 def ax2(+held: U32, +negbit: U32, +posbit: U32) -> F32:
   (Bool.pick(F32, on(held, posbit), 1.0, 0.0)
    - Bool.pick(F32, on(held, negbit), 1.0, 0.0) : F32)
 
 def step(g: Game) -> Game:
-  G{+w, px, py, pz, yaw, pit, +held, +edge} = g
+  G{+w, +px, +py, +pz, yaw, pit, vy, +held, +edge, mx, my} = g
   +nyaw = (yaw + 0.055 * ax2(held, 64, 128) : F32)
   +npit = F32.clamp((pit + 0.045 * ax2(held, 32, 16) : F32), (0.0 - 1.45 : F32), 1.45)
   +sy = F32.sin(nyaw)
   +cy = F32.cos(nyaw)
   +fw = ax2(held, 4, 1)
   +st = ax2(held, 2, 8)
-  +npx = F32.clamp((px + 0.28 * (fw * sy + st * cy) : F32), 0.5, 31.5)
-  +npy = F32.clamp((py + 0.28 * ax2(held, 512, 256) : F32), 0.5, 31.5)
-  +npz = F32.clamp((pz + 0.28 * (fw * cy - st * sy) : F32), 0.5, 31.5)
+  # walk, one axis at a time
+  +tx = F32.clamp((px + 0.16 * (fw * sy + st * cy) : F32), 0.5, 31.5)
+  +npx = Bool.pick(F32, blocked(w, tx, py, pz), px, tx)
+  +tz = F32.clamp((pz + 0.16 * (fw * cy - st * sy) : F32), 0.5, 31.5)
+  +npz = Bool.pick(F32, blocked(w, npx, py, tz), pz, tz)
+  # fall, land, jump
+  +vy1 = F32.max((vy - 0.012 : F32), (0.0 - 0.9 : F32))
+  +ty = (py + vy1 : F32)
+  +feet = (ty - eye() : F32)
+  +land = (vy1 < 0.0 : F32) && solid(w, npx, feet, npz)
+  +bump = (vy1 > 0.0 : F32) && solid(w, npx, (ty + 0.2 : F32), npz)
+  +npy = F32.clamp(Bool.pick(F32, land, (floorf(feet) + 1.0 + eye() : F32),
+                             Bool.pick(F32, bump, py, ty)), eye(), 31.5)
+  +nvy = Bool.pick(F32, land && on(held, 8192), 0.2,
+                   Bool.pick(F32, land || bump, 0.0, vy1))
   # what the crosshair is on
   +hit = aim(w, npx, npy, npz, look_x(nyaw, npit), look_y(npit), look_z(nyaw, npit))
   +got = (hit > 0 : U32)
+  +at = ((hit - 1) / 32768 : U32)
+  +onme = U32.is_eq(at, pk(npx, (npy - 1.55 : F32), npz)) || U32.is_eq(at, pk(npx, (npy + 0.2 : F32), npz))
   +brk = got && on(edge, 1024)
-  +put = got && on(edge, 2048)
+  +put = got && on(edge, 2048) && Bool.not(onme)
   +w1 = apply_edit(brk, w, ((hit - 1) % 32768 : U32), False{})
-  +w2 = apply_edit(put, w1, ((hit - 1) / 32768 : U32), True{})
-  G{w2, npx, npy, npz, nyaw, npit, held, (edge .&. 4096 : U32)}
+  +w2 = apply_edit(put, w1, at, True{})
+  G{w2, npx, npy, npz, nyaw, npit, nvy, held, (edge .&. 4096 : U32), mx, my}
 
 def alive(g: Game) -> IO(Maybe<Game>):
-  G{w, px, py, pz, yaw, pit, held, +edge} = g
+  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my} = g
   Bool.pick(IO(Maybe<Game>), on(edge, 4096),
     IO.pure(Maybe<Game>, None{}),
-    IO.pure(Maybe<Game>, Some{G{w, px, py, pz, yaw, pit, held, 0}}))
+    IO.pure(Maybe<Game>, Some{G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my}}))
 
 def tick(evs: List<Event>, g: Game) -> IO(Maybe<Game>):
   alive(step(feed(evs, g)))
 
 def start() -> Game:
-  G{WNone{}, 16.5, 22.0, 4.5, 0.0, (0.0 - 0.55 : F32), 0, 0}
+  G{WNone{}, 16.5, 22.0, 4.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0}
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    IO.print("WASD move | arrows look | I/K up/down | J break | L place | Esc quit")
+    IO.print("WASD move | space jump | drag to look | click break | right click place | J/L break/place | Esc quit")
     App.run(~Game, ~App{+g => (g, view(g)), tick}, "Bendcraft", 512, 512, start())
