@@ -221,13 +221,13 @@ to it if it ties: it reads better.
 
 ## Bend: waiting on a decision
 
-State on 2026-09-21, 14:40 UTC. No maintainer has answered any of these
+State on 2026-09-21, 16:00 UTC. No maintainer has answered any of these
 yet. Decisions upstream have come within a day or two, each with a written
 reason.
 
 | | what it is | state | if yes | if no |
 |---|---|---|---|---|
-| [PR #866](https://github.com/bendlang/bend/pull/866) | `-o x.html`: the runtime as WebAssembly, a worker a core, a Window on a canvas | ready for review, clean against main | `make page` with the stock `bend`; drop `BEND_WEB` | the fork stays the page's compiler, rebased at every release |
+| [PR #866](https://github.com/bendlang/bend/pull/866) | `-o x.html`: the runtime as WebAssembly, a worker a core, a Window on a canvas | ready for review, rebased onto 2.0.24; over the `comp.ts` cap by 60 tokens, said so in the PR | `make page` with the stock `bend`; drop `BEND_WEB` | the fork stays the page's compiler, rebased at every release |
 | [#920](https://github.com/bendlang/bend/issues/920) | a WGSL lane: `!` on WebGPU; the design, a prototype, 0.3 / 1.8 / 2.4 ms against 4.5 / 42 / 53 on ten wasm threads | open | write the emitter where they say it may live | write it in the fork |
 | [#925](https://github.com/bendlang/bend/issues/925) | Metal: the tree's arity decides the lanes' load (12 / 23-34 / 3 ms for the same leaves) | open | re-measure, maybe the four-way tree again | the binary tree stays; the README is the record |
 | [#921](https://github.com/bendlang/bend/issues/921) | Window: grab the mouse | open | mouse look without dragging | drag or arrows, as now |
