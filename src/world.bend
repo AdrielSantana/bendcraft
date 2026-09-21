@@ -87,7 +87,13 @@ def tnib(+y: U32, +h: U32) -> U32:
   +cap = Bool.pick(U32, (h <= 6 : U32), 3, Bool.pick(U32, (h >= 25 : U32), 7, 0))
   Bool.pick(U32, U32.is_eq((y + 1 : U32), h), cap, Bool.pick(U32, ((y + 4 : U32) >= h : U32), 1, 2))
 
-# Trees. A column of grass between 7 and 24 high grows one when its hash
+# Water's surface is also the lowest dry ground where a tree can root.
+def sea() -> U32: 12
+
+def tree_ground(+h: U32) -> Bool:
+  (h >= sea() : U32) && (h >= 7 : U32) && (h <= 24 : U32)
+
+# Trees. A dry column of grass grows one when its hash
 # says so, about one in eighty: a trunk of four wood on the top, two of
 # leaves above it, and a canopy on the columns around: three layers one
 # column out, two layers two columns out, none on the far corners. A
@@ -116,7 +122,7 @@ def tree_bits(grows: Bool, +d: U32, +corner: Bool, +th: U32, m: Masks) -> Masks:
 
 def tree_here(+tx: U32, +tz: U32, +d: U32, +corner: Bool, m: Masks) -> Masks:
   +th = terrain(tx, tz)
-  tree_bits(tree_at(tx, tz) && (th >= 7 : U32) && (th <= 24 : U32), d, corner, th, m)
+  tree_bits(tree_at(tx, tz) && tree_ground(th), d, corner, th, m)
 
 def canopy(n: Nat, +x: U32, +z: U32, +i: U32, m: Masks) -> Masks:
   match n:
@@ -148,8 +154,6 @@ def types_word(+k: U32, +h: U32, +wood: U32, +leaf: U32) -> U32:
 
 # Water fills low terrain to y=12. Keeping its mask separate lets physics,
 # picking, shadows and occlusion read exactly the same solid word as before.
-def sea() -> U32: 12
-
 def flood(+h: U32, +solid: U32) -> U32:
   ((U32.shln(1, U32.to_nat(sea())) - 1) .&. U32.not(((U32.shln(1, U32.to_nat(h)) - 1) .|. solid : U32)) : U32)
 

@@ -23,6 +23,7 @@ full: build/bendcraft
 check:
 	$(BEND) main.bend --check-only
 	$(BEND) test/physics.bend --check-only
+	$(BEND) test/terrain.bend --check-only
 	$(BEND) test/save.bend --check-only
 	$(BEND) test/day.bend --check-only
 	$(BEND) test/inventory.bend --check-only

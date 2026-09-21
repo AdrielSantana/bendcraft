@@ -65,7 +65,8 @@ the ray sees a column as a machine word, and break or place is one bit.
 **The world is endless.** The terrain is seeded value noise, three octaves,
 a pure function of `(x, z)`: grass on top, sand where it is low and snow
 where it is high, three of dirt under the top, stone below. About one grass
-column in eighty grows a tree, a trunk of four wood with a canopy of leaves
+column in eighty grows a tree when its ground is dry (height at least 12),
+a trunk of four wood with a canopy of leaves
 over the columns around it; a column takes its wood and leaf bits from the
 trees of the 25 columns around it, so a canopy crosses columns without
 anyone writing across. The array holds
@@ -112,7 +113,10 @@ A lake lies west of the initial spawn; `make water` exports daytime,
 dusk, submerged and water-off views as PNGs (requires Pillow).
 This is still water: digging leaves a gap until flow is implemented, and
 movement remains walking/gravity, with swimming, reflections and ripples
-left for later steps. Existing terrain and trees are preserved.
+left for later steps. Generated trees require dry grass at their origin;
+their canopies can extend over water from the bank. Untouched columns
+regenerate with this rule; edited columns in old saves keep their contents,
+including any previously saved submerged wood.
 
 **The day clock** is an integer in `Game`, advanced by elapsed milliseconds
 at the window loop, independently of the physics and frame rate. One day is
@@ -186,7 +190,7 @@ test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
-test/terrain.bend  rows of the terrain, to see the noise
+test/terrain.bend  noise rows, dry tree roots, shoreline canopies and saved columns
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -426,6 +430,47 @@ within 0.051 ms; the fastest traced dispatch sums are 19.425 → 21.080 ms.
 These separately submitted kernels diagnose the added pixel arithmetic;
 their totals do not replace the ordinary bench or profile numbers.
 
+Dry tree roots, four alternated before/after rounds at 1470×796, with no
+running Bendcraft process detected. Minimum five-frame means:
+
+| | before dry roots | after, ms |
+|---|---|---|
+| all on | 20.8 | 20.4 |
+| shadow off | 17.2 | 17.4 |
+| occlusion off | 19.2 | 18.8 |
+| texture off | 20.0 | 19.4 |
+| distance fog off | 20.4 | 20.8 |
+| HUD off | 20.8 | 20.2 |
+| day cycle off | 20.6 | 20.4 |
+| sky gradient off | 20.6 | 20.6 |
+| sun disc off | 20.6 | 20.8 |
+| horizon glow off | 20.4 | 20.4 |
+| stars off | 20.6 | 20.6 |
+| moon off | 20.6 | 20.6 |
+| height fog off | 20.4 | 20.2 |
+| water off | 17.2 | 17.6 |
+| water fog off | 20.6 | 20.2 |
+| rays alone | 12.2 | 12.0 |
+
+Only host generation changes: 202 → 173 trees in the initial window.
+The renderer, camera and flags are unchanged, but the rays see a different
+scene. Default solid hits fall 52% → 49%, and steps to a hit or sky rise
+41.3 → 41.4. Underwater, removing trunks exposes longer paths: hits
+63% → 59%, steps 31.1 → 35.5. All-on means span 20.8–21.0 → 20.4–21.4;
+the default rows with increased minima overlap their earlier ranges:
+shadow off 17.2–18.0 → 17.4–18.2, distance fog off 20.4–21.0 → 20.8–22.0,
+sun disc off 20.6–21.0 → 20.8–21.2, water off 17.2–18.0 → 17.6–17.6.
+These small deltas do not establish a rendering slowdown.
+
+The lake all-on minimum stays 21.4 ms and the submerged view stays 20.6;
+night moves 14.4 → 14.2. Submerged occlusion-off and sun-disc-off minima
+each rise 1.2 ms; their ranges are 18.4–19.8 → 19.6–20.4 and
+20.0–21.2 → 21.2–22.0. The changed ray paths and overlapping ranges limit
+how precisely the timing deltas can be attributed to generation.
+Fastest bench frames remain 3/2/6/10/19/36 ms at the six sizes.
+The generated-column regression fails on the old generator and passes
+on the new one; dry shoreline trees and saved edited columns remain.
+
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
 5 and 6 are debug renders; 7..16 hold milliseconds and 17..20 the low
 four FPS bits. The high four FPS bits use `Cam.items` bits 28..31, above
@@ -433,8 +478,8 @@ the counts; bit 21 enables water, bit 22 water fog, and bits 23..24 are free. Bi
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
 sun for profiling. HUD off also disables the new count labels. The default
-picture intentionally changes with the corrected water fog: bench digest
-`eb4026d59c88c6fa0d1e00ab7990e825`; physics stays
+picture intentionally changes when submerged trees are removed: bench digest
+`bde77065fa3245e3615faeeae5d5057d`; physics stays
 `73516c0ead87f8c1151e34d25b3ac32e`.
 
 52 % of the rays reach a block, after 24 steps on average; the rest walk
@@ -496,7 +541,9 @@ The HUD packing has mixed-slot and boundary laws; save/quit edges survive
 the physics step. Still-water laws cover generation above ground, the sea
 limit, banks preserved on water placement, displacement, neighboring bits
 and material packing. Water fog has its own flag, enabled by default and
-preserved by readout packing. There are 70 laws: seven universal claims and 63 concrete
+preserved by readout packing. Three tree laws check all 32 column heights:
+submerged ground and snow reject roots, dry grass accepts them.
+There are 73 laws: seven universal claims and 66 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

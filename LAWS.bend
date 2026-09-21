@@ -107,8 +107,8 @@ law packed_word_reads_back:
 law packed_word_reads_back_dirt:
   {World.nib_get(World.types_word(0, 10, 0, 0), 7) == 1 : U32}
 
-# a trunk on a column of height 10 sits at 10..13 as wood, its leaves at
-# 14 and 15; one column out the leaves are at 12..14
+# These synthetic masks test packing independently of the tree-site rule:
+# a trunk at 10..13 is wood, its leaves are at 14 and 15.
 
 law trunk_is_wood:
   {World.nib_get(World.types_word(1, 10, 15360, 49152), 12) == 4 : U32}
@@ -118,6 +118,19 @@ law leaves_over_the_trunk:
 
 law grass_under_the_trunk:
   {World.nib_get(World.types_word(1, 10, 15360, 49152), 9) == 0 : U32}
+
+# All 32 column heights: only dry grass can root a generated tree.
+law trees_reject_submerged_ground:
+  {List.map(~U32, ~Bool, ~(h => World.tree_ground(h)), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    == [False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}, False{}] : List<Bool>}
+
+law trees_accept_dry_grass:
+  {List.map(~U32, ~Bool, ~(h => World.tree_ground(h)), [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
+    == [True{}, True{}, True{}, True{}, True{}, True{}, True{}, True{}, True{}, True{}, True{}, True{}, True{}] : List<Bool>}
+
+law trees_reject_snow_heights:
+  {List.map(~U32, ~Bool, ~(h => World.tree_ground(h)), [25, 26, 27, 28, 29, 30, 31])
+    == [False{}, False{}, False{}, False{}, False{}, False{}, False{}] : List<Bool>}
 
 # --- the keys never touch the mouse's bits of `held` (16384, 32768) --------
 
