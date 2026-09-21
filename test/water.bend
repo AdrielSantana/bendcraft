@@ -180,6 +180,19 @@ def main() -> IO(Unit):
       && near(Water.opacity(False{}, 4.0), 0.54, 0.0001) && (Water.opacity(False{}, 4.0) < Water.opacity(True{}, 4.0) : F32), "water is dense seen from the air and clear for an eye under it")
     expect(near(Water.lit_path(3.0, (0.0 - 1.0 : F32)), 6.0, 0.0001) && near(Water.lit_path(3.0, 0.0), 3.0, 0.0001)
       && near(Water.lit_path(3.0, 0.5), 3.0, 0.0001), "the bed's light went down before it came up the ray")
+    expect((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9) >= 0.5 : F32)
+      && (Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9) <= 2.1 : F32)
+      && Bool.not(near(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9), Water.caustic(4000000, 61.1, 66.2, 0.0, (0.0 - 1.0 : F32), 0.9), 0.001)),
+      "the caustic brightens and darkens the bed within bounds, and differs from point to point")
+    expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 6.0, (0.0 - 1.0 : F32), 0.9), 1.0)
+      && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), (0.0 - 0.5 : F32)), 1.0)
+      && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, 0.1, 0.9), 1.0),
+      "the caustic is gone six blocks down, at night, and looking along or up through the surface")
+    expect(near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9),
+        Water.caustic(Water.frame_base((4000000 + 128 : U32), 700), 59.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9), 0.0001)
+      && near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9),
+        Water.caustic(Water.frame_base((4000000 + 1 : U32), 700), 60.4, 65.7, 1.0, (0.0 - 0.7 : F32), 0.9), 0.0001),
+      "a ring shift along either axis cannot drag the caustic")
     expect(F32.is_eq(Water.fresnel(True{}, (0.0 - 1.0 : F32)), 1.0)
       && F32.is_eq(Water.fresnel(True{}, 2.0), 0.02), "Fresnel clamps its angular input")
     expect(U32.is_ne(surface_ray(31457280, False{}, False{}), surface_ray(14680064, False{}, False{})), "reflection colours a real top entry at an edited water height")

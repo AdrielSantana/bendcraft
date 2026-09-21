@@ -387,6 +387,12 @@ law mirror_look_keeps_the_ring:
 law mirror_look_keeps_the_clock:
   {Water.clock(Water.with_looks(Water.frame_base(16383, 5000), 4294967295)) == 5000 : U32}
 
+law caustic_look_reads_back:
+  {Water.caustic_on(Water.with_looks(Water.frame_base(16383, 8191), Render.looks_base())) == True{} : Bool}
+
+law caustic_look_is_off_unasked:
+  {Water.caustic_on(Water.with_looks(Water.frame_base(4294967295, 8191), 134217728)) == False{} : Bool}
+
 law mirror_look_keeps_the_readout:
   {Render.stat_fps(Render.stat_flags(1048576, 0, 8), Render.stat_items(0, 8), Water.with_looks(Water.frame_base(Render.stat_base(16383, 8), 8191), Render.looks_base())) == 8 : U32}
 

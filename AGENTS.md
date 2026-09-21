@@ -83,7 +83,7 @@ make profile    # what each look costs, at four sizes
 ```
 
 - **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut
-  -d= -f2 | md5` is `123459508674587f4d41b6c63389c05b` today. A change that should not alter
+  -d= -f2 | md5` is `788495f2eae1d62c6cd89f92af855661` today. A change that should not alter
   the game's default picture must leave it as it is. A change that alters
   the picture on purpose says so, and its commit message carries the new
   digest. `bend test/physics.bend | md5` is `73516c0ead87...`; same rule.
@@ -168,7 +168,7 @@ nothing", and the README):
   so clock/readout bits cannot affect world reads. Bits 27..30 are the
   looks `Cam.fl` has no room for: `Render.looks_base()` holds the ones on
   by default and `Water.with_looks` puts them in; 27 is the world in the
-  water's mirror, 28..30 remain spare.
+  water's mirror, 28 the caustic on its bed, 29 and 30 remain spare.
 - A walk is the unit of cost: a DDA step is about 0.16 ms a frame at
   1470×796 wherever it happens (primary 60, shadow 24, mirror 32), because
   the frame is its slowest lane. Count the steps a new look adds before

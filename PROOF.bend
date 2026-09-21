@@ -217,4 +217,6 @@ def Laws.mirror_look_is_off_unasked(): {==}
 def Laws.mirror_look_keeps_the_ring(): {==}
 def Laws.mirror_look_keeps_the_clock(): {==}
 def Laws.mirror_look_keeps_the_readout(): {==}
+def Laws.caustic_look_reads_back(): {==}
+def Laws.caustic_look_is_off_unasked(): {==}
 

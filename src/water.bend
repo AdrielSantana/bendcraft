@@ -5,12 +5,14 @@ import ./util.bend as Util
 # Array indices wrap at 2^17 words: only 14 column-address bits matter.
 # The next 13 carry milliseconds in an 8.192-second ripple loop; bits
 # 27..30 are looks the flags word has no room for, put there by the camera
-# (27: the world in the water's mirror); bit 31 belongs to the readout.
+# (27: the world in the water's mirror, 28: the caustic on its bed); bit
+# 31 belongs to the readout.
 # None of these high bits changes a world load.
 def phase(t: U32) -> U32: (t .&. 8191 : U32)
 def frame_base(+base: U32, clock: U32) -> U32:
   ((base .&. 2147500031) .|. (phase(clock) * 16384) : U32)
 def mirror_on(base: U32) -> Bool: Util.on(base, 134217728)
+def caustic_on(base: U32) -> Bool: Util.on(base, 268435456)
 def with_looks(base: U32, more: U32) -> U32:
   ((base .&. 2281701375) .|. (more .&. 2013265920) : U32)
 def clock(base: U32) -> U32: (base / 16384 % 8192 : U32)
@@ -93,6 +95,47 @@ def slope(+base: U32, +x: F32, +z: F32) -> Slope:
   +d = noise_at(base, (ix + 1 : U32), (iz + 1 : U32))
   Slope{(6.0 * fx * (1.0 - fx) * ((b - a) * (1.0 - v) + (d - c) * v) : F32),
         (6.0 * fz * (1.0 - fz) * ((c - a) * (1.0 - u) + (d - b) * u) : F32)}
+
+# the smooth value noise the slope above is the gradient of, at a point:
+# the same four hashes
+def value(+base: U32, +x: F32, +z: F32) -> F32:
+  +ix = Util.f2u(x)
+  +iz = Util.f2u(z)
+  +u = Util.smooth((x - U32.to_f32(ix) : F32))
+  +v = Util.smooth((z - U32.to_f32(iz) : F32))
+  +a = noise_at(base, ix, iz)
+  +b = noise_at(base, (ix + 1 : U32), iz)
+  +c = noise_at(base, ix, (iz + 1 : U32))
+  +d = noise_at(base, (ix + 1 : U32), (iz + 1 : U32))
+  ((a * (1.0 - u) + b * u) * (1.0 - v) + (c * (1.0 - u) + d * u) * v : F32)
+
+# a ridge where the noise crosses its middle: the bright thread of a caustic
+def thread(n: F32) -> F32:
+  (1.0 - Util.absf((2.0 * n - 1.0 : F32)) : F32)
+
+# The light on a lake's bed came down through the rippled surface, which
+# gathers it into bright threads here and takes it from there: a caustic.
+# The real one follows the surface's curvature down to the bed; this one
+# reads the ripples' noise at the bed's own point, two octaves at twice and
+# three times the ripples' scale, moving with their clock, and brightens
+# the bed on the threads (the product of the two ridges, squared, so the
+# threads are thin) and darkens it a little between them: the mean is
+# near zero, so a shallow bed keeps its brightness. The scales
+# are whole numbers and the lattice is scaled with them, so a ring shift
+# cannot drag the pattern. It is strongest just under the surface and gone
+# six blocks down, as the light is, in daylight alone, and fades out where
+# the eye looks along the surface. No walk and no world read: four hashes
+# an octave. The factor multiplies the bed's colour; 1.0 leaves it alone.
+def caustic(+base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, sun_y: F32) -> F32:
+  +angle = (U32.to_f32(clock(base)) * (6.2831853 / 8192.0) : F32)
+  +sx = (0.8 * F32.sin(angle) : F32)
+  +sz = (0.8 * F32.cos(angle) : F32)
+  +a = thread(value((base * 2 : U32), (x * 2.0 + 512.0 + sx : F32), (z * 2.0 + 512.0 + sz : F32)))
+  +b = thread(value((base * 3 : U32), (x * 3.0 + 768.0 - sz : F32), (z * 3.0 + 768.0 - sx : F32)))
+  +fade = (Sky.daylight(sun_y) * (1.0 - F32.clamp((drop / 6.0 : F32), 0.0, 1.0))
+    * F32.clamp((0.0 - dy * 8.0 : F32), 0.0, 1.0) : F32)
+  +t = (a * b : F32)
+  (1.0 + fade * (2.6 * t * t - 0.45) : F32)
 
 type Reflection is Data:
   Reflection{x: F32, y: F32, z: F32, cosine: F32}

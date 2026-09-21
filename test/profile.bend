@@ -82,13 +82,14 @@ def off_bit(+i: U32) -> U32:
 def flags_of(+i: U32) -> U32:
   Bool.pick(U32, (i < 2 : U32), Render.looks(),
     Bool.pick(U32, (i < 19 : U32), (Render.looks() .&. U32.not(off_bit(i)) : U32),
-    Bool.pick(U32, U32.is_eq(i, 19), Render.looks(),
-    Bool.pick(U32, U32.is_eq(i, 20), 0, Bool.pick(U32, U32.is_eq(i, 21), 64, 32)))))
+    Bool.pick(U32, (i < 21 : U32), Render.looks(),
+    Bool.pick(U32, U32.is_eq(i, 21), 0, Bool.pick(U32, U32.is_eq(i, 22), 64, 32)))))
 
 # the looks that ride in the camera's base: variant 19 turns the world in
-# the water's mirror off
+# the water's mirror off, 20 the caustic on its bed
 def more_of(+i: U32) -> U32:
-  Bool.pick(U32, U32.is_eq(i, 19), 0, Render.looks_base())
+  Bool.pick(U32, U32.is_eq(i, 19), (Render.looks_base() .&. U32.not(134217728) : U32),
+    Bool.pick(U32, U32.is_eq(i, 20), (Render.looks_base() .&. U32.not(268435456) : U32), Render.looks_base()))
 
 def label_of(+i: U32) -> String:
   Bool.pick(String, U32.is_eq(i, 0), "warm-up, the GPU program loads",
@@ -110,7 +111,8 @@ def label_of(+i: U32) -> String:
     Bool.pick(String, U32.is_eq(i, 16), "Fresnel off      ",
     Bool.pick(String, U32.is_eq(i, 17), "sky reflection off",
     Bool.pick(String, U32.is_eq(i, 18), "ripples off      ",
-    Bool.pick(String, U32.is_eq(i, 19), "world mirror off ", "rays alone       "))))))))))))))))))))
+    Bool.pick(String, U32.is_eq(i, 19), "world mirror off ",
+    Bool.pick(String, U32.is_eq(i, 20), "caustic off      ", "rays alone       ")))))))))))))))))))))
 
 def dec(+t: U32) -> String:
   U32.show((t / 10 : U32)) ++ "." ++ U32.show((t % 10 : U32))
@@ -122,8 +124,8 @@ def per_frame(+ms5: Nat) -> String:
 
 def line(+i: U32, +ms5: Nat, +sum: U32, +px: U32) -> String:
   Bool.pick(String, (i < 1 : U32), "  " ++ label_of(i) ++ " " ++ Nat.show(ms5) ++ " ms, one frame",
-    Bool.pick(String, U32.is_eq(i, 21), "  hits             " ++ U32.show((sum * 100 / px : U32)) ++ " % of the rays reach a block",
-      Bool.pick(String, U32.is_eq(i, 22), "  steps           " ++ dec((sum * 10 / px : U32)) ++ " a ray to its hit, of the 60 it walks (a sky ray's 60 count)",
+    Bool.pick(String, U32.is_eq(i, 22), "  hits             " ++ U32.show((sum * 100 / px : U32)) ++ " % of the rays reach a block",
+      Bool.pick(String, U32.is_eq(i, 23), "  steps           " ++ dec((sum * 10 / px : U32)) ++ " a ray to its hit, of the 60 it walks (a sky ray's 60 count)",
         "  " ++ label_of(i) ++ " " ++ per_frame(ms5) ++ " ms a frame")))
 
 law runs:
@@ -156,7 +158,7 @@ def runs(n, i, lv, px, g):
 def profile_size(name: String, +rw: U32, +rh: U32) -> IO(Unit):
   do IO<Unit>:
     IO.print(name)
-    runs(23n, 0, (Render.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), Player.start_at(Player.res_of(rw, rh)))
+    runs(24n, 0, (Render.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), Player.start_at(Player.res_of(rw, rh)))
 
 # Stars and the moon are skipped during the day. Measure them in their
 # active state too, looking upward so the moon is in the frame.
@@ -186,10 +188,10 @@ def main() -> IO(Unit):
     profile_size("960 x 540 (a 1920 x 1080 window at scale 2)", 960, 540)
     profile_size("1470 x 796 (a 14-inch MacBook, every pixel a ray)", 1470, 796)
     IO.print("Night at 1470 x 796, looking at the moon")
-    runs(23n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Lake at 1470 x 796, looking west")
-    runs(23n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), lake(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), lake(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Submerged at 1470 x 796, looking west")
-    runs(23n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), submerged(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), submerged(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Night lake at 1470 x 796, looking at the reflected moon")
-    runs(23n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night_lake(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night_lake(Player.start_at(Player.res_of(1470, 796))))

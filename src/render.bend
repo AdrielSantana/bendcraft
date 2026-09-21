@@ -539,15 +539,29 @@ def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +v
         case False{}:
           shade_go(sky, w, base, v, ox, oy, oz, dx, dy, dz, c, t, fl, lx, ly, lz)
 
+# the bed's light under the water: the caustic, on a block a wet ray met,
+# a look of its own (bit 28 of the camera's base). At night its factor is
+# 1.0 (Sky.daylight is 0 from 0.12 under the horizon), and the sun's
+# height is the same for every pixel, so skipping it there costs no
+# divergence and changes no byte.
+def bed(on: Bool, +base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, +ly: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  match on:
+    case False{}: r
+    case True{}:
+      (w, c) = r
+      (w, dim(c, Water.caustic(base, x, z, drop, dy, ly)))
+
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: Ray) -> Array<U32> & U32:
   Ray{+c, +t, +tr} = ct
-  Water.Trace{+entry, depth} = tr
+  Water.Trace{+entry, +depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
   +hitw = (c % 4 : U32)
   Water.shade(wet, fl, v, oy, dy, lx, ly, lz, Water.top(c), t, (hitw > 0 : U32), tr,
-    mirrored(wet && Water.top(c) && Water.reflection_on(fl), fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz, shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz)))
+    mirrored(wet && Water.top(c) && Water.reflection_on(fl), fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
+      bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, (ox + dx * t : F32), (oz + dz * t : F32), (0.0 - dy * depth : F32), dy, ly,
+        shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz))))
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
            r: Array<U32> & Ray) -> Array<U32> & U32:
@@ -630,8 +644,8 @@ type Cam is Data:
 def looks() -> U32: 4293918751
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
-# the water's mirror; 28..30 are spare
-def looks_base() -> U32: 134217728
+# the water's mirror, 28 the caustic on its bed; 29 and 30 are spare
+def looks_base() -> U32: 402653184
 
 def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, more: U32, sel: U32, items: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:

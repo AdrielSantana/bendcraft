@@ -58,9 +58,10 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    when the budget asks: walk the far horizon's ring of 4-block cells once
    it exists (8 steps for the same reach), or let the mirror ride the
    primary walk's idle steps, since a ray that met the lake's bed walks
-   the rest of its 60 with its state frozen. Next, for the view from
-   above, where the mirror is 2% of the colour: the bed's light moved by
-   the same ripple slope, a false caustic.
+   the rest of its 60 with its state frozen. The view from above, where
+   the mirror is 2% of the colour, has its false caustic (2026-09-21): the
+   ripples' noise read at the bed, two octaves, thin threads, bit 28. The
+   shader is done; what is left of the water is its physics.
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
    them: next to the ring of 128² columns at one block, a ring of 128²
    cells of 4 blocks and one of 16, each cell its highest block and its
@@ -214,7 +215,7 @@ since it is what a visitor sees:
 
 1. sky, sun, fog and the day cycle — done, 2026-09-21
 2. collecting and the inventory, with laws stated for every count — done, 2026-09-21
-3. water: still water done, 2026-09-21; finish its shader, then its physics
+3. water: still water and its shader done, 2026-09-21; then its physics
 4. the far horizon
 5. survival and crafting
 6. clouds and their shadows; vegetation
@@ -419,6 +420,16 @@ Fresnel grows by a cube, not Schlick's fifth power; an eye under the water
 keeps the clear tint. No measurable cost. New picture digest
 `123459508674587f4d41b6c63389c05b`; physics unchanged; 118 tests.
 
+The false caustic, 2026-09-21: `Water.caustic` multiplies the bed's colour
+on a wet hit, from the ripples' value noise at the bed's point (scales 2
+and 3, lattice scaled with them, the ripple clock), thin threads by the
+squared product of two ridges, mean near zero, fading by six blocks of
+drop, with daylight and towards a look along the surface. Bit 28 of
+`Cam.base`, two laws (99), three tests, a view pair in `make water`. It
+costs 1.0 to 1.4 ms on a lake at 1470×796 (31.0 → 32.0), 0.2 at scale 2,
+nothing at night (skipped there, uniformly). New picture digest
+`788495f2eae1d62c6cd89f92af855661`; physics unchanged.
+
 What is measured today, at 1470×796 on an M5: 25.2 ms a frame (23.0 with
 the mirror off), rays alone 12.4, shadow off 21.6, water off 18.2; a lake
 31.2. Small differences between
@@ -429,7 +440,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `123459508674587f4d41b6c63389c05b` when
+- `make bench`: the md5 of the thirty checksums stays `788495f2eae1d62c6cd89f92af855661` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work
