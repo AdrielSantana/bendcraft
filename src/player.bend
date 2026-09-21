@@ -42,8 +42,12 @@ def view_with(g: Game, +fl: U32) -> Game & Image:
 def view(g: Game) -> Game & Image:
   view_with(g, 31)
 
+# the game's frame with the readout in its corner; zeros hide it
+def view_stat(g: Game, +ms10: U32, +fps: U32) -> Game & Image:
+  view_with(g, Render.stat_flags(31, ms10, fps))
+
 # ---------- input ----------
-# Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, p 256, j l
+# Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, p 256, f 512, j l
 # 1024 2048, Esc 4096, space 8192) and the edge of a press in `edge`. The mouse keeps
 # its last place in `mx`, `my` and two bits above the keys: 16384 while the
 # left button is down, 32768 once that press has dragged. A drag looks, a
@@ -56,7 +60,7 @@ def kmask(+c: U32) -> U32:
   (kbit(c, 119, 1) .|. kbit(c, 97, 2) .|. kbit(c, 115, 4) .|. kbit(c, 100, 8)
     .|. kbit(c, 63232, 16) .|. kbit(c, 63233, 32)
     .|. kbit(c, 63234, 64) .|. kbit(c, 63235, 128)
-    .|. kbit(c, 106, 1024) .|. kbit(c, 108, 2048) .|. kbit(c, 112, 256)
+    .|. kbit(c, 106, 1024) .|. kbit(c, 108, 2048) .|. kbit(c, 112, 256) .|. kbit(c, 102, 512)
     .|. kbit(c, 27, 4096) .|. kbit(c, 32, 8192) : U32)
 
 def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
@@ -103,6 +107,12 @@ def on_move(g: Game, +x: U32, +y: U32) -> Game:
     Bool.pick(U32, drag && far, (held .|. 32768 : U32), held),
     edge,
     Bool.pick(U32, drag, x, mx), Bool.pick(U32, drag, y, my), sel, res}
+
+# whether a key of the mask went down in the events just fed (main.bend
+# asks for F, the readout's switch, before the tick clears the edges)
+def pressed(g: Game, +bit: U32) -> Game & Bool:
+  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res} = g
+  (G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res}, Util.on(edge, bit))
 
 def quit_now(g: Game) -> Game:
   G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res} = g

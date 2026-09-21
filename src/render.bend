@@ -409,7 +409,7 @@ def shoot(go: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
           +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32) -> Array<U32> & U32:
   match go:
     case False{}:
-      (w, Bool.pick(U32, (fl < 32 : U32), v, 0))
+      (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), v, 0))
     case True{}:
       run_dda(w, base, ox, oy, oz, dx, dy, dz, v, fl)
 
@@ -436,7 +436,7 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
 # 31); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
-# what.
+# what. Above them rides the readout's numbers (stat_flags, below).
 type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, fl: U32, rw: U32, rh: U32}
 
@@ -499,22 +499,94 @@ def slot_col(+sel: U32, +slot: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) ->
   Bool.pick(U32, border, Bool.pick(U32, U32.is_eq(i, sel), rgb(255, 255, 255), rgb(40, 40, 40)),
             blockcol(i, False{}, 1.0))
 
-# what lies over the scene at this pixel: 0 nothing, else 1 + the colour
-def hud(+sel: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
-  +slot = slot_at(pxi, pyi, rw, rh)
-  Bool.pick(U32, cross_at(pxi, pyi, rw, rh), (1 + rgb(255, 255, 255) : U32),
-    Bool.pick(U32, (slot > 0 : U32), (1 + slot_col(sel, slot, pxi, pyi, rw, rh) : U32), 0))
+# ---------- the readout: the `!`'s milliseconds and the frames a second ----------
+# The two numbers ride in the flags above the looks (main.bend measures
+# them): bits 7..16 the tenths of a millisecond, to 99.9, bits 17..24 the
+# frames a second, to 255; zeros hide it. "16.4 MS  60 FPS" in the top left
+# corner, glyphs of 3 x 5 drawn 2 px a dot, a bit a dot from the top left:
+# 0-9, then . blank M F P (S is the 5). The GPU never shifts by a variable,
+# so a row and a dot are picked by a division and a mask.
 
-def hud_if(on: Bool, +sel: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+def stat_flags(+fl: U32, +ms10: U32, +fps: U32) -> U32:
+  (fl % 128 + 128 * (U32.min(ms10, 999) + 1024 * U32.min(fps, 255)) : U32)
+
+def stat_ms(+fl: U32) -> U32: (fl / 128 % 1024 : U32)
+def stat_fps(+fl: U32) -> U32: (fl / 131072 : U32)
+
+def glyph(+i: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(i, 0), 31599,
+    Bool.pick(U32, U32.is_eq(i, 1), 29850,
+    Bool.pick(U32, U32.is_eq(i, 2), 29671,
+    Bool.pick(U32, U32.is_eq(i, 3), 31207,
+    Bool.pick(U32, U32.is_eq(i, 4), 18925,
+    Bool.pick(U32, U32.is_eq(i, 5), 31183,
+    Bool.pick(U32, U32.is_eq(i, 6), 31695,
+    Bool.pick(U32, U32.is_eq(i, 7), 18727,
+    Bool.pick(U32, U32.is_eq(i, 8), 31727,
+    Bool.pick(U32, U32.is_eq(i, 9), 31215,
+    Bool.pick(U32, U32.is_eq(i, 10), 8192,
+    Bool.pick(U32, U32.is_eq(i, 11), 0,
+    Bool.pick(U32, U32.is_eq(i, 12), 23549,
+    Bool.pick(U32, U32.is_eq(i, 13), 4815,
+    Bool.pick(U32, U32.is_eq(i, 14), 5103,
+    0)))))))))))))))
+
+def stat_cell(+c: U32, +ms: U32, +fps: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(c, 0), Bool.pick(U32, (ms < 100 : U32), 11, (ms / 100 : U32)),
+    Bool.pick(U32, U32.is_eq(c, 1), (ms / 10 % 10 : U32),
+    Bool.pick(U32, U32.is_eq(c, 2), 10,
+    Bool.pick(U32, U32.is_eq(c, 3), (ms % 10 : U32),
+    Bool.pick(U32, U32.is_eq(c, 4), 11,
+    Bool.pick(U32, U32.is_eq(c, 5), 12,
+    Bool.pick(U32, U32.is_eq(c, 6), 5,
+    Bool.pick(U32, U32.is_eq(c, 7), 11,
+    Bool.pick(U32, U32.is_eq(c, 8), Bool.pick(U32, (fps < 100 : U32), 11, (fps / 100 : U32)),
+    Bool.pick(U32, U32.is_eq(c, 9), Bool.pick(U32, (fps < 10 : U32), 11, (fps / 10 % 10 : U32)),
+    Bool.pick(U32, U32.is_eq(c, 10), (fps % 10 : U32),
+    Bool.pick(U32, U32.is_eq(c, 11), 11,
+    Bool.pick(U32, U32.is_eq(c, 12), 13,
+    Bool.pick(U32, U32.is_eq(c, 13), 14,
+    Bool.pick(U32, U32.is_eq(c, 14), 5,
+    11)))))))))))))))
+
+def row_div(+r: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(r, 0), 1, Bool.pick(U32, U32.is_eq(r, 1), 8, Bool.pick(U32, U32.is_eq(r, 2), 64,
+    Bool.pick(U32, U32.is_eq(r, 3), 512, 4096))))
+
+def dot_bit(+d: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(d, 0), 1, Bool.pick(U32, U32.is_eq(d, 1), 2, Bool.pick(U32, U32.is_eq(d, 2), 4, 0)))
+
+def stat_px(inside: Bool, +fl: U32, +pxi: U32, +pyi: U32) -> U32:
+  match inside:
+    case False{}:
+      0
+    case True{}:
+      +lx = (pxi - 4 : U32)
+      +ly = (pyi - 4 : U32)
+      +intext = (pxi >= 4 : U32) && (pxi < 124 : U32) && (pyi >= 4 : U32) && (pyi < 14 : U32)
+      +g = glyph(stat_cell((lx / 8 : U32), stat_ms(fl), stat_fps(fl)))
+      +row = (g / row_div((ly / 2 : U32)) % 8 : U32)
+      +lit = intext && Util.on(row, dot_bit((lx % 8 / 2 : U32)))
+      Bool.pick(U32, lit, (1 + rgb(255, 255, 255) : U32), (1 + rgb(16, 16, 24) : U32))
+
+# what lies over the scene at this pixel: 0 nothing, else 1 + the colour
+def hud(+sel: U32, +fl: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+  +slot = slot_at(pxi, pyi, rw, rh)
+  +stat = stat_px((fl >= 128 : U32) && (pxi < 128 : U32) && (pyi < 18 : U32), fl, pxi, pyi)
+  Bool.pick(U32, (stat > 0 : U32), stat,
+    Bool.pick(U32, cross_at(pxi, pyi, rw, rh), (1 + rgb(255, 255, 255) : U32),
+      Bool.pick(U32, (slot > 0 : U32), (1 + slot_col(sel, slot, pxi, pyi, rw, rh) : U32), 0)))
+
+def hud_if(on: Bool, +sel: U32, +fl: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   match on:
     case True{}:
-      hud(sel, pxi, pyi, rw, rh)
+      hud(sel, fl, pxi, pyi, rw, rh)
     case False{}:
       0
 
 def hud_of(+cam: Cam, +pxi: U32, +pyi: U32) -> U32:
-  Cam{ox, oy, oz, yaw, pit, base, sel, fl, rw, rh} = cam
-  hud_if(Util.on(fl, 16), sel, pxi, pyi, rw, rh)
+  Cam{ox, oy, oz, yaw, pit, base, sel, +fl, rw, rh} = cam
+  hud_if(Util.on(fl, 16), sel, fl, pxi, pyi, rw, rh)
 
 def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
   match over:

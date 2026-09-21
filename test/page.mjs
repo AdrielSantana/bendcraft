@@ -1,4 +1,4 @@
-// mouse.mjs <url> <out-prefix>: opens Bendcraft, then: a left drag (look), a left click (break), a right click (place), space (jump, then land); hashes the canvas after each and reports fps
+// mouse.mjs <url> <out-prefix>: opens Bendcraft, then: a left drag (look), a left click (break), a right click (place), space (jump, then land), F (the readout); hashes the canvas after each and reports fps
 import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -45,7 +45,10 @@ try {
   await mouse("mousePressed", cx, cy, "right"); await sleep(50); await mouse("mouseReleased", cx, cy, "right"); await sleep(600);
   const h6 = await grab("6");
   await key("p", "KeyP", 80); await sleep(600);
+  // F: the readout comes up in the corner, its numbers half a second later
+  await key("f", "KeyF", 70); await sleep(1300);
+  const h7 = await grab("7");
   const out = await send("Runtime.evaluate", { expression: "document.getElementById('bend-out').textContent", returnByValue: true });
   const f = await send("Runtime.evaluate", { expression: "document.body.innerText.match(/\\d+ fps/)?.[0] || ''", returnByValue: true });
-  console.log("hashes", h0, h1, h2, h3, h4, h5, h6, "| drag turned:", h0 !== h1, "click broke:", h1 !== h2, "right placed:", h2 !== h3, "jump rose:", h3 !== h4, "landed back:", h5 === h3, "sand differs:", h6 !== h3, "saved:", !out.result.value.includes("could not save"), "|", f.result.value, errors.length ? "ERRORS " + errors.join(" | ") : "");
+  console.log("hashes", h0, h1, h2, h3, h4, h5, h6, "| drag turned:", h0 !== h1, "click broke:", h1 !== h2, "right placed:", h2 !== h3, "jump rose:", h3 !== h4, "landed back:", h5 === h3, "sand differs:", h6 !== h3, "readout up:", h7 !== h6, "saved:", !out.result.value.includes("could not save"), "|", f.result.value, errors.length ? "ERRORS " + errors.join(" | ") : "");
 } finally { try { process.kill(-chrome.pid, "SIGKILL"); } catch {} chrome.kill(); }

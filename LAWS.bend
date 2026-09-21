@@ -9,6 +9,7 @@
 import Base
 import ./src/world.bend as World
 import ./src/player.bend as Player
+import ./src/render.bend as Render
 
 # --- the pick word: (lx * 32 + y) * 128 + lz, and back --------------------
 # (the checker computes integers, not floats: the laws are on the integer
@@ -124,3 +125,22 @@ law keys_off_the_mouse_bits:
 
 law unknown_key_is_no_bit:
   {Player.kmask(65) == 0 : U32}
+
+# --- the readout rides above the looks --------------------------------------
+# the flags word keeps its five looks and neither debug bit under any
+# numbers; the numbers read back; past their room they stop at 99.9 and 255
+
+law stat_keeps_the_looks:
+  {(Render.stat_flags(31, 164, 60) % 128 : U32) == 31 : U32}
+
+law stat_ms_reads_back:
+  {Render.stat_ms(Render.stat_flags(31, 164, 60)) == 164 : U32}
+
+law stat_fps_reads_back:
+  {Render.stat_fps(Render.stat_flags(31, 164, 60)) == 60 : U32}
+
+law stat_stops_at_its_room:
+  {Render.stat_flags(31, 5000, 900) == 33551263 : U32}
+
+law stat_zero_is_the_game:
+  {Render.stat_flags(31, 0, 0) == 31 : U32}

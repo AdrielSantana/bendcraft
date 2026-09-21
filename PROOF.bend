@@ -35,3 +35,8 @@ def Laws.leaves_over_the_trunk(): {==}
 def Laws.grass_under_the_trunk(): {==}
 def Laws.keys_off_the_mouse_bits(): {==}
 def Laws.unknown_key_is_no_bit(): {==}
+def Laws.stat_keeps_the_looks(): {==}
+def Laws.stat_ms_reads_back(): {==}
+def Laws.stat_fps_reads_back(): {==}
+def Laws.stat_stops_at_its_room(): {==}
+def Laws.stat_zero_is_the_game(): {==}

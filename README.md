@@ -9,7 +9,7 @@ on the GPU through Metal, or on every core of your machine as WebAssembly.
 `W A S D` walk · `space` jumps · drag the mouse to look (or the arrows) ·
 click breaks · right click places (or `J` / `L`) · `1`–`8` choose the block
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `P` saves ·
-`Esc` quits and saves.
+`F` shows the frame's time · `Esc` quits and saves.
 
 ![Bendcraft](site/bendcraft.png)
 
@@ -120,6 +120,7 @@ test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
 test/terrain.bend  rows of the terrain, to see the noise
+test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
 site/              the page: notes.mjs post-processes the built index.html
@@ -197,6 +198,19 @@ work 10.3 ms, pack 0.5 ms. It reaches into the runtime's text, so a new
 Bend may need its snippets updated; it is a diagnostic, not part of the
 build.
 
+## The frame's time, in the game
+
+`F` puts a readout in the frame's corner: `16.4 MS  60 FPS`. The first
+number is the `!` alone, the render, as the bench times it; the second is
+the frames that reached the screen, which the display's rate caps, so a
+render of 5 ms still reads 60 or 120. `main.bend` runs the window's loop
+itself, in `App.run`'s shape, to read the clock on each side of the view
+and not around the wait for the screen; twice a second it publishes the
+mean since. The two numbers ride to the GPU in the flags word, above the
+looks, and the HUD draws them with glyphs of 3 × 5 picked by divisions
+and masks (no table, no variable shift). With the readout off the frame
+is the same bit for bit: the bench's checksums and its times did not move.
+
 ## Laws
 
 `LAWS.bend` states what the checker can decide: integer and bit rules on the
@@ -207,7 +221,9 @@ and reads back without touching its neighbours, and the device's read (a
 select, since the GPU never shifts by a variable) agrees with the host's;
 the terrain's layers are what they should be, a trunk packs as wood with
 leaves over it and grass under it, and the packed word the loader writes
-reads back the same; no key touches the mouse's bits of the held mask.
+reads back the same; no key touches the mouse's bits of the held mask;
+the readout's numbers ride above the looks without touching them, read
+back, and stop at their room.
 `bend PROOF.bend` is the gate. The float physics, a player
 never inside a block or a jump that lands where it left, is checked by
 `test/physics.bend`, whose lines the README of the history records.
