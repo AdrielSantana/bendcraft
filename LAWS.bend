@@ -203,3 +203,29 @@ law inventory_keeps_slot_count:
   for +put: Bool
   for +solid: Bool
   {List.length(&2, Nat, Inventory.edited(Inventory.edit(xs, i, put, solid))) == List.length(&2, Nat, xs) : Nat}
+
+# Seven-bit HUD counts occupy sel's spare bits and one extra word. These
+# boundary and mixed-slot packings use the same host and device defs.
+def hud_sample() -> List<&2, Nat>:
+  [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n]
+
+def hud_sample_at(i: U32) -> U32:
+  Inventory.hud_count(Inventory.hud_lo(7, hud_sample()), Inventory.hud_hi(hud_sample()), i)
+
+law inventory_hud_slots_read_back:
+  {[hud_sample_at(0), hud_sample_at(1), hud_sample_at(2), hud_sample_at(3), hud_sample_at(4), hud_sample_at(5), hud_sample_at(6), hud_sample_at(7)] == [0, 1, 9, 10, 99, 100, 100, 42] : List<U32>}
+
+law inventory_hud_keeps_selection:
+  {(Inventory.hud_lo(7, hud_sample()) % 8 : U32) == 7 : U32}
+
+law inventory_hud_empty_is_zero:
+  {(Inventory.hud_lo(0, Inventory.empty()), Inventory.hud_hi(Inventory.empty())) == (0, 0) : U32 & U32}
+
+law inventory_hud_99_is_exact:
+  {Inventory.display(99n) == 99 : U32}
+
+law inventory_hud_large_is_capped:
+  {Inventory.display(1001n) == 100 : U32}
+
+law save_and_quit_survive_the_step:
+  {Player.io_edges(65535) == 4352 : U32}

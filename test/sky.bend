@@ -11,8 +11,8 @@ def tree(img: Image) -> String:
       "Q\n" ++ tree(tl) ++ tree(tr) ++ tree(bl) ++ tree(br)
 
 def aim(g: Player.Game, t: U32, yaw: F32, pit: F32) -> Player.Game:
-  Player.G{w, px, py, pz, oldyaw, oldpit, vy, held, edge, mx, my, sel, res, clock} = g
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, t}
+  Player.G{w, px, py, pz, oldyaw, oldpit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, t, bag}
 
 def written(g: Player.Game, r: File & Result<&1, &1, U32 & String, Unit>) -> IO(Player.Game):
   (f, result) = r

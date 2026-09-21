@@ -156,3 +156,10 @@ def Laws.inventory_keeps_slot_count(xs, i, put, solid):
         case 1n+ +p:
           %Laws.inventory_keeps_slot_count(t, p, put, solid) : {List.length(&2, Nat, Inventory.edited(Inventory.prepend(h, Inventory.edit(t, p, put, solid)))) == 1n+_ : Nat}
           prepend_length(h, Inventory.edit(t, p, put, solid))
+
+def Laws.inventory_hud_slots_read_back(): {==}
+def Laws.inventory_hud_keeps_selection(): {==}
+def Laws.inventory_hud_empty_is_zero(): {==}
+def Laws.inventory_hud_99_is_exact(): {==}
+def Laws.inventory_hud_large_is_capped(): {==}
+def Laws.save_and_quit_survive_the_step(): {==}

@@ -3,6 +3,7 @@ import ./util.bend as Util
 import ./world.bend as World
 import ./day.bend as Day
 import ./sky.bend as Sky
+import ./inventory.bend as Inventory
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -442,16 +443,18 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # hit and 0 on sky: `make profile` renders with each and prints what costs
 # what. Bits 7..24 hold the readout; 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
+# sel holds selection in its low three bits, then four seven-bit counts;
+# items holds the other four. Both contain only capped HUD numbers.
 type Cam is Data:
-  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
+  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
 def looks() -> U32: 4261412895
 
-def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32,
+def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:
   +cycle = Util.on(fl, 33554432)
-  Cam{px, py, pz, yaw, pit, base, sel, fl, rw, rh,
+  Cam{px, py, pz, yaw, pit, base, sel, items, fl, rw, rh,
       Bool.pick(F32, cycle, Day.sun_x(clock), 0.48),
       Bool.pick(F32, cycle, Day.sun_y(clock), 0.8),
       Bool.pick(F32, cycle, Day.sun_z(clock), 0.36)}
@@ -469,7 +472,7 @@ def p2f(+p: U32, +size: U32, +rh: U32) -> F32:
   ((U32.to_f32((p * 2 : U32)) - U32.to_f32(size)) / U32.to_f32(rh) : F32)
 
 def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  Cam{ox, oy, oz, yaw, pit, base, sel, +fl, +rw, +rh, +lx, +ly, +lz} = cam
+  Cam{ox, oy, oz, yaw, pit, base, sel, items, +fl, +rw, +rh, +lx, +ly, +lz} = cam
   +u = p2f(pxi, rw, rh)
   +v = p2f(pyi, rh, rh)
   +fx = look_x(yaw, pit)
@@ -507,20 +510,12 @@ def slot_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   +inslot = ((pxi - x0) % 24 < 20 : U32)
   Bool.pick(U32, inx && iny && inslot, ((pxi - x0) / 24 + 1 : U32), 0)
 
-def slot_col(+sel: U32, +slot: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
-  +i = (slot - 1 : U32)
-  +lx = ((pxi - (rw / 2 - 94)) % 24 : U32)
-  +ly = (pyi - (rh - 30) : U32)
-  +border = (lx < 2 : U32) || (lx >= 18 : U32) || (ly < 2 : U32) || (ly >= 18 : U32)
-  Bool.pick(U32, border, Bool.pick(U32, U32.is_eq(i, sel), rgb(255, 255, 255), rgb(40, 40, 40)),
-            blockcol(i, False{}, 1.0))
-
 # ---------- the readout: the `!`'s milliseconds and the frames a second ----------
 # The two numbers ride in the flags above the looks (main.bend measures
 # them): bits 7..16 the tenths of a millisecond, to 99.9, bits 17..24 the
 # frames a second, to 255; zeros hide it. "16.4 MS  60 FPS" in the top left
 # corner, glyphs of 3 x 5 drawn 2 px a dot, a bit a dot from the top left:
-# 0-9, then . blank M F P (S is the 5). The GPU never shifts by a variable,
+# 0-9, then . blank M F P and + (S is the 5). The GPU never shifts by a variable,
 # so a row and a dot are picked by a division and a mask.
 
 def stat_flags(+fl: U32, +ms10: U32, +fps: U32) -> U32:
@@ -545,7 +540,8 @@ def glyph(+i: U32) -> U32:
     Bool.pick(U32, U32.is_eq(i, 12), 23549,
     Bool.pick(U32, U32.is_eq(i, 13), 4815,
     Bool.pick(U32, U32.is_eq(i, 14), 5103,
-    0)))))))))))))))
+    Bool.pick(U32, U32.is_eq(i, 15), 1488,
+    0))))))))))))))))
 
 def stat_cell(+c: U32, +ms: U32, +fps: U32) -> U32:
   Bool.pick(U32, U32.is_eq(c, 0), Bool.pick(U32, (ms < 100 : U32), 11, (ms / 100 : U32)),
@@ -585,24 +581,52 @@ def stat_px(inside: Bool, +fl: U32, +pxi: U32, +pyi: U32) -> U32:
       +lit = intext && Util.on(row, dot_bit((lx % 8 / 2 : U32)))
       Bool.pick(U32, lit, (1 + rgb(255, 255, 255) : U32), (1 + rgb(16, 16, 24) : U32))
 
+# Counts share the HUD flag. Only pixels inside a slot decode them; the
+# host list never reaches a lane. A dark strip keeps each digit legible.
+def count_glyph(+n: U32, +cell: U32) -> U32:
+  +v = U32.min(n, 99)
+  Bool.pick(U32, U32.is_eq(cell, 0), Bool.pick(U32, (v < 10 : U32), 11, (v / 10 : U32)),
+    Bool.pick(U32, U32.is_eq(cell, 1), (v % 10 : U32), Bool.pick(U32, (n > 99 : U32), 15, 11)))
+
+def count_col(+n: U32, +lx: U32, +ly: U32) -> U32:
+  +g = glyph(count_glyph(n, ((lx - 5) / 4 : U32)))
+  +row = (g / row_div((ly - 11 : U32)) % 8 : U32)
+  +lit = (lx >= 5 : U32) && (lx < 16 : U32) && (ly >= 11 : U32) && (ly < 16 : U32)
+    && Util.on(row, dot_bit(((lx - 5) % 4 : U32)))
+  Bool.pick(U32, lit, Bool.pick(U32, U32.is_eq(n, 0), rgb(144, 144, 152), rgb(255, 255, 255)), rgb(16, 16, 24))
+
+def slot_col(+sel: U32, items: U32, +slot: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+  +i = (slot - 1 : U32)
+  +lx = ((pxi - (rw / 2 - 94)) % 24 : U32)
+  +ly = (pyi - (rh - 30) : U32)
+  +border = (lx < 2 : U32) || (lx >= 18 : U32) || (ly < 2 : U32) || (ly >= 18 : U32)
+  +label = (lx >= 4 : U32) && (lx < 18 : U32) && (ly >= 10 : U32) && (ly < 17 : U32)
+  Bool.pick(U32, border, Bool.pick(U32, U32.is_eq(i, (sel % 8 : U32)), rgb(255, 255, 255), rgb(40, 40, 40)),
+    Bool.pick(U32, label, count_col(Inventory.hud_count(sel, items, i), lx, ly), blockcol(i, False{}, 1.0)))
+
+def slot_px(inside: Bool, sel: U32, items: U32, slot: U32, pxi: U32, pyi: U32, rw: U32, rh: U32) -> U32:
+  match inside:
+    case False{}: 0
+    case True{}: (1 + slot_col(sel, items, slot, pxi, pyi, rw, rh) : U32)
+
 # what lies over the scene at this pixel: 0 nothing, else 1 + the colour
-def hud(+sel: U32, +fl: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+def hud(+sel: U32, items: U32, +fl: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   +slot = slot_at(pxi, pyi, rw, rh)
   +stat = stat_px(Util.on(fl, 33554304) && (pxi < 128 : U32) && (pyi < 18 : U32), fl, pxi, pyi)
   Bool.pick(U32, (stat > 0 : U32), stat,
     Bool.pick(U32, cross_at(pxi, pyi, rw, rh), (1 + rgb(255, 255, 255) : U32),
-      Bool.pick(U32, (slot > 0 : U32), (1 + slot_col(sel, slot, pxi, pyi, rw, rh) : U32), 0)))
+      slot_px((slot > 0 : U32), sel, items, slot, pxi, pyi, rw, rh)))
 
-def hud_if(on: Bool, +sel: U32, +fl: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+def hud_if(on: Bool, +sel: U32, items: U32, +fl: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   match on:
     case True{}:
-      hud(sel, fl, pxi, pyi, rw, rh)
+      hud(sel, items, fl, pxi, pyi, rw, rh)
     case False{}:
       0
 
 def hud_of(+cam: Cam, +pxi: U32, +pyi: U32) -> U32:
-  Cam{ox, oy, oz, yaw, pit, base, sel, +fl, rw, rh, lx, ly, lz} = cam
-  hud_if(Util.on(fl, 16), sel, fl, pxi, pyi, rw, rh)
+  Cam{ox, oy, oz, yaw, pit, base, sel, items, +fl, rw, rh, lx, ly, lz} = cam
+  hud_if(Util.on(fl, 16), sel, items, fl, pxi, pyi, rw, rh)
 
 def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
   match over:

@@ -59,7 +59,7 @@ def frames(n, fl, lv, acc, ssum, g):
         frames_fin(m, fl, lv, acc, ssum, t0, t1, r)
 
 # the variants, in order: a warm-up, all on, each look off, the rays alone,
-# the hits, the steps
+# the hits, the steps. HUD off includes the inventory labels under flag 16.
 def off_bit(+i: U32) -> U32:
   Bool.pick(U32, U32.is_eq(i, 2), 1,
     Bool.pick(U32, U32.is_eq(i, 3), 2,
@@ -143,8 +143,8 @@ def profile_size(name: String, +rw: U32, +rh: U32) -> IO(Unit):
 # Stars and the moon are skipped during the day. Measure them in their
 # active state too, looking upward so the moon is in the frame.
 def night(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock} = g
-  Player.G{w, px, py, pz, 0.9272952, 1.1, vy, held, edge, mx, my, sel, res, 786432}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, 0.9272952, 1.1, vy, held, edge, mx, my, sel, res, 786432, bag}
 
 def main() -> IO(Unit):
   do IO<Unit>:

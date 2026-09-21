@@ -117,10 +117,11 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
 
 ## The game
 
-1. **Collecting and an inventory.** Today the hotbar's eight blocks are
-   endless. Breaking gives one, placing spends one, the HUD shows the
-   counts, the save keeps them. Then a time to break by block type, and
-   tools.
+1. **Collecting and an inventory — done (2026-09-21).** Breaking gives
+   one of the actual type; placing spends one, rejected placements spend
+   nothing. New games start empty. The HUD shows counts through `99+`,
+   the save keeps their full values, and old saves load with zero counts.
+   Time to break by block type and tools remain follow-up work.
 2. **Water.** A block type a ray goes through. Still water first, in the
    terrain below a sea level; then its physics, a cellular rule over the
    edits' Map, a tick at a time: down first, then sideways, sources stay.
@@ -148,10 +149,11 @@ Every rule the game adds gets its law in `LAWS.bend` before the feature is
 done, closed in `PROOF.bend`, run by `make check`. A later change, ours or
 a Bend update, that breaks a rule fails the gate. The laws to come:
 
-- *Inventory:* a count never goes under zero; break then place gives the
-  world and the counts back; no sequence of moves makes an item from
-  nothing. Minecraft is famous for its duplication glitches; here there is
-  a proof that there are none.
+- *Inventory (done):* natural counts, break/place roundtrip and conservation
+  of a cell plus its count for every action list. The actual world and
+  inventory share the transfer receipt; windowless tests cover the ring,
+  type selection and simultaneous inputs. The proof is of the integer
+  transfer model, not a blanket proof of the floating-point game loop.
 - *Crafting:* a recipe changes the counts by exactly its vector, and does
   nothing when an input is short.
 - *Water:* a tick never raises the amount of water, sources aside; water
@@ -163,13 +165,10 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 47 laws include the day period for every `U32` clock word and
-the inventory foundation: natural counts, conserved cell/item transfers,
-conservation over arbitrary action lists, rejected empty/occupied moves
-and preservation of slot count. Six new universal laws and one concrete
-zero case are closed; connecting the transfers to edits, HUD and save is
-the next part of step 2. Floats
-stay in the windowless tests: the checker does not compute them.
+Today's 53 laws include the day period for every `U32` clock word and
+six universal inventory laws, with counts as `Nat` and slots as a list.
+The other 46 laws are concrete checks, including HUD packing and save/quit
+edges. Floats stay in the windowless tests: the checker does not compute them.
 
 ## The order
 
@@ -177,7 +176,7 @@ A proposal, a piece of the look then a piece of the game, the look first
 since it is what a visitor sees:
 
 1. sky, sun, fog and the day cycle — done, 2026-09-21
-2. collecting and the inventory, with laws stated for every count
+2. collecting and the inventory, with laws stated for every count — done, 2026-09-21
 3. water: still, its shader, then its physics
 4. the far horizon
 5. survival and crafting
@@ -205,9 +204,30 @@ gates pass, physics remains `73516c0ead87f8c1151e34d25b3ac32e`, and the
 intentional new picture digest is `78d5ae6b7301de08432c237f1bbecc0b`.
 The full-day law now covers every clock word by bit induction.
 
+Step 2 is complete (2026-09-21): eight natural counts, collecting the
+actual block type, spending only on accepted placements, HUD labels and
+backward-compatible saves. The transfer laws cover every count and action
+list; tests cover the world edits, all types, simultaneous break/place,
+repeated air breaks and full counts through save/load. Placement rejects
+cells outside the world and every cell through the player's height. The
+save test also caught P's edge being discarded by the physics step; P and
+Esc now reach the save after the same tick's edit. Time to break and tools
+remain follow-up work.
+
+All four gates pass, with 53 laws. Four alternated rounds at 1470×796:
+full profile 16.0 → 16.2 ms, HUD off 15.8 → 16.2, rays alone 11.4 → 11.0.
+The fastest bench frame moves 15 → 16 ms there, unchanged at the other
+five sizes. That baseline 15 was one of twenty frames; a separate four-round
+kernel trace has work minima 14.570 → 14.526 ms, without a reproducible
+slowdown. The spread and one-ms timer explain the isolated floor change;
+README records both the normal table and the diagnostic times. The HUD
+intentionally changes the digest to `9e3773a2467d6ccbe097a74a29cf2f89`.
+Physics stays `73516c0ead87f8c1151e34d25b3ac32e`; its historical fixture
+supplies its sand placement, while separate tests check the empty start.
+
 ## The engine's routine
 
-What is measured today, at 1470×796 on an M5: 16.0 ms a frame, rays
+What is measured today, at 1470×796 on an M5: 16.2 ms a frame, rays
 alone 11.0, shadow off 13.2. The flags are measured together in the README;
 small differences are noisy. A ray costs the box's 60 steps whether it hits or not, on purpose
 (README, "What costs what").
@@ -216,7 +236,7 @@ small differences are noisy. A ray costs the box's 60 steps whether it hits or n
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `78d5ae6b7301de08432c237f1bbecc0b` when
+- `make bench`: the md5 of the thirty checksums stays `9e3773a2467d6ccbe097a74a29cf2f89` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work

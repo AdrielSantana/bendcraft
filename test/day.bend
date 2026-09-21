@@ -1,5 +1,6 @@
 import Base
 import ../src/day.bend as Day
+import ../src/inventory.bend as Inventory
 import ../src/sky.bend as Sky
 import ../src/render.bend as Render
 import ../src/world.bend as World
@@ -24,7 +25,7 @@ def probe(+x: U32, +y: U32, +z: U32, +dx: F32, +dy: F32, +dz: F32) -> Bool:
   blocked(Render.run_shadow(w, 0, 64.5, 10.5, 64.5, dx, dy, dz))
 
 def clock(g: Player.Game) -> U32:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, t} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, t, bag} = g
   t
 
 def restored(r: Player.Game & String) -> U32:
@@ -33,7 +34,7 @@ def restored(r: Player.Game & String) -> U32:
 
 def fixture(t: U32) -> Player.Game:
   Player.G{World.W{[0 : U32^17n], Map.new(&2, World.Col), 1048512, 1048512},
-    64.5, 30.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, Player.res512(), t}
+    64.5, 30.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, Player.res512(), t, Inventory.empty()}
 
 def main() -> IO(Unit):
   do IO<Unit>:

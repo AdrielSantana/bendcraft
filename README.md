@@ -11,6 +11,10 @@ click breaks · right click places (or `J` / `L`) · `1`–`8` choose the block
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `P` saves ·
 `F` shows the frame's time · `Esc` quits and saves.
 
+You start with an empty inventory. Break a block to collect its type;
+placing spends one of the selected type. The hotbar shows each count
+(`99+` above 99), and saves keep the full counts.
+
 ![Bendcraft](site/bendcraft.png)
 
 ## Build and run
@@ -101,27 +105,43 @@ and glow's colour, without celestial discs; its distance term reaches the
 sky at 34 blocks, before the 60-step ray budget ends even on a diagonal.
 A separate height term thickens in the low ground.
 
+**Collecting and building** use eight natural counts in `Game`. A successful
+break reads the cell's actual type and credits that slot; a successful
+placement debits the selected slot. Empty spending, occupied cells and
+placement anywhere through the player's height are rejected without
+changing either side. A break and place in the same tick run in that order,
+so the new item may fund one placement. Their shared transfer rule is
+proved to conserve the cell plus its inventory count, for every count and
+every list of actions. The ring/Map integration is checked by windowless
+tests, including repeated breaks and both actions together.
+
+The counts stay on the host. The HUD gets four seven-bit numbers above the
+selection in `Cam.sel`, plus four in one extra scalar, `Cam.items`; each is
+capped at 100, meaning `99+`. The full inventory is never shared down the
+render fork. Labels belong to HUD flag 16 and its existing profile row.
+
 **The world is saved.** `bendcraft.save` in the working directory holds
-the corner, position, look, chosen block and day clock on its first line,
-then one line per edited column: its key and its five words. The game
+the corner, position, look, chosen block, day clock and eight counts on its
+first line, then one line per edited column: its key and its five words. The game
 loads it at start, if it is there, and writes it on `P` and on quit; the
 untouched columns are never stored, they come back from the noise. On the
 page the file lives in the browser's memory, so it lasts until the tab is
-closed. Old headers without the optional clock still load, at morning;
-the column lines have not changed.
+closed. Old headers without the optional clock still load at morning;
+headers without counts start with an empty inventory. The column lines
+have not changed. Both `P` and `Esc` save after that tick's edits.
 
 **The player** is 1.8 blocks tall with the eye at 1.6. Walking tests the
 feet and the head per axis and stops at walls; gravity pulls, landing snaps
 the feet onto the block, space pushes off it. A block is never placed on
 the player. The hotbar along the bottom shows the eight block types and
-frames the chosen one.
+frames the chosen one, with the available count below each swatch.
 
 ## Layout
 
 ```
 main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
-src/inventory.bend natural counts and conserved cell/item transfers
+src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
@@ -133,7 +153,7 @@ AGENTS.md          for an agent (or a person) about to write Bend here: the gate
 ROADMAP.md         the vision and what comes next: the look, the game, the laws, what waits on Bend
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
-test/inventory.bend inventory slots, rejected transfers and large counts
+test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
@@ -190,6 +210,26 @@ The extra work is the signed shadow, sky colour and height/distance fog;
 the larger frames pay for that arithmetic at more pixels. The rays-alone
 profile remains 11.0 ms at 1470×796. Web numbers have not been remeasured.
 
+After collecting and inventory, four alternated rounds against the sky build:
+
+| fastest bench frame | before inventory | with inventory |
+|---|---|---|
+| 512×512 | 2 ms | 2 ms |
+| 512×512, 300 blocks placed | 2 ms | 2 ms |
+| 735×398 | 4 ms | 4 ms |
+| 960×540 | 8 ms | 8 ms |
+| 1470×796 | 15 ms | 16 ms |
+| 1920×1080 | 29 ms | 29 ms |
+
+The 15 ms frame occurred once in twenty baseline samples; the rest were
+16–18 ms, and the new build ranged from 16–20. To investigate that one-ms
+floor change, four further alternated rounds used `test/trace.py`: the work
+kernel's minimum was 14.570 → 14.526 ms, with the fastest traced dispatch
+summing to 16.625 → 16.266 ms. Tracing submits kernels separately, so its
+absolute times are diagnostic, not the normal bench. It found no repeatable
+kernel slowdown; the isolated minimum and the profile's few-tenths changes
+fit the run variation and the ordinary timer's one-ms resolution.
+
 On the page, `?size=1024x576x2` in the address gives the wide frame, and
 the fullscreen link scales whatever is rendered to the screen.
 
@@ -205,41 +245,45 @@ image with each pixel weighed by the square it stands for. The same
 view as the bench is used for the full render (the profile sums by pixel
 area; the bench sums the tree's leaves). At 1470×796:
 
-Four alternated original/final rounds, minimum five-frame mean per variant
-(the timer resolves milliseconds). The full profile grows by 0.8 ms;
-shadow-off grows by 0.6 ms with the new atmosphere, while rays alone stay
-unchanged. Differences of a few tenths, including an off variant slower
-than all-on, are measurement noise; these are not additive cost estimates.
+Four alternated pre-inventory/current rounds, minimum five-frame mean per
+variant (the timer resolves milliseconds):
 
-| | before | after, ms a frame |
+| | before inventory | with inventory, ms a frame |
 |---|---|---|
-| all on | 15.2 | 16.0 |
-| shadow off | 12.6 | 13.2 |
-| occlusion off | 14.2 | 15.2 |
-| texture off | 15.0 | 15.8 |
-| distance fog off | 15.0 | 16.2 |
-| HUD off | 15.2 | 16.2 |
-| day cycle off | — | 16.4 |
-| sky gradient off | — | 16.0 |
-| sun disc off | — | 16.0 |
-| horizon glow off | — | 15.8 |
-| stars off | — | 16.0 |
-| moon off | — | 16.2 |
-| height fog off | — | 16.0 |
-| rays alone | 11.0 | 11.0 |
+| all on | 16.0 | 16.2 |
+| shadow off | 13.4 | 13.2 |
+| occlusion off | 15.0 | 14.6 |
+| texture off | 15.6 | 15.8 |
+| distance fog off | 15.6 | 16.0 |
+| HUD off | 15.8 | 16.2 |
+| day cycle off | 15.8 | 15.8 |
+| sky gradient off | 15.6 | 16.0 |
+| sun disc off | 16.0 | 15.6 |
+| horizon glow off | 15.6 | 15.8 |
+| stars off | 16.0 | 16.0 |
+| moon off | 16.0 | 16.2 |
+| height fog off | 16.2 | 16.0 |
+| rays alone | 11.4 | 11.0 |
+
+The full profile's four means ranged from 16.0–16.6 before and 16.2–16.4
+after; HUD-off ranged from 15.8–16.2 and 16.2–17.2. These overlapping
+ranges and the kernel trace above matter more than a few tenths in an
+off variant. The camera carries one extra word; digit decoding runs only
+inside the eight slots, and HUD off skips it entirely.
 
 Stars and moon are skipped in this morning view. The profile also looks
-up at midnight, at 1470×796: all on 11.8 ms, stars off 11.4, moon off
-11.8, rays alone 10.6. The moon is visible in that view. The gradient and
-fog take no extra ray; the sun and moon are angular discs and the stars
-are a fixed hash of direction.
+up at midnight, at 1470×796: all on 11.6 → 11.8 ms, stars off 11.6 →
+11.6, moon off 11.6 → 11.8, rays alone 10.6 → 10.6. The moon is visible
+in that view. The gradient and fog take no extra ray; the sun and moon
+are angular discs and the stars are a fixed hash of direction.
 
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
 5 and 6 are debug renders; 7..24 hold the readout. Bits 25..31 are day
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
-sun for profiling. The new picture changes on purpose: bench digest
-`78d5ae6b7301de08432c237f1bbecc0b`; physics stays
+sun for profiling. HUD off also disables the new count labels. The default
+picture intentionally changes with those labels: bench digest
+`9e3773a2467d6ccbe097a74a29cf2f89`; physics stays
 `73516c0ead87f8c1151e34d25b3ac32e`.
 
 52 % of the rays reach a block, after 24 steps on average; the rest walk
@@ -292,12 +336,17 @@ the readout's numbers ride above the looks without touching them, read
 back, and stop at their room even with high look flags set. The day phase
 returns after a whole turn for every `U32` clock value, including overflow,
 proved by induction over the low 20 bits. This is the sun's sole integer
-input. Its last millisecond advances to dawn. The inventory foundation uses natural counts: a transfer conserves the
-cell plus its count, and induction extends that to every list of actions.
+input. Its last millisecond advances to dawn. The inventory uses natural
+counts: a transfer conserves the cell plus its count, and induction extends that to every list of actions.
 Empty spending and occupied placement are rejected, break then place
 restores the count, and edits preserve the number of inventory slots.
-There are 47 laws: seven universal claims and 40 concrete checks.
-The inventory is not yet connected to the game in this foundation commit.
+The HUD packing has mixed-slot and boundary laws; save/quit edges survive
+the physics step. There are 53 laws: seven universal claims and 46 concrete
+checks. Integration tests exercise the actual ring edits, all eight types,
+both actions in one tick, and save/load through `P` and `Esc`.
+The historical physics fixture supplies its one sand placement explicitly;
+its output hash stays unchanged, while the inventory tests check an empty
+new game.
 `bend PROOF.bend` is the gate. The float physics, a player
 never inside a block or a jump that lands where it left, is checked by
 `test/physics.bend`, whose lines the README of the history records.

@@ -3,12 +3,13 @@ import ./util.bend as Util
 import ./world.bend as World
 import ./player.bend as Player
 import ./day.bend as Day
+import ./inventory.bend as Inventory
 
 # SAVE AND LOAD: the edited columns and where the player stands, as text.
 #
 # The file is `bendcraft.save` in the working directory: a first line with
-# the corner, position, look, chosen block and optional day clock, then a line
-# per edited column, its key "x,z" and its five words. The game loads it
+# the corner, position, look, chosen block, optional day clock and eight
+# optional counts, then a line per edited column, its key "x,z" and its five words. The game loads it
 # at start and writes it on P and on quit. Floats travel as thousandths,
 # offset by a thousand so they stay positive.
 
@@ -46,21 +47,28 @@ def col_lines(kvs: List<&2, Sigma<&2, &2, String, _ => World.Col>>) -> String:
     case Con{kv, rest}:
       "\n" ++ col_line(kv) ++ col_lines(rest)
 
-def text_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, clock: U32, w: World.World) -> World.World & String:
+def counts_text(xs: List<&2, Nat>) -> String:
+  match xs:
+    case Nil{}:
+      ""
+    case Con{h, t}:
+      " " ++ Nat.show(h) ++ counts_text(t)
+
+def text_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, clock: U32, bag: List<&2, Nat>, w: World.World) -> World.World & String:
   World.W{ring, +m, +ox, +oz} = w
   (World.W{ring, m, ox, oz},
    "bendcraft 1 " ++ U32.show(ox) ++ " " ++ U32.show(oz) ++ " " ++ U32.show(enc(px)) ++ " " ++ U32.show(enc(py)) ++ " " ++ U32.show(enc(pz))
-   ++ " " ++ U32.show(enc(wrap(yaw))) ++ " " ++ U32.show(enc(pit)) ++ " " ++ U32.show(sel) ++ " " ++ U32.show(clock)
+   ++ " " ++ U32.show(enc(wrap(yaw))) ++ " " ++ U32.show(enc(pit)) ++ " " ++ U32.show(sel) ++ " " ++ U32.show(clock) ++ counts_text(bag)
    ++ col_lines(Map.to_list(&2, World.Col, m)))
 
-def text_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32,
+def text_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
              r: World.World & String) -> Player.Game & String:
   (w, s) = r
-  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock}, s)
+  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, s)
 
 def text(g: Player.Game) -> Player.Game & String:
-  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, res, +clock} = g
-  text_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, text_w(px, py, pz, yaw, pit, sel, clock, w))
+  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, res, +clock, +bag} = g
+  text_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, text_w(px, py, pz, yaw, pit, sel, clock, bag, w))
 
 def written(fr: File & Result<&1, &1, U32 & String, Unit>) -> IO(Unit):
   (f, r) = fr
@@ -112,13 +120,36 @@ def clock_of(fs: List<&2, String>) -> U32:
     case Con{t, rest}:
       Day.phase(num(t))
 
+def natural(m: Maybe<&2, Nat>) -> Nat:
+  match m:
+    case None{}: 0n
+    case Some{n}: n
+
+# Every load makes eight slots. Missing fields in old headers are zero;
+# the optional clock stays before them, so old column lines are unchanged.
+def counts_of(n: Nat, fs: List<&2, String>) -> List<&2, Nat>:
+  match n:
+    case 0n:
+      Nil{}
+    case 1n+p:
+      match fs:
+        case Nil{}:
+          Con{0n, counts_of(p, Nil{})}
+        case Con{h, t}:
+          Con{natural(Nat.read(h)), counts_of(p, t)}
+
+def inventory_of(fs: List<&2, String>) -> List<&2, Nat>:
+  match fs:
+    case Nil{}: Inventory.empty()
+    case Con{clock, counts}: counts_of(8n, counts)
+
 def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Game:
   match fs:
-    case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, rest}}}}}}}}}}:
+    case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, +rest}}}}}}}}}}:
       +cx = num(ox)
       +cz = num(oz)
       Player.G{World.load_all(128n, World.W{[0 : U32^17n], cols_of(ls, Map.new(&2, World.Col)), cx, cz}, cx, cz),
-               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, num(sel), res, clock_of(rest)}
+               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, (num(sel) % 8 : U32), res, clock_of(rest), inventory_of(rest)}
     case Con{tag, rest}:
       Player.start_at(res)
     case Nil{}:
@@ -179,20 +210,23 @@ def after_save(quit: Bool, g: Player.Game) -> IO(Maybe<Player.Game>):
     case False{}:
       IO.pure(Maybe<Player.Game>, Some{g})
 
-def saved(quit: Bool, g: Player.Game) -> IO(Maybe<Player.Game>):
-  IO.bind(Player.Game, Maybe<Player.Game>, save(g), after_save(quit))
+def saved(path: String, quit: Bool, g: Player.Game) -> IO(Maybe<Player.Game>):
+  IO.bind(Player.Game, Maybe<Player.Game>, save_to(path, g), after_save(quit))
 
-def alive_go(act: Bool, +quit: Bool, g: Player.Game) -> IO(Maybe<Player.Game>):
+def alive_go(act: Bool, +quit: Bool, path: String, g: Player.Game) -> IO(Maybe<Player.Game>):
   match act:
     case True{}:
-      saved(quit, g)
+      saved(path, quit, g)
     case False{}:
       IO.pure(Maybe<Player.Game>, Some{g})
 
-def alive(g: Player.Game) -> IO(Maybe<Player.Game>):
-  Player.G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res, clock} = g
+def alive_at(path: String, g: Player.Game) -> IO(Maybe<Player.Game>):
+  Player.G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res, clock, bag} = g
   +quit = Util.on(edge, 4096)
-  alive_go(quit || Util.on(edge, 256), quit, Player.G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res, clock})
+  alive_go(quit || Util.on(edge, 256), quit, path, Player.G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res, clock, bag})
+
+def tick_to(path: String, evs: List<Event>, g: Player.Game) -> IO(Maybe<Player.Game>):
+  alive_at(path, Player.step(Player.feed(evs, g)))
 
 def tick(evs: List<Event>, g: Player.Game) -> IO(Maybe<Player.Game>):
-  alive(Player.step(Player.feed(evs, g)))
+  tick_to("bendcraft.save", evs, g)
