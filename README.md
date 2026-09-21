@@ -15,7 +15,7 @@ to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `P` saves ·
 
 ## Build and run
 
-Bend 2.0.22 or later (`bend update`). On a Mac with Metal:
+Bend 2.0.23 or later (`bend update`). On a Mac with Metal:
 
 ```sh
 make            # bend main.bend -o build/bendcraft
@@ -133,7 +133,7 @@ make page-test  # the page in headless Chrome, hashes and fps
 
 ## Numbers
 
-Apple M5, Bend 2.0.22. The bench times the `!` only, five frames with the
+Apple M5, Bend 2.0.23. The bench times the `!` only, five frames with the
 camera turning; the thirty checksums are the same on every build that
 changes nothing visible. The first column is the binary tree, the second
 the four-way tree it replaced.
