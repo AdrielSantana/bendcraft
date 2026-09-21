@@ -121,6 +121,7 @@ frames the chosen one.
 ```
 main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
+src/inventory.bend natural counts and conserved cell/item transfers
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
@@ -132,6 +133,7 @@ AGENTS.md          for an agent (or a person) about to write Bend here: the gate
 ROADMAP.md         the vision and what comes next: the look, the game, the laws, what waits on Bend
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
+test/inventory.bend inventory slots, rejected transfers and large counts
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
@@ -290,8 +292,12 @@ the readout's numbers ride above the looks without touching them, read
 back, and stop at their room even with high look flags set. The day phase
 returns after a whole turn for every `U32` clock value, including overflow,
 proved by induction over the low 20 bits. This is the sun's sole integer
-input. Its last millisecond advances to dawn. There are 40 laws: this
-universal period law and 39 concrete checks.
+input. Its last millisecond advances to dawn. The inventory foundation uses natural counts: a transfer conserves the
+cell plus its count, and induction extends that to every list of actions.
+Empty spending and occupied placement are rejected, break then place
+restores the count, and edits preserve the number of inventory slots.
+There are 47 laws: seven universal claims and 40 concrete checks.
+The inventory is not yet connected to the game in this foundation commit.
 `bend PROOF.bend` is the gate. The float physics, a player
 never inside a block or a jump that lands where it left, is checked by
 `test/physics.bend`, whose lines the README of the history records.

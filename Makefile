@@ -25,6 +25,7 @@ check:
 	$(BEND) test/physics.bend --check-only
 	$(BEND) test/save.bend --check-only
 	$(BEND) test/day.bend --check-only
+	$(BEND) test/inventory.bend --check-only
 	$(BEND) test/sky.bend --check-only
 	$(BEND) test/bench.bend --check-only
 	$(BEND) test/profile.bend --check-only
@@ -37,6 +38,7 @@ test:
 	$(BEND) test/physics.bend
 	$(BEND) test/save.bend
 	$(BEND) test/day.bend
+	$(BEND) test/inventory.bend
 	$(BEND) test/terrain.bend
 	$(BEND) test/readout.bend
 

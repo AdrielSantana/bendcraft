@@ -6,6 +6,7 @@
 import Base
 import ./LAWS.bend as Laws
 import ./src/day.bend as Day
+import ./src/inventory.bend as Inventory
 
 def Laws.pick_origin(): {==}
 def Laws.pick_far_corner(): {==}
@@ -112,3 +113,46 @@ def Laws.day_returns_after_a_full_turn(t):
     case U32{w}:
       %period_mask(32n, 20n, w) : {U32{Word.and(32n, Word.add(32n, w, period(32n, 20n)), mask(32n, 20n))} == U32{_} : U32}
       {==}
+
+def Laws.inventory_transfer_conserves(put, solid, n):
+  match put solid:
+    case False{} False{}: {==}
+    case False{} True{}: {==}
+    case True{} True{}: {==}
+    case True{} False{}:
+      match n:
+        case 0n: {==}
+        case 1n+p: {==}
+
+def Laws.inventory_trace_conserves(actions, m):
+  match actions:
+    case Nil{}: {==}
+    case Con{+put, rest}:
+      match m:
+        case Inventory.Transfer{+solid, +n, changed}:
+          %Laws.inventory_transfer_conserves(put, solid, n) : {Inventory.stock(Inventory.trace(rest, Inventory.transfer(put, solid, n))) == _ : Nat}
+          Laws.inventory_trace_conserves(rest, Inventory.transfer(put, solid, n))
+
+def Laws.inventory_zero_cannot_place(): {==}
+def Laws.inventory_air_gives_nothing(n): {==}
+def Laws.inventory_occupied_cannot_spend(n): {==}
+def Laws.inventory_break_place_restores(n): {==}
+
+def replace_length(t: List<&2, Nat>, m: Inventory.Transfer) -> {List.length(&2, Nat, Inventory.edited(Inventory.replace(t, m))) == 1n+List.length(&2, Nat, t) : Nat}:
+  match m:
+    case Inventory.Transfer{solid, n, changed}: {==}
+
+def prepend_length(h: Nat, e: Inventory.Edit) -> {List.length(&2, Nat, Inventory.edited(Inventory.prepend(h, e))) == 1n+List.length(&2, Nat, Inventory.edited(e)) : Nat}:
+  match e:
+    case Inventory.Edit{xs, changed}: {==}
+
+def Laws.inventory_keeps_slot_count(xs, i, put, solid):
+  match xs:
+    case Nil{}: {==}
+    case Con{+h, +t}:
+      match i:
+        case 0n:
+          replace_length(t, Inventory.transfer(put, solid, h))
+        case 1n+ +p:
+          %Laws.inventory_keeps_slot_count(t, p, put, solid) : {List.length(&2, Nat, Inventory.edited(Inventory.prepend(h, Inventory.edit(t, p, put, solid)))) == 1n+_ : Nat}
+          prepend_length(h, Inventory.edit(t, p, put, solid))

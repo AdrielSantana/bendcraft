@@ -11,6 +11,7 @@ import ./src/world.bend as World
 import ./src/player.bend as Player
 import ./src/render.bend as Render
 import ./src/day.bend as Day
+import ./src/inventory.bend as Inventory
 
 # --- the pick word: (lx * 32 + y) * 128 + lz, and back --------------------
 # (the checker computes integers, not floats: the laws are on the integer
@@ -167,3 +168,38 @@ law stat_high_zero_is_the_game:
 law day_returns_after_a_full_turn:
   for t: U32
   {Day.advance(t, Day.length()) == Day.phase(t) : U32}
+
+# A cell and its inventory count keep the same total after every action,
+# and after any list of actions, including attempts to spend from zero.
+law inventory_transfer_conserves:
+  for put: Bool
+  for solid: Bool
+  for n: Nat
+  {Inventory.stock(Inventory.transfer(put, solid, n)) == Inventory.stock(Inventory.Transfer{solid, n, False{}}) : Nat}
+
+law inventory_trace_conserves:
+  for actions: List<Bool>
+  for m: Inventory.Transfer
+  {Inventory.stock(Inventory.trace(actions, m)) == Inventory.stock(m) : Nat}
+
+law inventory_zero_cannot_place:
+  {Inventory.transfer(True{}, False{}, 0n) == Inventory.Transfer{False{}, 0n, False{}} : Inventory.Transfer}
+
+law inventory_air_gives_nothing:
+  for n: Nat
+  {Inventory.transfer(False{}, False{}, n) == Inventory.Transfer{False{}, n, False{}} : Inventory.Transfer}
+
+law inventory_occupied_cannot_spend:
+  for n: Nat
+  {Inventory.transfer(True{}, True{}, n) == Inventory.Transfer{True{}, n, False{}} : Inventory.Transfer}
+
+law inventory_break_place_restores:
+  for n: Nat
+  {Inventory.again(True{}, Inventory.transfer(False{}, True{}, n)) == Inventory.Transfer{True{}, n, True{}} : Inventory.Transfer}
+
+law inventory_keeps_slot_count:
+  for xs: List<&2, Nat>
+  for i: Nat
+  for +put: Bool
+  for +solid: Bool
+  {List.length(&2, Nat, Inventory.edited(Inventory.edit(xs, i, put, solid))) == List.length(&2, Nat, xs) : Nat}

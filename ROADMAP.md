@@ -163,10 +163,12 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 40 laws include the day period for every `U32` clock word,
-proved by induction over its bits; the other 39 are concrete cases decided
-by computation. The inventory is the next place to state laws for every
-value, with a count as a `Nat` and an inventory as a list or map. Floats
+Today's 47 laws include the day period for every `U32` clock word and
+the inventory foundation: natural counts, conserved cell/item transfers,
+conservation over arbitrary action lists, rejected empty/occupied moves
+and preservation of slot count. Six new universal laws and one concrete
+zero case are closed; connecting the transfers to edits, HUD and save is
+the next part of step 2. Floats
 stay in the windowless tests: the checker does not compute them.
 
 ## The order
