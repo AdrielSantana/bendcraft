@@ -230,8 +230,22 @@ reason.
 | [PR #866](https://github.com/bendlang/bend/pull/866) | `-o x.html`: the runtime as WebAssembly, a worker a core, a Window on a canvas | ready for review, rebased onto 2.0.24; over the `comp.ts` cap by 60 tokens, said so in the PR | `make page` with the stock `bend`; drop `BEND_WEB` | the fork stays the page's compiler, rebased at every release |
 | [#920](https://github.com/bendlang/bend/issues/920) | a WGSL lane: `!` on WebGPU; the design, a prototype, 0.3 / 1.8 / 2.4 ms against 4.5 / 42 / 53 on ten wasm threads | open | write the emitter where they say it may live | write it in the fork |
 | [#925](https://github.com/bendlang/bend/issues/925) | Metal: the tree's arity decides the lanes' load (12 / 23-34 / 3 ms for the same leaves) | open | re-measure, maybe the four-way tree again | the binary tree stays; the README is the record |
-| [#921](https://github.com/bendlang/bend/issues/921) | Window: grab the mouse | open | mouse look without dragging | drag or arrows, as now |
-| [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | `make full` sizes a bare window to the screen |
+| [#921](https://github.com/bendlang/bend/issues/921) | Window: grab the mouse | open | mouse look without dragging | our own effect, below |
+| [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | our own effect, below; until then `make full` sizes the window to the screen |
+
+**Our own effects, if the Window asks stay unanswered.** `bend guide
+effects` is the manual: a def of type `IO(R)` whose body imports a `.c` and
+a `.js`; the C is spliced into the program after the runtime, so its
+symbols are in scope, and a custom effect may take one of Base's handles.
+On macOS the `Window` handle is the `NSWindow` itself, so full screen is a
+call on it, and a grabbed mouse is the cursor hidden and unhooked plus a
+second effect that reads the mouse's delta each frame. The page needs its
+own branch (pointer lock), since the web target compiles the same C. The
+price: the C names the runtime's internals, there is no ABI promise, and
+it is rebuilt and re-tested at every `bend update`. This is input at the
+edge, which is what effects are for; drawing stays in Bend. Wait some days
+for #921 and #923 first; if we write one, offer it upstream as the issue's
+implementation.
 
 A third answer is likely for the PR: closed for the repo's budget, with a
 branch to keep it in, as `hip` was offered in #891 and now exists. The
