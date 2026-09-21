@@ -66,7 +66,7 @@ sky: test/sky.bend src/*.bend
 	./build/sky
 	$(PYTHON) test/sky.py
 
-# Inspect the lake, water-off, dusk and submerged views (Pillow).
+# Inspect the lake, surface flags, submerged views and reflected sky (Pillow).
 water: test/water_view.bend test/profile.bend test/sky.bend src/*.bend
 	@mkdir -p build
 	$(BEND) test/water_view.bend -o build/water-view

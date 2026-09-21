@@ -188,3 +188,9 @@ def Laws.water_cannot_replace_a_bank(): {==}
 def Laws.water_fog_has_its_own_flag(): {==}
 def Laws.water_fog_is_on_by_default(): {==}
 def Laws.readout_keeps_water_fog(): {==}
+def Laws.water_surface_packing_reads_back(): {==}
+def Laws.water_top_stays_marked(): {==}
+def Laws.water_reflection_has_its_own_flag(): {==}
+def Laws.water_fresnel_has_its_own_flag(): {==}
+def Laws.water_surface_looks_are_on_by_default(): {==}
+def Laws.readout_keeps_water_surface_looks(): {==}

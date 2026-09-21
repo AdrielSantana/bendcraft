@@ -302,3 +302,36 @@ law water_fog_is_on_by_default:
 
 law readout_keeps_water_fog:
   {Water.fog_on(Render.stat_flags(4194304, 999, 255)) == True{} : Bool}
+
+# Exhaust every legal step count and all four solid-face codes, with and
+# without the packed water-top bit. No floating-point claim is made here.
+def surface_code_checks(n: Nat, +i: U32) -> Bool:
+  match n:
+    case 0n: True{}
+    case 1n+k:
+      +count = (i / 4 : U32)
+      +face = (i % 4 : U32)
+      +marked = (Water.mark_top(count, True{}) * 4 + face : U32)
+      +plain = (Water.mark_top(count, False{}) * 4 + face : U32)
+      Water.top(marked) && Bool.not(Water.top(plain))
+        && U32.is_eq(Water.steps(marked), count) && U32.is_eq(Water.steps(plain), count)
+        && U32.is_eq((marked % 4 : U32), face) && U32.is_eq((plain % 4 : U32), face)
+        && surface_code_checks(k, (i + 1 : U32))
+
+law water_surface_packing_reads_back:
+  {surface_code_checks(244n, 0) == True{} : Bool}
+
+law water_top_stays_marked:
+  {Water.top((Water.mark_top(Water.mark_top(60, True{}), False{}) * 4 + 3 : U32)) == True{} : Bool}
+
+law water_reflection_has_its_own_flag:
+  {(Water.reflection_on(16777216), Water.reflection_on(8388608)) == (True{}, False{}) : Bool & Bool}
+
+law water_fresnel_has_its_own_flag:
+  {(Water.fresnel_on(8388608), Water.fresnel_on(16777216)) == (True{}, False{}) : Bool & Bool}
+
+law water_surface_looks_are_on_by_default:
+  {(Water.reflection_on(Render.looks()), Water.fresnel_on(Render.looks())) == (True{}, True{}) : Bool & Bool}
+
+law readout_keeps_water_surface_looks:
+  {(Render.stat_flags(25165824, 999, 255) .&. 25165824 : U32) == 25165824 : U32}

@@ -6,8 +6,10 @@ from sky import picture
 
 
 if __name__ == '__main__':
-    sheet = Image.new('RGB', (1024, 936), '#161922')
-    for i, label in enumerate(['default', 'lake', 'off', 'dusk', 'under', 'under-off']):
+    labels = ['default', 'lake', 'reflection-off', 'fresnel-off', 'off', 'dusk',
+              'under', 'under-off', 'sunset-reflection', 'night-reflection']
+    sheet = Image.new('RGB', (1024, 312 * ((len(labels) + 1) // 2)), '#161922')
+    for i, label in enumerate(labels):
         path = Path(f'build/water-{label}.tree')
         image = picture(path)
         image.save(path.with_suffix('.png'))

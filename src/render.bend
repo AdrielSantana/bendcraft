@@ -101,7 +101,8 @@ def refetch_water(~water: Bool, need: Bool, w: Array<U32>, +base: U32, +x: U32, 
 type Ray is Data:
   Ray{hit: U32, t: F32, water: Water.Trace}
 
-# The hit word carries the number of steps above the two face bits.
+# The hit word carries six step bits above the two face bits, then the
+# first-water-top bit. Reflection needs no extra word through the DDA.
 def dda_end(+col: U32, +n: U32, t: F32, tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
   (w, bits) = r
   (w, Ray{(col + n * 4 : U32), t, tr})
@@ -117,7 +118,7 @@ def dda(~water: Bool, fuel: Nat, +base: U32,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
         +ex: F32, +ey: F32, +ez: F32,
-        +axis: F32, +col: U32, +t: F32, +n: U32, +ymask: U32, tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
+        +axis: F32, +col: U32, +t: F32, +n: U32, +ymask: U32, +tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
   match fuel:
     case 0n:
       dda_end(col, n, t, tr, r)
@@ -142,9 +143,11 @@ def dda(~water: Bool, fuel: Nat, +base: U32,
       # t is where the ray enters the next voxel; it stops moving at the hit
       +nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
       # the steps before the hit, for the profile
-      nn = Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n)
+      +wet = inside && (ncol < 1 : U32) && Util.on(wetbits, ymask)
+      nn = Water.crossed_top(water, wet, t, nt, axis, sy, tr,
+        Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n))
       dda(~water, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nn, nymask,
-          Water.crossed(water, inside && (ncol < 1 : U32) && Util.on(wetbits, ymask), t, nt, tr),
+          Water.crossed(water, wet, t, nt, tr),
           refetch_water(~water, Bool.not(uy) && (ncol < 1 : U32), w, base, Util.f2u(nvx), Util.f2u(nvz), Column{bits, wetbits}))
 
 # ---------- the hit's look: sun, texture, ambient occlusion, fog ----------
@@ -415,8 +418,8 @@ def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base:
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
   +hitw = (c % 4 : U32)
-  Water.shade(wet, fl, v, oy, dy, ly, t, (hitw > 0 : U32), tr,
-    shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, (c / 4 : U32), ground_flags, lx, ly, lz))
+  Water.shade(wet, fl, v, oy, dx, dy, dz, lx, ly, lz, Water.top(c), t, (hitw > 0 : U32), tr,
+    shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz))
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
            r: Array<U32> & Ray) -> Array<U32> & U32:
@@ -486,7 +489,7 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
 # what. Bits 7..20 hold the readout, with four FPS bits in items; 21..24
-# hold water (21), water fog (22) and two free flags (23..24). Bits 25..31 enable the day cycle, sky
+# hold water (21), water fog (22), Fresnel (23) and sky reflection (24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low three bits, then four seven-bit counts;
 # items holds the other four and the high FPS bits. Counts are capped for the HUD.
@@ -494,7 +497,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4267704351
+def looks() -> U32: 4292870175
 
 def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:

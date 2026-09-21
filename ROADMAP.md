@@ -43,8 +43,8 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    where the far levels end). The fog measured nothing in the profile, so
    this is nearly free and changes every screenshot. It goes with the day
    cycle: dawn, noon, dusk, night with stars and a moon.
-2. **Water's shader.** Tint by the depth crossed, a Fresnel term, the sky
-   reflected analytically, ripples from a noise normal moved by time; then
+2. **Water's shader.** Depth tint, Fresnel and the analytic reflected sky
+   are done. Next: ripples from a noise normal moved by time; then
    the world reflected by a second ray, paid like the shadow ray, only on
    the pixels that show water.
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
@@ -129,7 +129,8 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
    dirt; the lowest sandy beds remain sand. Trees only generate on dry grass;
    canopies may overhang the water from a dry bank. Existing edited columns
    remain authoritative when loading old saves.
-   Next: Fresnel, sky reflection and ripples with their own flags, then
+   Fresnel and sky reflection are implemented with separate flags.
+   Next: ripples, then terrain reflection by a second ray, followed by
    physics, a cellular rule over the edits' Map: down first, sideways,
    sources stay. Swimming and collection are not implemented yet.
    The water model was chosen on 2026-09-21: **finite volume with explicit
@@ -185,9 +186,10 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 75 laws include the day period for every `U32` clock word and
+Today's 81 laws include the day period for every `U32` clock word and
 six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 68 laws are concrete checks, including lake floors, dry tree roots, HUD packing and save/quit
+The other 74 laws are concrete checks, including water surface packing,
+lake floors, dry tree roots, HUD packing and save/quit
 edges. Floats stay in the windowless tests: the checker does not compute them.
 
 ## The order
@@ -344,8 +346,48 @@ mixes and adds a subtraction and multiplication; ray geometry is unchanged.
 The default picture changes intentionally to `d1956084325187d408ce8f22887852ce`.
 Physics stays `73516c0ead87f8c1151e34d25b3ac32e`.
 
-What is measured today, at 1470×796 on an M5: 21.6 ms a frame, rays
-alone 12.8, shadow off 17.8, water off 18.2. Small differences between
+Fresnel and analytic sky reflection, 2026-09-21: the first downward
+water-top entry reflects the sky, sun, stars and moon. Reflectance grows
+from 2% head-on toward a mirror at grazing angles. Bits 23 and 24 switch
+Fresnel and reflection independently; the first top entry uses a spare bit
+of the existing ray step counter, without widening the camera or wet trace.
+The surface uses foreground air fog and returns exact sky at full haze.
+Submerged eyes, upward exits and banks before water keep their old image;
+edited water heights also work. No second world ray is cast.
+
+All four gates pass and 81 laws close, including an exhaustive integer
+check of every legal step count and face code with and without the water
+marker. Float tests cover angular response, signed entry, reflected bodies,
+fog extinction and the earlier underwater silhouette regressions. Ten
+exported views were inspected. The submerged image is byte-identical to
+the previous version; disabling reflection restores the old lake image,
+and disabling both new flags restores all thirty old bench checksums.
+
+Four alternated rounds at 1470×796 with no game process: full profile
+20.6 → 21.8 ms, lake 21.8 → 23.4, submerged 21.6 → 21.4. The reflected
+sky and Fresnel add work at water surfaces; the shared first-top marker
+also adds tests to the water-enabled DDA. Reflection off measures 20.6
+in the default view and 21.8 at the lake. The new night-lake profile is
+20.6 ms, reflection off 18.2, Fresnel off 20.2, stars off 19.4, moon off
+20.0. Normal bench minima are 2/3/6/10/21/36 → 3/3/6/11/21/38 ms.
+
+Rays alone initially rose 12.0 → 12.4 ms. Four fresh-C traces of the
+exact profile cameras investigate that increase: rays-only work minima
+10.496 → 10.593, fastest dispatch 11.992 → 12.057, overlapping frame
+ranges in README. Four turning-camera traces likewise give work
+10.455 → 10.520 and identical checksums. They do not reproduce a 0.4 ms
+slowdown. Full work does increase 17.737 → 18.640, reflection off 18.250;
+water-off dispatch improves 17.436 → 17.204. The consistent extra cost
+is in the water-enabled path. Tracing submits kernels separately and
+does not replace the normal timings or resolve every small difference.
+
+The default picture changes intentionally to `4e4c70d58bf32c4c721ae9eaae96e707`.
+Physics stays `73516c0ead87f8c1151e34d25b3ac32e`. Next are ripples, then
+terrain reflection and finite-volume flow/swimming. All `Cam.fl` bits are
+now assigned; another look needs a packing change with readback laws.
+
+What is measured today, at 1470×796 on an M5: 21.8 ms a frame, rays
+alone 12.4, shadow off 18.8, water off 17.4. Small differences between
 variants are noisy; use alternated runs. A ray walks the box's 60 steps
 whether it hits or not, on purpose (README, "What costs what").
 
@@ -353,7 +395,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `d1956084325187d408ce8f22887852ce` when
+- `make bench`: the md5 of the thirty checksums stays `4e4c70d58bf32c4c721ae9eaae96e707` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work

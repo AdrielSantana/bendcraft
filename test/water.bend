@@ -16,11 +16,11 @@ def expect(ok: Bool, name: String) -> IO(Unit):
 def empty() -> World.World:
   World.W{[0 : U32^17n], Map.new(&2, World.Col), 0, 0}
 
-def ray_ok(+axis: U32, +entry: F32, +depth: F32, +distance: F32, r: Array<U32> & Render.Ray) -> Bool:
+def ray_ok(+axis: U32, top: Bool, +entry: F32, +depth: F32, +distance: F32, r: Array<U32> & Render.Ray) -> Bool:
   (w, hit) = r
-  Render.Ray{code, t, Water.Trace{e, d}} = hit
+  Render.Ray{+code, t, Water.Trace{e, d}} = hit
   U32.is_eq((code % 4 : U32), (axis + 1 : U32)) && F32.is_eq(t, distance)
-    && F32.is_eq(e, entry) && F32.is_eq(d, depth)
+    && F32.is_eq(e, entry) && F32.is_eq(d, depth) && Bool.not(Bool.xor(Water.top(code), top))
 
 # One wet voxel, then a solid two cells beyond it. These rays test the
 # real DDA in both signs of every axis, outside and inside the water.
@@ -32,7 +32,8 @@ def probe_w(~wet: Bool, +axis: U32, +pos: Bool, +under: Bool, +blocked: Bool, w:
   +z = Bool.pick(F32, U32.is_eq(axis, 2), a, 64.0)
   +sign = Bool.pick(F32, pos, 1.0, (0.0 - 1.0 : F32))
   +yes = Bool.pick(F32, wet, 1.0, 0.0)
-  ray_ok(axis, Bool.pick(F32, wet && Bool.not(under) && Bool.not(blocked), 2.5, 0.0),
+  ray_ok(axis, wet && U32.is_eq(axis, 1) && Bool.not(pos) && Bool.not(under) && Bool.not(blocked),
+    Bool.pick(F32, wet && Bool.not(under) && Bool.not(blocked), 2.5, 0.0),
     Bool.pick(F32, blocked, 0.0, (yes * Bool.pick(F32, under, 0.5, 1.0) : F32)),
     Bool.pick(F32, blocked || under, 1.5, 4.5),
     Render.dda(~wet, 60n, 0, x, y, z, sign, sign, sign,
@@ -149,9 +150,39 @@ def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
   U32.is_eq(emerged_ray(fl, sun_y, 40), sky)
     && U32.is_ne(emerged_ray(fl, sun_y, 12), sky)
 
+# Water at an arbitrary edited height, not the natural sea plane. The
+# ray can enter its top, begin submerged, or hit the bank before water.
+def surface_ray_w(+fl: U32, +under: Bool, w: World.World) -> U32:
+  World.W{ring, m, ox, oz} = w
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
+    0.0, (0.0 - 1.0 : F32), 0.0, Sky.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36))
+
+def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
+  surface_ray_w(fl, under, World.edit(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2),
+    64, 64, 10, True{}, 8), 64, 64, 12, blocked, 2))
+
+def far_surface_w(w: World.World) -> U32:
+  World.W{ring, m, ox, oz} = w
+  pixel(Render.run_water(True{}, ring, 0, 1.5, 15.5, 64.5,
+    0.9949874, (0.0 - 0.1 : F32), 0.0, Sky.rgb(100, 140, 180), Render.looks(), 0.48, 0.8, 0.36))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     axes(3n, 0)
+    expect(F32.is_eq(Water.fresnel(True{}, 1.0), 0.02) && F32.is_eq(Water.fresnel(True{}, 0.0), 1.0)
+      && (Water.fresnel(True{}, 0.5) > 0.05 : F32) && (Water.fresnel(True{}, 0.5) < 0.051 : F32)
+      && F32.is_eq(Water.fresnel(False{}, 0.0), 0.02), "Fresnel grows toward grazing angles; off keeps normal reflectance")
+    expect(F32.is_eq(Water.fresnel(True{}, (0.0 - 1.0 : F32)), 1.0)
+      && F32.is_eq(Water.fresnel(True{}, 2.0), 0.02), "Fresnel clamps its angular input")
+    expect(U32.is_ne(surface_ray(31457280, False{}, False{}), surface_ray(14680064, False{}, False{})), "reflection colours a real top entry at an edited water height")
+    expect(U32.is_eq(surface_ray(31457280, True{}, False{}), surface_ray(14680064, True{}, False{}))
+      && U32.is_eq(surface_ray(31457280, False{}, True{}), surface_ray(14680064, False{}, True{})), "reflection leaves submerged eyes and foreground banks unchanged")
+    expect(U32.is_eq(emerged_ray(31457288, 0.8, 40), emerged_ray(14680072, 0.8, 40)), "upward water exit does not acquire a sky mirror")
+    expect(U32.is_eq(far_surface_w(pool(88n, empty(), 40, 128)), Sky.rgb(100, 140, 180)), "air fog hides a distant reflecting water top")
+    expect(U32.is_ne(Water.reflected_sky(134217728, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, 1.0, 0.0),
+      Water.reflected_sky(0, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, 1.0, 0.0))
+      && U32.is_ne(Water.reflected_sky(1073741824, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, (0.0 - 1.0 : F32), 0.0),
+      Water.reflected_sky(0, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, (0.0 - 1.0 : F32), 0.0)), "reflected direction finds the sun and moon and respects their flags")
     expect(no_silhouette(6291464, 0.8) && no_silhouette(6291464, 0.0)
       && no_silhouette(6291464, (0.0 - 1.0 : F32)), "emerged ray hides distant silhouettes in daytime, twilight and night but keeps a nearby wall")
     expect(no_silhouette(2097160, 0.8) && no_silhouette(2153775112, 0.8), "background agrees with sky with water fog off and height fog on")

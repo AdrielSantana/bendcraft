@@ -83,7 +83,7 @@ make profile    # what each look costs, at four sizes
 ```
 
 - **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut
-  -d= -f2 | md5` is `d1956084325187d408ce8f22887852ce` today. A change that should not alter
+  -d= -f2 | md5` is `4e4c70d58bf32c4c721ae9eaae96e707` today. A change that should not alter
   the game's default picture must leave it as it is. A change that alters
   the picture on purpose says so, and its commit message carries the new
   digest. `bend test/physics.bend | md5` is `73516c0ead87...`; same rule.
@@ -158,7 +158,8 @@ nothing", and the README):
 ## The code's fixed points
 
 - `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; bits 7..16 hold milliseconds, 17..20 the low four FPS bits.
-  The high four FPS bits use `Cam.items` bits 28..31; bit 21 is water, bit 22 water fog, bits 23..24 are free. Bits 25..31 enable day cycle, sky gradient, sun disc,
+  The high four FPS bits use `Cam.items` bits 28..31; bit 21 is water, bit 22 water fog,
+  bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
   horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
 - `Cam.sel`: selection in bits 0..2, four seven-bit display counts in
   bits 3..30; `Cam.items` holds the other four in bits 0..27. A display count of 100

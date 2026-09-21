@@ -111,12 +111,22 @@ that colour, keeping distant lakes hidden. Sky rays keep their celestial
 discs through short wet paths and converge to the same water colour on
 long ones.
 This works from below and through vertical sides as well as from above.
+Top surfaces also reflect the analytic sky, including its sun, stars and
+moon. Fresnel raises reflectance from about 2% head-on toward a mirror at
+grazing angles; disabling it keeps the 2% value. Reflection and Fresnel have
+separate flags. The DDA marks the first downward entry through a water top
+in a spare bit of its step counter, so vertical sides and submerged eyes
+retain absorption alone, even for edited water away from the sea height.
+The reflected sky is fogged to the surface, before any water depth, and
+fully hidden lakes return the exact atmospheric colour. No second world
+ray is cast; terrain reflections and moving ripples are subsequent steps.
 Placing an inventory block displaces water, and edits survive ring reloads
 and saves. Water cannot be collected with the eight solid-block slots.
 A lake lies west of the initial spawn; `make water` exports daytime,
-dusk, submerged and water-off views as PNGs (requires Pillow).
+dusk, submerged, reflected sun/moon and each surface-look-off view as PNGs
+(requires Pillow).
 This is still water: digging leaves a gap until flow is implemented, and
-movement remains walking/gravity, with swimming, reflections and ripples
+movement remains walking/gravity, with swimming, terrain reflections and ripples
 left for later steps. Generated trees require dry grass at their origin;
 their canopies can extend over water from the bank. Untouched columns
 regenerate with this rule; edited columns in old saves keep their contents,
@@ -175,7 +185,7 @@ main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
-src/water.bend     wet ray intervals, depth tint and air/water fog
+src/water.bend     wet intervals, depth tint, fog, Fresnel and reflected sky
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
@@ -189,7 +199,7 @@ test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
-test/water_view.bend six fixed water views, Image trees for test/water.py
+test/water_view.bend ten fixed water views, Image trees for test/water.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
@@ -205,9 +215,9 @@ site/              the page: notes.mjs post-processes the built index.html
 make check      # the modules, the tests, the laws
 make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
-make profile    # each look off, by size; also night, lake and submerged views
+make profile    # each look off, by size; also night, lake, submerged and night lake
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
-make water      # six PNGs, including underwater fog on/off; Python with Pillow
+make water      # ten PNGs, including reflection and Fresnel off; Python with Pillow
 make page-test  # the page in headless Chrome, hashes and fps
 ```
 
@@ -273,7 +283,8 @@ the fullscreen link scales whatever is rendered to the screen.
 
 `make profile` renders one view five times with every look on, then with
 each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
-distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog, water, water fog),
+distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog,
+water, water fog, Fresnel, sky reflection),
 then the rays alone, and prints the `!` per frame; then it
 renders the view twice more with numbers for pixels, how many rays reach
 a block and how many DDA steps a ray walks to its hit, summed over the
@@ -525,21 +536,90 @@ tracing diagnostic; the normal bench minima are
 3/3/6/10/20/38 → 3/3/6/10/19/38 ms. Lake all-on moves 22.2 → 21.4 ms,
 submerged 21.6 → 21.4. The six water views were rendered and inspected.
 
+Fresnel and reflected sky, four alternated before/after rounds at 1470×796,
+with no game process running. Minimum five-frame means:
+
+| | before reflection | after, ms |
+|---|---|---|
+| all on | 20.6 | 21.8 |
+| shadow off | 17.6 | 18.8 |
+| occlusion off | 19.8 | 20.4 |
+| texture off | 20.0 | 21.2 |
+| distance fog off | 20.6 | 21.8 |
+| HUD off | 20.8 | 21.2 |
+| day cycle off | 20.6 | 21.4 |
+| sky gradient off | 20.0 | 21.0 |
+| sun disc off | 20.6 | 21.4 |
+| horizon glow off | 20.2 | 21.6 |
+| stars off | 20.8 | 22.0 |
+| moon off | 20.8 | 21.8 |
+| height fog off | 20.8 | 21.2 |
+| water off | 17.6 | 17.4 |
+| water fog off | 20.0 | 21.6 |
+| Fresnel off | — | 22.0 |
+| sky reflection off | — | 20.6 |
+| rays alone | 12.0 | 12.4 |
+
+The surface look costs 1.2 ms in the default view and 1.6 ms in the lake
+view (21.8 → 23.4, reflection off 21.8, Fresnel off 22.6). This includes
+marking the first water-top crossing in the existing 60-step walk, then
+evaluating the sky in the reflected direction and mixing its colour.
+The shared crossing marker is still computed with sky reflection off;
+the off row measures the surface shading, not all of that bookkeeping.
+Neither the 14-word camera nor the ray's two-word wet trace grows, and
+no second world ray is cast. Hits and steps stay 49% and 41.4 by default,
+77% and 31.3 at the lake.
+
+The all-on ranges are 20.6–21.6 → 21.8–23.0 ms; Fresnel off spans
+22.0–23.0, so its 0.2 ms increase over all-on is within the overlapping
+timing noise. Water off is 17.6–18.4 → 17.4–18.0. The submerged image is
+byte-identical to the previous build and its full profile is 21.6 → 21.4;
+the lake image with reflection off is also identical. Disabling both new
+flags reproduces all thirty previous bench checksums.
+
+The rays-alone profile minimum initially rose 0.4 ms, with disjoint
+five-frame ranges (12.0–12.2 → 12.4–13.4), so it was investigated before
+accepting the change. Four alternated traces from fresh C, using the exact
+profile cameras, give rays-alone work minima 10.496 → 10.593 ms and
+fastest dispatch sums 11.992 → 12.057. Individual work frames span
+10.496–12.299 → 10.593–12.252. Four turning-camera bench traces agree:
+work 10.455 → 10.520, dispatch 11.956 → 12.009, identical checksums.
+They do not reproduce a 0.4 ms slowdown; smaller differences remain within
+the run-to-run spread. Tracing submits kernels separately and diagnoses
+the increase; it does not replace the normal profile table.
+
+The fixed-camera full work kernel does increase, 17.737 → 18.640 ms,
+with reflection off at 18.250. The shared top-crossing tests still run
+throughout the water-enabled DDA, even with reflection off; the remaining
+surface work evaluates the reflected sky, Fresnel and colour blends.
+Water-off traced dispatch minima are 17.436 → 17.204 ms. This supports
+attributing the consistent increase to the added water work, without
+claiming that individual off-row differences isolate each operation.
+
+The upward night view is 14.8 → 15.2 ms (ranges 14.8–15.8 → 15.2–15.4),
+with reflection off 14.8 and rays alone unchanged at 11.4. A new night-lake
+view includes the reflected moon: all on 20.6, reflection off 18.2,
+Fresnel off 20.2, stars off 19.4 and moon off 20.0. Those bodies are active
+here; the daytime off rows cannot measure them. The ten water views were
+rendered and inspected. Normal bench minima at the six sizes are
+2/3/6/10/21/36 → 3/3/6/11/21/38 ms.
+
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
 5 and 6 are debug renders; 7..16 hold milliseconds and 17..20 the low
 four FPS bits. The high four FPS bits use `Cam.items` bits 28..31, above
-the counts; bit 21 enables water, bit 22 water fog, and bits 23..24 are free. Bits 25..31 are day
+the counts; bit 21 enables water, bit 22 water fog, bit 23 Fresnel and bit 24
+sky reflection. Bits 25..31 are day
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
 sun for profiling. HUD off also disables the new count labels. The default
-picture intentionally changes with dirt lake beds and corrected underwater
-background blending: bench digest `d1956084325187d408ce8f22887852ce`; physics stays
+picture intentionally changes with Fresnel and the reflected sky:
+bench digest `4e4c70d58bf32c4c721ae9eaae96e707`; physics stays
 `73516c0ead87f8c1151e34d25b3ac32e`.
 
-52 % of the rays reach a block, after 24 steps on average; the rest walk
-the box's 60. So the primary rays are three quarters of the frame and the
-shadow ray most of the rest; the occlusion and the texture cost under a
-millisecond each, the fog and the HUD nothing measurable. Two lessons
+In the original profile, 52% of the rays reached a block after 24 steps
+on average; the rest walked the box's 60. Primary rays took three quarters
+of the frame and the shadow ray most of the rest; occlusion and texture
+cost under a millisecond each, fog and HUD nothing measurable. Two lessons
 came out of the first run. A ray that stopped at its hit walked a third
 of the steps and made the frame slower, 15 → 17 ms here and 28 → 32 at
 1920×1080, with the same checksums: the lanes of a SIMD group then leave
@@ -599,7 +679,11 @@ preserved by readout packing. Three tree laws check all 32 column heights:
 submerged ground and snow reject roots, dry grass accepts them. Two lake
 floor laws cover the submerged dirt heights and their material packing;
 dry shoreline grass, low sand and high snow keep their existing laws.
-There are 75 laws: seven universal claims and 68 concrete
+Six surface laws cover independent flags, readout preservation and packing
+the top-entry bit with all 61 step counts and four face codes. Float tests
+cover Fresnel endpoints and growth, reflected sun/moon, signed entry,
+submerged eyes, foreground banks and distant fog.
+There are 81 laws: seven universal claims and 74 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;
