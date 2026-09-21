@@ -157,11 +157,11 @@ nothing", and the README):
 
 ## The code's fixed points
 
-- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; bits 7..24 are the
-  readout's numbers. Bits 25..31 enable day cycle, sky gradient, sun disc,
+- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; bits 7..16 hold milliseconds, 17..20 the low four FPS bits.
+  The high four FPS bits use `Cam.items` bits 28..31; bits 21..24 are free. Bits 25..31 enable day cycle, sky gradient, sun disc,
   horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
 - `Cam.sel`: selection in bits 0..2, four seven-bit display counts in
-  bits 3..30; `Cam.items` holds the other four. A display count of 100
+  bits 3..30; `Cam.items` holds the other four in bits 0..27. A display count of 100
   means `99+`. `Game.bag` keeps eight full `Nat` counts on the host; labels
   share HUD flag 16. Old saves without counts load with an empty bag.
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,

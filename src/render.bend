@@ -441,10 +441,11 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
-# what. Bits 7..24 hold the readout; 25..31 enable the day cycle, sky
+# what. Bits 7..20 hold the readout, with four FPS bits in items; 21..24
+# are free. Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low three bits, then four seven-bit counts;
-# items holds the other four. Both contain only capped HUD numbers.
+# items holds the other four and the high FPS bits. Counts are capped for the HUD.
 type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
 
@@ -512,17 +513,26 @@ def slot_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
 
 # ---------- the readout: the `!`'s milliseconds and the frames a second ----------
 # The two numbers ride in the flags above the looks (main.bend measures
-# them): bits 7..16 the tenths of a millisecond, to 99.9, bits 17..24 the
-# frames a second, to 255; zeros hide it. "16.4 MS  60 FPS" in the top left
+# them): bits 7..16 the tenths of a millisecond, to 99.9, bits 17..20 the
+# low four FPS bits, and items' spare bits 28..31 the high four. This
+# leaves four flags for water without growing Cam. Zeros hide the readout.
+# "16.4 MS  60 FPS" in the top left
 # corner, glyphs of 3 x 5 drawn 2 px a dot, a bit a dot from the top left:
 # 0-9, then . blank M F P and + (S is the 5). The GPU never shifts by a variable,
 # so a row and a dot are picked by a division and a mask.
 
 def stat_flags(+fl: U32, +ms10: U32, +fps: U32) -> U32:
-  ((fl .&. 4261412991) + 128 * (U32.min(ms10, 999) + 1024 * U32.min(fps, 255)) : U32)
+  ((fl .&. 4292870271) + 128 * (U32.min(ms10, 999) + 1024 * (U32.min(fps, 255) % 16)) : U32)
+
+def stat_items(+items: U32, +fps: U32) -> U32:
+  ((items .&. 268435455) + (U32.min(fps, 255) / 16) * 268435456 : U32)
 
 def stat_ms(+fl: U32) -> U32: (fl / 128 % 1024 : U32)
-def stat_fps(+fl: U32) -> U32: (fl / 131072 % 256 : U32)
+def stat_fps(+fl: U32, +items: U32) -> U32:
+  (fl / 131072 % 16 + 16 * (items / 268435456) : U32)
+
+def stat_on(+fl: U32, +items: U32) -> Bool:
+  Util.on(fl, 2097024) || (items / 268435456 > 0 : U32)
 
 def glyph(+i: U32) -> U32:
   Bool.pick(U32, U32.is_eq(i, 0), 31599,
@@ -568,7 +578,7 @@ def row_div(+r: U32) -> U32:
 def dot_bit(+d: U32) -> U32:
   Bool.pick(U32, U32.is_eq(d, 0), 1, Bool.pick(U32, U32.is_eq(d, 1), 2, Bool.pick(U32, U32.is_eq(d, 2), 4, 0)))
 
-def stat_px(inside: Bool, +fl: U32, +pxi: U32, +pyi: U32) -> U32:
+def stat_px(inside: Bool, +fl: U32, items: U32, +pxi: U32, +pyi: U32) -> U32:
   match inside:
     case False{}:
       0
@@ -576,7 +586,7 @@ def stat_px(inside: Bool, +fl: U32, +pxi: U32, +pyi: U32) -> U32:
       +lx = (pxi - 4 : U32)
       +ly = (pyi - 4 : U32)
       +intext = (pxi >= 4 : U32) && (pxi < 124 : U32) && (pyi >= 4 : U32) && (pyi < 14 : U32)
-      +g = glyph(stat_cell((lx / 8 : U32), stat_ms(fl), stat_fps(fl)))
+      +g = glyph(stat_cell((lx / 8 : U32), stat_ms(fl), stat_fps(fl, items)))
       +row = (g / row_div((ly / 2 : U32)) % 8 : U32)
       +lit = intext && Util.on(row, dot_bit((lx % 8 / 2 : U32)))
       Bool.pick(U32, lit, (1 + rgb(255, 255, 255) : U32), (1 + rgb(16, 16, 24) : U32))
@@ -610,9 +620,9 @@ def slot_px(inside: Bool, sel: U32, items: U32, slot: U32, pxi: U32, pyi: U32, r
     case True{}: (1 + slot_col(sel, items, slot, pxi, pyi, rw, rh) : U32)
 
 # what lies over the scene at this pixel: 0 nothing, else 1 + the colour
-def hud(+sel: U32, items: U32, +fl: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+def hud(+sel: U32, +items: U32, +fl: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   +slot = slot_at(pxi, pyi, rw, rh)
-  +stat = stat_px(Util.on(fl, 33554304) && (pxi < 128 : U32) && (pyi < 18 : U32), fl, pxi, pyi)
+  +stat = stat_px(stat_on(fl, items) && (pxi < 128 : U32) && (pyi < 18 : U32), fl, items, pxi, pyi)
   Bool.pick(U32, (stat > 0 : U32), stat,
     Bool.pick(U32, cross_at(pxi, pyi, rw, rh), (1 + rgb(255, 255, 255) : U32),
       slot_px((slot > 0 : U32), sel, items, slot, pxi, pyi, rw, rh)))

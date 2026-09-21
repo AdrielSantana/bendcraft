@@ -163,3 +163,9 @@ def Laws.inventory_hud_empty_is_zero(): {==}
 def Laws.inventory_hud_99_is_exact(): {==}
 def Laws.inventory_hud_large_is_capped(): {==}
 def Laws.save_and_quit_survive_the_step(): {==}
+
+def Laws.stat_items_keeps_counts(): {==}
+def Laws.stat_fps_crosses_the_split(): {==}
+def Laws.stat_keeps_water_room(): {==}
+def Laws.stat_water_room_is_not_a_number(): {==}
+def Laws.stat_high_fps_is_visible(): {==}

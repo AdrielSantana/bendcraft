@@ -165,9 +165,9 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 53 laws include the day period for every `U32` clock word and
+Today's 58 laws include the day period for every `U32` clock word and
 six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 46 laws are concrete checks, including HUD packing and save/quit
+The other 51 laws are concrete checks, including HUD packing and save/quit
 edges. Floats stay in the windowless tests: the checker does not compute them.
 
 ## The order
@@ -226,6 +226,14 @@ Physics stays `73516c0ead87f8c1151e34d25b3ac32e`; its historical fixture
 supplies its sand placement, while separate tests check the empty start.
 
 ## The engine's routine
+
+Water preparation, 2026-09-21: four FPS bits moved to spare bits in
+`Cam.items`, freeing `Cam.fl` bits 21..24 without growing the camera.
+All four gates pass, 58 laws; unchanged picture digest and physics hash.
+Four alternated rounds: full profile 16.2 → 16.0 ms, rays alone 11.0 →
+11.0. Off-row increases overlap the run ranges (README); their look code
+is unchanged, and their readout is disabled. The six bench minima are
+2/2/4/9/16/29 → 2/2/4/8/15/29 ms.
 
 What is measured today, at 1470×796 on an M5: 16.2 ms a frame, rays
 alone 11.0, shadow off 13.2. The flags are measured together in the README;

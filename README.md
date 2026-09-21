@@ -277,8 +277,38 @@ up at midnight, at 1470×796: all on 11.6 → 11.8 ms, stars off 11.6 →
 in that view. The gradient and fog take no extra ray; the sun and moon
 are angular discs and the stars are a fixed hash of direction.
 
+Preparing room for water moves four FPS bits to the spare high bits of
+`Cam.items`, keeping the same 14-word camera, pixels and physics. Four
+alternated rounds at 1470×796, minimum five-frame mean:
+
+| | before packing | after packing, ms |
+|---|---|---|
+| all on | 16.2 | 16.0 |
+| shadow off | 13.4 | 13.2 |
+| occlusion off | 14.8 | 14.8 |
+| texture off | 15.6 | 15.6 |
+| distance fog off | 15.8 | 15.6 |
+| HUD off | 16.0 | 15.8 |
+| day cycle off | 16.0 | 15.8 |
+| sky gradient off | 15.2 | 15.8 |
+| sun disc off | 16.0 | 15.6 |
+| horizon glow off | 15.6 | 15.8 |
+| stars off | 16.2 | 15.8 |
+| moon off | 16.2 | 15.6 |
+| height fog off | 15.6 | 16.0 |
+| rays alone | 11.0 | 11.0 |
+
+The larger off-row differences follow overlapping run ranges: gradient
+15.2–16.6 → 15.8–16.4, height fog 15.6–16.6 → 16.0–17.2. Their rendering
+code is unchanged; the readout is disabled in these views. Fastest bench
+frames at the six sizes are 2/2/4/9/16/29 → 2/2/4/8/15/29 ms. The readout
+test checks every FPS value through 256, including clamping and all four
+inventory counts sharing its word.
+
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
-5 and 6 are debug renders; 7..24 hold the readout. Bits 25..31 are day
+5 and 6 are debug renders; 7..16 hold milliseconds and 17..20 the low
+four FPS bits. The high four FPS bits use `Cam.items` bits 28..31, above
+the counts; bits 21..24 are free for water. Bits 25..31 are day
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
 sun for profiling. HUD off also disables the new count labels. The default
@@ -316,7 +346,8 @@ the frames that reached the screen, which the display's rate caps, so a
 render of 5 ms still reads 60 or 120. `main.bend` runs the window's loop
 itself, in `App.run`'s shape, to read the clock on each side of the view
 and not around the wait for the screen; twice a second it publishes the
-mean since. The two numbers ride to the GPU in the flags word, above the
+mean since. The two numbers ride to the GPU in the flags word and the spare high
+bits of the inventory word, above the
 looks, and the HUD draws them with glyphs of 3 × 5 picked by divisions
 and masks (no table, no variable shift). With the readout off the frame
 is the same bit for bit: the bench's checksums and its times did not move.
@@ -341,7 +372,7 @@ counts: a transfer conserves the cell plus its count, and induction extends that
 Empty spending and occupied placement are rejected, break then place
 restores the count, and edits preserve the number of inventory slots.
 The HUD packing has mixed-slot and boundary laws; save/quit edges survive
-the physics step. There are 53 laws: seven universal claims and 46 concrete
+the physics step. There are 58 laws: seven universal claims and 51 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

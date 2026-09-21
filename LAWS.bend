@@ -139,10 +139,10 @@ law stat_ms_reads_back:
   {Render.stat_ms(Render.stat_flags(31, 164, 60)) == 164 : U32}
 
 law stat_fps_reads_back:
-  {Render.stat_fps(Render.stat_flags(31, 164, 60)) == 60 : U32}
+  {Render.stat_fps(Render.stat_flags(31, 164, 60), Render.stat_items(0, 60)) == 60 : U32}
 
 law stat_stops_at_its_room:
-  {Render.stat_flags(31, 5000, 900) == 33551263 : U32}
+  {(Render.stat_ms(Render.stat_flags(31, 5000, 900)), Render.stat_fps(Render.stat_flags(31, 5000, 900), Render.stat_items(0, 900))) == (999, 255) : U32 & U32}
 
 law stat_zero_is_the_game:
   {Render.stat_flags(31, 0, 0) == 31 : U32}
@@ -160,7 +160,7 @@ law stat_high_ms_reads_back:
   {Render.stat_ms(Render.stat_flags(4261412895, 164, 60)) == 164 : U32}
 
 law stat_high_fps_reads_back:
-  {Render.stat_fps(Render.stat_flags(4261412895, 164, 60)) == 60 : U32}
+  {Render.stat_fps(Render.stat_flags(4261412895, 164, 60), Render.stat_items(0, 60)) == 60 : U32}
 
 law stat_high_zero_is_the_game:
   {Render.stat_flags(4261412895, 0, 0) == 4261412895 : U32}
@@ -229,3 +229,19 @@ law inventory_hud_large_is_capped:
 
 law save_and_quit_survive_the_step:
   {Player.io_edges(65535) == 4352 : U32}
+
+# Splitting the FPS word leaves the inventory and four future looks intact.
+law stat_items_keeps_counts:
+  {(Render.stat_items(268435455, 255) .&. 268435455 : U32) == 268435455 : U32}
+
+law stat_fps_crosses_the_split:
+  {Render.stat_fps(Render.stat_flags(0, 0, 16), Render.stat_items(0, 16)) == 16 : U32}
+
+law stat_keeps_water_room:
+  {(Render.stat_flags(31457280, 999, 255) .&. 31457280 : U32) == 31457280 : U32}
+
+law stat_water_room_is_not_a_number:
+  {Render.stat_on(31457280, 0) == False{} : Bool}
+
+law stat_high_fps_is_visible:
+  {Render.stat_on(0, Render.stat_items(0, 16)) == True{} : Bool}
