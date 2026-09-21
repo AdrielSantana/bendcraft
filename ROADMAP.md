@@ -125,7 +125,8 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
 2. **Water — still water done (2026-09-21).** Material 8 has its own
    column mask below y=12. Rays cross it, tint by wet distance and retain
    air fog underwater; water fog hides the ray limit. Placing solids
-   displaces it, and saves keep it. Trees only generate on dry grass;
+   displaces it, and saves keep it. Submerged grass surfaces generate as
+   dirt; the lowest sandy beds remain sand. Trees only generate on dry grass;
    canopies may overhang the water from a dry bank. Existing edited columns
    remain authoritative when loading old saves.
    Next: Fresnel, sky reflection and ripples with their own flags, then
@@ -184,9 +185,9 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 73 laws include the day period for every `U32` clock word and
+Today's 75 laws include the day period for every `U32` clock word and
 six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 66 laws are concrete checks, including dry tree roots, HUD packing and save/quit
+The other 68 laws are concrete checks, including lake floors, dry tree roots, HUD packing and save/quit
 edges. Floats stay in the windowless tests: the checker does not compute them.
 
 ## The order
@@ -318,8 +319,33 @@ intentionally to `bde77065fa3245e3615faeeae5d5057d`; physics remains
 `73516c0ead87f8c1151e34d25b3ac32e`. Shader work, finite-volume flow and
 swimming remain subsequent steps.
 
-What is measured today, at 1470×796 on an M5: 20.4 ms a frame, rays
-alone 12.0, shadow off 17.4, water off 17.6. Small differences between
+Lake floors and underwater silhouettes, 2026-09-21: the generated surface
+is dirt below water where it used to be grass; the lowest sandy beds,
+dry shoreline grass, snow and saved edited columns retain their rules.
+Fog now colours the background before water tints it, so a distant block
+and the sky behind it converge through the same wet path. Foreground haze
+attenuates that tint, keeping distant lakes hidden. The earlier side-exit
+test expected an unfiltered sky and missed the bright silhouette visible
+in the user's screenshot. New real-ray tests compare a far wall with sky
+through identical water, preserve nearby walls, and cover day, twilight,
+night and fog flags. The generated-column scan also checks lake materials.
+Both regressions fail on the previous version. All four gates pass and
+75 laws close; the native game and the six exported water views build.
+
+Four alternated rounds after closing the game, with process checks:
+full profile 21.2 → 21.6 ms, rays alone 12.6 → 12.8, lake 22.2 → 21.4,
+submerged 21.6 → 21.4. The increased minima lie within the overlapping
+ranges in README. Four fresh-C traces investigate the default increase:
+work minima 18.287 → 18.308 ms, fastest traced dispatch
+20.571 → 20.442; grow/pack minima differ by at most 0.038 ms. This does
+not establish a repeatable 0.4 ms slowdown. Six normal bench minima:
+3/3/6/10/20/38 → 3/3/6/10/19/38 ms. The wet shader reorders two colour
+mixes and adds a subtraction and multiplication; ray geometry is unchanged.
+The default picture changes intentionally to `d1956084325187d408ce8f22887852ce`.
+Physics stays `73516c0ead87f8c1151e34d25b3ac32e`.
+
+What is measured today, at 1470×796 on an M5: 21.6 ms a frame, rays
+alone 12.8, shadow off 17.8, water off 18.2. Small differences between
 variants are noisy; use alternated runs. A ray walks the box's 60 steps
 whether it hits or not, on purpose (README, "What costs what").
 
@@ -327,7 +353,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `bde77065fa3245e3615faeeae5d5057d` when
+- `make bench`: the md5 of the thirty checksums stays `d1956084325187d408ce8f22887852ce` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work

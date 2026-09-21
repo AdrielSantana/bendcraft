@@ -26,6 +26,8 @@ def Laws.nib_top_of_the_word(): {==}
 def Laws.nib_device_agrees(): {==}
 def Laws.nib_device_agrees_high(): {==}
 def Laws.top_is_grass(): {==}
+def Laws.submerged_grass_heights_are_dirt(): {==}
+def Laws.packed_lake_floor_is_dirt(): {==}
 def Laws.under_the_top_is_dirt(): {==}
 def Laws.deep_is_stone(): {==}
 def Laws.low_top_is_sand(): {==}

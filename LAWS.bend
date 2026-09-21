@@ -82,12 +82,18 @@ law nib_device_agrees_high:
   {World.nib_at(World.nib_set(0, 7, 3), 7) == 3 : U32}
 
 # --- what the terrain is made of ---------------------------------------------
-# a column of height 10: grass on top, three of dirt, stone below; a low
-# column is capped with sand, a high one with snow; and the packed word
-# the loader writes reads back the same
+# Dry ground has grass; submerged soil has dirt, low ground sand and high
+# ground snow. The packed word the loader writes reads back the same.
 
 law top_is_grass:
-  {World.tnib(9, 10) == 0 : U32}
+  {World.tnib(11, 12) == 0 : U32}
+
+law submerged_grass_heights_are_dirt:
+  {List.map(~U32, ~U32, ~(+h => World.tnib((h - 1 : U32), h)), [7, 8, 9, 10, 11])
+    == [1, 1, 1, 1, 1] : List<U32>}
+
+law packed_lake_floor_is_dirt:
+  {World.nib_get(World.types_word(1, 10, 0, 0), 9) == 1 : U32}
 
 law under_the_top_is_dirt:
   {World.tnib(7, 10) == 1 : U32}
@@ -102,22 +108,21 @@ law high_top_is_snow:
   {World.tnib(25, 26) == 7 : U32}
 
 law packed_word_reads_back:
-  {World.nib_get(World.types_word(1, 10, 0, 0), 9) == 0 : U32}
+  {World.nib_get(World.types_word(1, 12, 0, 0), 11) == 0 : U32}
 
 law packed_word_reads_back_dirt:
   {World.nib_get(World.types_word(0, 10, 0, 0), 7) == 1 : U32}
 
-# These synthetic masks test packing independently of the tree-site rule:
-# a trunk at 10..13 is wood, its leaves are at 14 and 15.
+# A shoreline trunk at 12..15 is wood, its leaves are at 16 and 17.
 
 law trunk_is_wood:
-  {World.nib_get(World.types_word(1, 10, 15360, 49152), 12) == 4 : U32}
+  {World.nib_get(World.types_word(1, 12, 61440, 196608), 14) == 4 : U32}
 
 law leaves_over_the_trunk:
-  {World.nib_get(World.types_word(1, 10, 15360, 49152), 14) == 5 : U32}
+  {World.nib_get(World.types_word(2, 12, 61440, 196608), 16) == 5 : U32}
 
 law grass_under_the_trunk:
-  {World.nib_get(World.types_word(1, 10, 15360, 49152), 9) == 0 : U32}
+  {World.nib_get(World.types_word(1, 12, 61440, 196608), 11) == 0 : U32}
 
 # All 32 column heights: only dry grass can root a generated tree.
 law trees_reject_submerged_ground:

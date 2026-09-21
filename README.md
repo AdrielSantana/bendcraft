@@ -63,8 +63,9 @@ untouched one does. Thirty-two heights in one word is what makes it cheap:
 the ray sees a column as a machine word, and break or place is one bit.
 
 **The world is endless.** The terrain is seeded value noise, three octaves,
-a pure function of `(x, z)`: grass on top, sand where it is low and snow
-where it is high, three of dirt under the top, stone below. About one grass
+a pure function of `(x, z)`: sand on the lowest ground, dirt on the other
+submerged surfaces, grass on dry ground and snow where it is high;
+three of dirt under the top, stone below. About one grass
 column in eighty grows a tree when its ground is dry (height at least 12),
 a trunk of four wood with a canopy of leaves
 over the columns around it; a column takes its wood and leaf bits from the
@@ -101,7 +102,10 @@ occlusion keep their original solid mask. The primary ray crosses water
 and sees the ground; its accumulated wet distance gives the tint its depth.
 The tint follows daylight. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
-visibility to zero. A separate water-fog flag fades to the water colour by
+visibility to zero. Fog colours the background before the water tints it:
+a distant block hidden by fog must match the sky seen through the same
+wet path. Foreground air haze attenuates that tint to keep distant lakes
+hidden. A separate water-fog flag fades to the water colour by
 24 wet blocks, before the 60-step ray limit. Foreground air fog also fades
 that colour, keeping distant lakes hidden. Sky rays keep their celestial
 discs through short wet paths and converge to the same water colour on
@@ -116,7 +120,7 @@ movement remains walking/gravity, with swimming, reflections and ripples
 left for later steps. Generated trees require dry grass at their origin;
 their canopies can extend over water from the bank. Untouched columns
 regenerate with this rule; edited columns in old saves keep their contents,
-including any previously saved submerged wood.
+including any previously saved submerged wood or grass.
 
 **The day clock** is an integer in `Game`, advanced by elapsed milliseconds
 at the window loop, independently of the physics and frame rate. One day is
@@ -184,13 +188,13 @@ test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
-test/water.bend    signed wet rays, underwater fog, displacement, picking, shadows and saves
+test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/water_view.bend six fixed water views, Image trees for test/water.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
-test/terrain.bend  noise rows, dry tree roots, shoreline canopies and saved columns
+test/terrain.bend  noise rows, lake floor materials, dry roots, canopies and saved columns
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -471,6 +475,56 @@ Fastest bench frames remain 3/2/6/10/19/36 ms at the six sizes.
 The generated-column regression fails on the old generator and passes
 on the new one; dry shoreline trees and saved edited columns remain.
 
+Lake floors and underwater silhouettes, four alternated before/after
+rounds at 1470×796, after the open game was closed. Process checks guarded
+every timed run. Minimum five-frame means:
+
+| | before correction | after, ms |
+|---|---|---|
+| all on | 21.2 | 21.6 |
+| shadow off | 18.4 | 17.8 |
+| occlusion off | 19.8 | 20.0 |
+| texture off | 20.2 | 20.2 |
+| distance fog off | 21.0 | 21.6 |
+| HUD off | 20.8 | 21.6 |
+| day cycle off | 21.2 | 21.4 |
+| sky gradient off | 21.0 | 20.8 |
+| sun disc off | 21.2 | 21.0 |
+| horizon glow off | 20.6 | 20.6 |
+| stars off | 21.4 | 21.4 |
+| moon off | 20.8 | 21.0 |
+| height fog off | 21.2 | 21.4 |
+| water off | 18.0 | 18.2 |
+| water fog off | 21.2 | 21.2 |
+| rays alone | 12.6 | 12.8 |
+
+The earlier fog correction still tinted sky misses differently from
+fully fogged solids, leaving bright silhouettes after a ray exited water.
+Its side-exit test expected the unfiltered atmospheric colour and missed
+that mismatch. The new regression compares a far wall with the same ray
+missing into the sky, while checking that a nearby wall remains visible;
+it covers day, twilight, night, surface and side exits, and fog flags.
+Both that test and the packed lake-floor check fail on the previous build.
+
+The fix reorders two existing colour mixes and attenuates wet tint by
+foreground air haze, adding one subtraction and multiplication on wet
+rays. The dirt rule runs during world generation. Geometry, DDA, camera
+and flags stay the same; default hits and steps remain 49% and 41.4.
+The all-on means span 21.2–24.4 → 21.6–23.0 ms. Increased off-row minima
+also overlap: distance fog 21.0–25.0 → 21.6–23.4, HUD 20.8–30.0 →
+21.6–22.2, water off 18.0–20.6 → 18.2–18.8, rays alone 12.6–13.2 →
+12.8–13.8. Night spans 14.8–15.8 → 15.4–17.8; its upward rays never
+cross water. These runs cannot isolate a few tenths from the timing noise.
+
+Four additional alternated traces from freshly emitted C investigate the
+0.4 ms increase in the default profile minimum: work-kernel minima are
+18.287 → 18.308 ms, grow/pack minima differ by at most 0.038 ms, and the
+fastest traced dispatch sums are 20.571 → 20.442 ms. They do not establish
+a repeatable slowdown of that size. Separate kernel submission makes
+tracing diagnostic; the normal bench minima are
+3/3/6/10/20/38 → 3/3/6/10/19/38 ms. Lake all-on moves 22.2 → 21.4 ms,
+submerged 21.6 → 21.4. The six water views were rendered and inspected.
+
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
 5 and 6 are debug renders; 7..16 hold milliseconds and 17..20 the low
 four FPS bits. The high four FPS bits use `Cam.items` bits 28..31, above
@@ -478,8 +532,8 @@ the counts; bit 21 enables water, bit 22 water fog, and bits 23..24 are free. Bi
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
 sun for profiling. HUD off also disables the new count labels. The default
-picture intentionally changes when submerged trees are removed: bench digest
-`bde77065fa3245e3615faeeae5d5057d`; physics stays
+picture intentionally changes with dirt lake beds and corrected underwater
+background blending: bench digest `d1956084325187d408ce8f22887852ce`; physics stays
 `73516c0ead87f8c1151e34d25b3ac32e`.
 
 52 % of the rays reach a block, after 24 steps on average; the rest walk
@@ -542,8 +596,10 @@ the physics step. Still-water laws cover generation above ground, the sea
 limit, banks preserved on water placement, displacement, neighboring bits
 and material packing. Water fog has its own flag, enabled by default and
 preserved by readout packing. Three tree laws check all 32 column heights:
-submerged ground and snow reject roots, dry grass accepts them.
-There are 73 laws: seven universal claims and 66 concrete
+submerged ground and snow reject roots, dry grass accepts them. Two lake
+floor laws cover the submerged dirt heights and their material packing;
+dry shoreline grass, low sand and high snow keep their existing laws.
+There are 75 laws: seven universal claims and 68 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

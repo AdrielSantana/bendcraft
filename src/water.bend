@@ -50,6 +50,9 @@ def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32, +sun_y: F32,
       # A sky miss already has its atmospheric colour and celestial discs.
       +front = Sky.fog(fl, entry, oy, (oy + dy * entry : F32))
       +air = Bool.pick(F32, hit, Sky.fog(fl, distance, oy, (oy + dy * distance : F32)), front)
-      +base = Sky.mix(Sky.mix(bottom, ink, opacity(depth)), sky, air)
+      # Fog the background before tinting it: a hidden block and the sky
+      # behind it must pass through the same water. Foreground haze reduces
+      # the tint so a lake beyond the air's visibility limit stays hidden.
+      +base = Sky.mix(Sky.mix(bottom, sky, air), ink, (opacity(depth) * (1.0 - front) : F32))
       # A lake beyond the air's visibility limit must also fade to sky.
       (w, fog(fog_on(fl), base, ink, sky, front, depth))

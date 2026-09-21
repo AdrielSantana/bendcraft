@@ -6,6 +6,7 @@ import ../src/player.bend as Player
 import ../src/save.bend as Save
 import ../src/inventory.bend as Inventory
 import ../src/util.bend as Util
+import ../src/sky.bend as Sky
 
 def expect(ok: Bool, name: String) -> IO(Unit):
   match ok:
@@ -128,10 +129,34 @@ def fog_ray_w(+fl: U32, w: World.World) -> U32:
 def fog_ray(fl: U32, wet_until: U32, wall: U32) -> U32:
   fog_ray_w(fl, World.edit(pool(128n, empty(), 0, wet_until), wall, 64, 10, True{}, 2))
 
+# The same shallow wet path sees either a wall beyond the air fog or sky.
+# It rises through the water surface before reaching either background.
+def emerged_ray_w(+fl: U32, +sun_y: F32, w: World.World) -> U32:
+  World.W{ring, m, ox, oz} = w
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 1.5, 10.5, 64.5,
+    0.99277389, 0.12, 0.0, Sky.gradient(True{}, 0.12, sun_y), fl, 0.48, sun_y, 0.36))
+
+def emerged_wall(fl: U32, sun_y: F32, wall: U32, w: World.World) -> U32:
+  World.W{ring, m, ox, oz} = w
+  emerged_ray_w(fl, sun_y, World.W{World.put_col(ring, World.col_at(0, wall, 64),
+    World.Col{4294967295, 572662306, 572662306, 572662306, 572662306, 0}), m, ox, oz})
+
+def emerged_ray(fl: U32, sun_y: F32, wall: U32) -> U32:
+  emerged_wall(fl, sun_y, wall, pool(128n, empty(), 0, 128))
+
+def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
+  +sky = emerged_ray(fl, sun_y, 100)
+  U32.is_eq(emerged_ray(fl, sun_y, 40), sky)
+    && U32.is_ne(emerged_ray(fl, sun_y, 12), sky)
+
 def main() -> IO(Unit):
   do IO<Unit>:
     axes(3n, 0)
-    expect(U32.is_eq(fog_ray(2097160, 2, 40), Render.rgb(100, 140, 180)), "distance fog survives starting in water and exiting to air")
+    expect(no_silhouette(6291464, 0.8) && no_silhouette(6291464, 0.0)
+      && no_silhouette(6291464, (0.0 - 1.0 : F32)), "emerged ray hides distant silhouettes in daytime, twilight and night but keeps a nearby wall")
+    expect(no_silhouette(2097160, 0.8) && no_silhouette(2153775112, 0.8), "background agrees with sky with water fog off and height fog on")
+    expect(U32.is_eq(fog_ray(2097160, 2, 40), fog_ray(2097160, 2, 100))
+      && U32.is_ne(fog_ray(2097160, 2, 40), Render.rgb(100, 140, 180)), "distance fog through a wet side exit reaches the same tinted sky")
     expect(U32.is_eq(fog_ray_w(6291464, World.edit(pool(88n, empty(), 40, 128), 56, 64, 10, True{}, 2)),
       Render.rgb(100, 140, 180)), "distant water stays hidden by foreground air fog")
     expect(U32.is_eq(fog_ray(6291464, 128, 40), Water.colour(0.8))

@@ -80,15 +80,15 @@ def terrain(+x: U32, +z: U32) -> U32:
         + 0.15 * tnoise((fx * 0.23 + 3.0 : F32), (fz * 0.23 + 11.0 : F32)) : F32)
   F32.to_u32(F32.clamp((3.0 + 24.0 * n : F32), 2.0, 27.0))
 
-# what the terrain is made of at height y in a column of height h: the
-# top is grass, sand when low, snow when high; three of dirt under it;
-# stone below
-def tnib(+y: U32, +h: U32) -> U32:
-  +cap = Bool.pick(U32, (h <= 6 : U32), 3, Bool.pick(U32, (h >= 25 : U32), 7, 0))
-  Bool.pick(U32, U32.is_eq((y + 1 : U32), h), cap, Bool.pick(U32, ((y + 4 : U32) >= h : U32), 1, 2))
-
-# Water's surface is also the lowest dry ground where a tree can root.
+# Water's surface also sets where grass and trees can grow.
 def sea() -> U32: 12
+
+# The top is sand when low, dirt under water, grass on dry ground and
+# snow when high; three of dirt under it, stone below.
+def tnib(+y: U32, +h: U32) -> U32:
+  +cap = Bool.pick(U32, (h <= 6 : U32), 3,
+    Bool.pick(U32, (h < sea() : U32), 1, Bool.pick(U32, (h >= 25 : U32), 7, 0)))
+  Bool.pick(U32, U32.is_eq((y + 1 : U32), h), cap, Bool.pick(U32, ((y + 4 : U32) >= h : U32), 1, 2))
 
 def tree_ground(+h: U32) -> Bool:
   (h >= sea() : U32) && (h >= 7 : U32) && (h <= 24 : U32)

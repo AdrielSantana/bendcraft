@@ -38,13 +38,21 @@ def dry_roots(+h: U32, c: World.Col) -> Bool:
   U32.is_eq((m .&. 4095 : U32), (ground .&. 4095 : U32))
     && U32.is_eq(water, (4095 .&. U32.not(ground) : U32))
 
+# Read the packed surface material, rather than repeating tnib's rule.
+def lake_floor(+h: U32, c: World.Col) -> Bool:
+  World.Col{m, a, b, cc, d, water} = c
+  (h >= 12 : U32) || U32.is_eq(World.nib_get(Bool.pick(U32, (h <= 8 : U32), a, b), (h - 1 : U32)),
+    Bool.pick(U32, (h <= 6 : U32), 3, 1))
+
 def scan(n: Nat, +i: U32, ok: Bool) -> Bool:
   match n:
     case 0n: ok
     case 1n+k:
       +x = (1048512 + i / 128 : U32)
       +z = (1048512 + i % 128 : U32)
-      scan(k, (i + 1 : U32), ok && dry_roots(World.terrain(x, z), World.column(x, z)))
+      +h = World.terrain(x, z)
+      +c = World.column(x, z)
+      scan(k, (i + 1 : U32), ok && dry_roots(h, c) && lake_floor(h, c))
 
 def no_tree(m: World.Masks) -> Bool:
   World.Masks{wood, leaf} = m
@@ -73,7 +81,7 @@ def main() -> IO(Unit):
     IO.print("along x near zero:    " ++ row(40n, 100, 100, 1, 0))
     IO.print("along z near zero:    " ++ row(40n, 100, 100, 0, 1))
     IO.print("trees in the start window: " ++ U32.show(trees(128n, 1048512, 1048512, 0)))
-    expect(scan(16384n, 0, True{}), "generated start window has no submerged trees and fills their gaps with water")
+    expect(scan(16384n, 0, True{}), "generated start window has no submerged trees or grass, and fills gaps with water")
     expect(World.tree_at(1048543, 1048592) && U32.is_eq(World.terrain(1048543, 1048592), 8)
       && no_tree(World.tree_here(1048543, 1048592, 0, False{}, World.Masks{0, 0}))
       && no_tree(World.tree_here(1048543, 1048592, 1, False{}, World.Masks{0, 0}))
