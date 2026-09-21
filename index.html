@@ -10,17 +10,22 @@
   select { font: inherit; color: inherit; background: #222; border: 1px solid #444; }
 </style>
 <canvas id="bend"></canvas>
-<pre><select id="bend-threads"></select> threads, <span id="bend-rate"></span></pre>
+<pre><select id="bend-threads"></select> threads, <span id="bend-rate"></span> · <a href="#" id="bend-full">fullscreen</a></pre>
 <pre id="bend-out"></pre>
 <!-- bendcraft notes -->
 <p style="max-width: 512px">
   <b>Bendcraft</b>: an endless voxel world written in <a href="https://github.com/bendlang/bend">Bend</a>,
   rendered by one parallel call on every core of your machine.
   <b>WASD</b> walk · <b>space</b> jumps · drag the mouse to look (or arrows) · click breaks ·
-  right click places (or J/L) · Esc quits. The world is seeded noise; what you build is kept
-  when you walk away and come back.
+  right click places (or J/L) · 1-8 choose the block · P saves · Esc quits. The world is seeded noise;
+  what you build is kept when you walk away and come back, and saved for as long as the tab lives.
+  <b>Fullscreen</b> scales the 512×512 render to your screen; <code>?size=1024x576x2</code> in the address
+  renders a wider frame instead (W×H, S times fewer rays a side).
   Source and the native GPU build: <a href="https://github.com/AdrielSantana/bendcraft">AdrielSantana/bendcraft</a>.
 </p>
+<script>
+  document.getElementById("bend-full").onclick = function(e) { e.preventDefault(); document.getElementById("bend").requestFullscreen(); };
+</script>
 <p style="max-width: 512px; color: #888">
   Needs a browser with SharedArrayBuffer and wasm tail calls: Chrome 112+, Firefox 121+, Safari 18.2+.
   GitHub Pages sends no COOP/COEP headers, so a small service worker adds them and reloads the page once on your first visit.
@@ -39,7 +44,7 @@
     document.getElementById("bend-out").append(text + "\n");
   };
   var Module = {
-    arguments: ["--threads", String(threads)],
+    arguments: ["--threads", String(threads)].concat((new URLSearchParams(location.search).get("size") || "").split("x").filter(Boolean)),
     print: say,
     printErr: say,
     onExit: function(code) { say("exit " + code); },
