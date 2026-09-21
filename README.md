@@ -31,7 +31,8 @@ left out). The window's shader walks the image quadtree from the window's
 size and stops at the first pixel it meets, so a coarser render scales up
 by itself, nearest neighbour, which suits the pixel art. `make full` asks
 the screen for its visible size with a line of Swift and takes the title
-bar off; the cost is in the table below.
+bar off, at scale 2; `make full SCALE=1` is a ray for every pixel, 16 ms a
+frame on a 14" MacBook. The costs are in the table below.
 
 The page is built with the web target of Bend from
 [bendlang/bend#866](https://github.com/bendlang/bend/pull/866), a checkout
@@ -77,9 +78,15 @@ you come back.
 loop returns only what was hit and where; the look is a `match` after it:
 a second DDA toward the sun for shadows, a pixel-art tile of four shades per
 face, ambient occlusion per vertex from the eight cells around the hit, fog
-into the sky by distance. The `!` runs a tree of 4×4 tiles, as many levels
-as the larger side needs; a tile past the render's edge is one pixel with
-no ray, so a wide frame costs its own pixels and nothing more.
+into the sky by distance. The `!` runs a binary tree down to 4×4 tiles: a
+square splits into its two rows, a row into its two squares, as many levels
+as the larger side needs, and a half that lies past the render's edge is
+one pixel and never a task. The shape follows the GPU runtime, which grows
+a frontier of tasks two-way a turn until each of the 128 lanes of a group
+holds one, then runs each task on its lane to the end: a two-way tree fills
+the frontier with tasks of one size, so a wide frame at every pixel takes
+16 ms where the four-way tree took 46, and its pruned form, with some lanes
+holding 64 leaves, 110 to 150.
 
 **The world is saved.** `bendcraft.save` in the working directory holds
 the corner, the position, the look and the chosen block on its first line,
@@ -123,18 +130,22 @@ make page-test  # the page in headless Chrome, hashes and fps
 
 ## Numbers
 
-Apple M5, 512×512, Bend 2.0.22. The bench times the `!` only, five frames
-with the camera turning; the ten checksums are the same on every build that
-changes nothing visible.
+Apple M5, Bend 2.0.22. The bench times the `!` only, five frames with the
+camera turning; the thirty checksums are the same on every build that
+changes nothing visible. The first column is the binary tree, the second
+the four-way tree it replaced.
 
-| | untouched | 300 blocks placed |
+| | binary tree | four-way tree |
 |---|---|---|
-| Metal, 512×512 | 3–8 ms a frame | 3–8 ms |
-| Metal, 960×540 rays in a 1920×1080 window | 13 ms | |
-| Metal, 1920×1080 rays | 50 ms | |
-| WebAssembly, 512×512, 10 threads | 35–40 fps | |
-| WebAssembly, 512×512, 1 thread | 8 fps | |
-| WebAssembly, 512×288 rays in a 1024×576 canvas, 10 threads | 53 fps | |
+| Metal, 512×512 | 3 ms a frame | 7 ms |
+| Metal, 512×512, 300 blocks placed | 3 ms | 7 ms |
+| Metal, 735×398 rays, a 14" MacBook at scale 2 | 5 ms | 18–29 ms |
+| Metal, 960×540 rays, a 1920×1080 window at scale 2 | 9–10 ms | 14–17 ms |
+| Metal, 1470×796 rays, a 14" MacBook at every pixel | 16 ms | 46 ms |
+| Metal, 1920×1080 rays | 28–31 ms | 50 ms |
+| WebAssembly, 512×512, 10 threads | 31 fps | 37 fps |
+| WebAssembly, 512×512, 1 thread | 7 fps | 7 fps |
+| WebAssembly, 512×288 rays in a 1024×576 canvas, 10 threads | 54 fps | 54–56 fps |
 
 On the page, `?size=1024x576x2` in the address gives the wide frame, and
 the fullscreen link scales whatever is rendered to the screen.
