@@ -134,8 +134,8 @@ make page-test  # the page in headless Chrome, hashes and fps
 
 ## Numbers
 
-Apple M5, Bend 2.0.24 (the same numbers as on 2.0.23). The bench times the `!` only, five frames with the
-camera turning; the thirty checksums are the same on every build that
+Apple M5, Bend 2.0.24 (the same numbers as on 2.0.23). The bench times
+the `!` only, five frames with the camera turning; the thirty checksums are the same on every build that
 changes nothing visible. The first column is the binary tree, the second
 the four-way tree it replaced.
 
