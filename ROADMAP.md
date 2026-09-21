@@ -82,11 +82,32 @@ took of them in the profile table.
   Horizon Zero Dawn renews one pixel in sixteen a frame.
 - *Noise and a denoiser,* as path tracers and Teardown do. Only once a
   look is stochastic (soft shadows, jittered cloud steps): today's rays
-  are deterministic, so there is no noise to remove. It needs the last
-  frame readable by this frame's rays, which reproject exactly, since a
-  ray knows where it hit; and a filter on the light alone, never on the
-  texture, or the pixel art smears. Whether a `!` can read the last
-  frame's tree cheaply is the thing to test first.
+  are deterministic, so there is no noise to remove. The filter goes on
+  the light alone, never on the texture, or the pixel art smears.
+
+**Reading the last frame**, which the last two need. What the runtime
+allows, from `bend guide shaders` and the emitted C:
+
+- *A tile's own past is free.* The last image rides down the frame tree,
+  opened in four at every node (`Image.open(old)` in the guide's demo), so
+  each tile is handed its own square of it, owned: no sharing, no counts.
+  Enough for a still camera, and for renewing one pixel of a block a frame.
+- *Another tile's past is not.* A turning camera moves a point six pixels
+  or more a frame, out of its 4×4 tile, and a tree has no way up or
+  sideways: a tile holds what was handed down and nothing else. Sharing
+  the whole last image as a `+` tree instead makes the compiler count its
+  nodes, and sealing is per type, so every `Image` node pays, the new
+  frame's too (the guide measured 8.0 → 16.5 ms on its frame); and lanes
+  walking different paths diverge, which the early exit of the DDA already
+  showed us the price of.
+- *The way around is the world's way.* The ring is an `Array<U32>` every
+  lane reads at a plain load. The last frame can be one too, filled on the
+  host after the `!`: a parallel walk over a 1470×796 frame takes 1 to 2
+  ms here; the writes, which have one owner and so one thread, are not
+  measured. A ray then reads any old pixel by its index, and reprojects
+  exactly, since it knows where it hit.
+- Either way `main.bend` must call `Window.frame` itself, which hands the
+  image back, in place of `App.run`, which drops it.
 
 ## The game
 
