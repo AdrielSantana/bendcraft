@@ -46,7 +46,14 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
 2. **Water's shader.** Depth tint, Fresnel, the analytic reflected sky and
    ripples from a noise normal moved by time are done. Next: the world
    reflected by a second ray, paid like the shadow ray, only on
-   the pixels that show water.
+   the pixels that show water. Not screen-space reflections: those exist
+   because a rasteriser cannot send a ray into its scene, so it marches
+   the depth buffer instead, and pays with whatever is off the screen or
+   hidden going missing. Here a ray is what we have, and a finished frame
+   is what we cannot read (see "Reading the last frame"). The mirrored ray
+   can be short, 24 to 32 steps: ripples and fog blur what is far. Then,
+   for the view from above, where the mirror is 2% of the colour: the
+   bed's light moved by the same ripple slope, a false caustic.
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
    them: next to the ring of 128² columns at one block, a ring of 128²
    cells of 4 blocks and one of 16, each cell its highest block and its
