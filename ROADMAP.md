@@ -70,6 +70,24 @@ and 5 ms at scale 2, which suits the pixel art. At 60 frames a second that
 leaves about 11 ms for the look at scale 2. Every piece above says what it
 took of them in the profile table.
 
+**Ways to buy more of it**, in the order to try them; none is needed yet.
+
+- *Fewer rays, scaled up.* There already: scale 2, nearest neighbour,
+  which is the pixel art's own look. Its floor is the fixed part of a
+  dispatch, about 3 ms of growing and packing.
+- *The dear looks at a lower rate than the rays.* A primary ray for every
+  pixel keeps the blocks' edges sharp; a cloud march, a reflection or a
+  soft shadow is smooth, so a 2×2 block of pixels can share one, or one
+  pixel of the block can renew it each frame. Clouds are the classic case:
+  Horizon Zero Dawn renews one pixel in sixteen a frame.
+- *Noise and a denoiser,* as path tracers and Teardown do. Only once a
+  look is stochastic (soft shadows, jittered cloud steps): today's rays
+  are deterministic, so there is no noise to remove. It needs the last
+  frame readable by this frame's rays, which reproject exactly, since a
+  ray knows where it hit; and a filter on the light alone, never on the
+  texture, or the pixel art smears. Whether a `!` can read the last
+  frame's tree cheaply is the thing to test first.
+
 ## The game
 
 1. **Collecting and an inventory.** Today the hotbar's eight blocks are
