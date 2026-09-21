@@ -7,10 +7,16 @@ build/bendcraft: main.bend src/*.bend
 	@mkdir -p build
 	$(BEND) main.bend -o build/bendcraft
 
-# make run SIZE="1920 1080 2" for a window of that size, 960 x 540 rays
+# make run SIZE="1470 796 2" for a window of that size in points, half as
+# many rays a side; make full asks the screen for its visible size (in
+# points: a Retina screen has twice the pixels) and takes the title bar off
 SIZE ?=
 run: build/bendcraft
 	./build/bendcraft --gpu 2GB $(SIZE)
+
+SCALE ?= 2
+full: build/bendcraft
+	./build/bendcraft --gpu 2GB $$(swift -e 'import AppKit; let f = NSScreen.main!.visibleFrame; print(Int(f.width), Int(f.height) - 28)') $(SCALE)
 
 # the checker: the modules, the tests and the laws
 check:
@@ -51,4 +57,4 @@ page-test:
 	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
 	kill %1
 
-.PHONY: run check test bench page publish page-test
+.PHONY: run full check test bench page publish page-test

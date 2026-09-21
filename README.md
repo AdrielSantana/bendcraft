@@ -20,15 +20,18 @@ Bend 2.0.22 or later (`bend update`). On a Mac with Metal:
 ```sh
 make            # bend main.bend -o build/bendcraft
 make run        # ./build/bendcraft --gpu 2GB            a 512 x 512 window
-./build/bendcraft --gpu 2GB 1920 1080 2                  # a 1920 x 1080 window, 960 x 540 rays
+make full       # the screen's visible size, half as many rays a side
+./build/bendcraft --gpu 2GB 1470 796 2                   # the same, by hand: a 14" MacBook
 ```
 
-The two numbers are the window, the third how many times fewer pixels a
-side the render has (a power of two; 1 when left out). The window's shader
-walks the image quadtree from the window's size and stops at the first
-pixel it meets, so a coarser render scales up by itself, nearest neighbour,
-which suits the pixel art. Give it your screen's size for a full-screen
-frame; the cost is in the table below.
+The two numbers are the window in points (a Retina screen has twice the
+pixels: 1470 x 956 points on a 14" MacBook, 2560 x 1664 pixels), the third
+how many times fewer pixels a side the render has (a power of two; 1 when
+left out). The window's shader walks the image quadtree from the window's
+size and stops at the first pixel it meets, so a coarser render scales up
+by itself, nearest neighbour, which suits the pixel art. `make full` asks
+the screen for its visible size with a line of Swift and takes the title
+bar off; the cost is in the table below.
 
 The page is built with the web target of Bend from
 [bendlang/bend#866](https://github.com/bendlang/bend/pull/866), a checkout
