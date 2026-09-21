@@ -74,19 +74,26 @@ def hit(here: Bool, +axis: F32, +col: U32) -> U32:
     case False{}:
       col
 
-def dda_end(+col: U32, +t: F32, r: Array<U32> & U32) -> Array<U32> & (U32 & F32):
+# the hit word comes back with the steps to it above bit 2: `n * 4 + col`
+def dda_end(+col: U32, +n: U32, +t: F32, r: Array<U32> & U32) -> Array<U32> & (U32 & F32):
   (w, b) = r
-  (w, (col, t))
+  (w, ((col + n * 4 : U32), t))
 
+# The loop walks its 60 steps whatever happens, the state frozen after the
+# hit: an exit at the hit (or on leaving the box) walked a third of the
+# steps and made the frame slower, 15 -> 17 ms at 1470 x 796 and 28 -> 32
+# at 1920 x 1080 (2026-09-21, the same checksums), since the lanes of a
+# SIMD group then leave the loop at different steps and the runtime's
+# switch over segments runs them one case at a time. Uniform beats less.
 def dda(fuel: Nat, +base: U32,
         +vx: F32, +vy: F32, +vz: F32,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
         +ex: F32, +ey: F32, +ez: F32,
-        +axis: F32, +col: U32, +t: F32, +ymask: U32, r: Array<U32> & U32) -> Array<U32> & (U32 & F32):
+        +axis: F32, +col: U32, +t: F32, +n: U32, +ymask: U32, r: Array<U32> & U32) -> Array<U32> & (U32 & F32):
   match fuel:
     case 0n:
-      dda_end(col, t, r)
+      dda_end(col, n, t, r)
     case 1n+f:
       (w, +bits) = r
       +here = World.inside(vx, vy, vz) && Util.on(bits, ymask) && (col < 1 : U32)
@@ -105,7 +112,9 @@ def dda(fuel: Nat, +base: U32,
         Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
       # t is where the ray enters the next voxel; it stops moving at the hit
       nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
-      dda(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nymask,
+      # the steps before the hit, for the profile
+      nn = Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n)
+      dda(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nn, nymask,
           refetch(Bool.not(uy) && (ncol < 1 : U32), w, base, Util.f2u(nvx), Util.f2u(nvz), bits))
 
 # ---------- the hit's look: sun, texture, ambient occlusion, fog ----------
@@ -187,13 +196,18 @@ def run_shadow(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32) -> Array
          U32.shln(1, F32.to_nat(F32.max(oy, 0.0))), False{},
          Array.get(U32, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz))))
 
-# a face turned away from the sun is in shadow without a ray
-def shadow_if(sunny: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32) -> Array<U32> & Bool:
-  match sunny:
+# a face turned away from the sun is in shadow without a ray; with the
+# shadow flag off every face is lit
+def shadow_if(on: Bool, sunny: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32) -> Array<U32> & Bool:
+  match on:
     case False{}:
-      (w, True{})
+      (w, False{})
     case True{}:
-      run_shadow(w, base, ox, oy, oz)
+      match sunny:
+        case False{}:
+          (w, True{})
+        case True{}:
+          run_shadow(w, base, ox, oy, oz)
 
 # The eight cells around O along the face, as bits of m: 1 +u, 2 -u, 4 +w,
 # 8 -w, 16 +u+w, 32 -u+w, 64 +u-w, 128 -u-w. A vertex of the face is lit by
@@ -262,26 +276,38 @@ def ao1(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +ox: F32, +oy: F32, 
   ao2(v, col, f, sun, base, Bool.pick(U32, s, 1, 0), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
       World.solid(w, base, (ox - ux : F32), (oy - uy : F32), (oz - uz : F32)))
 
-# after the sun: the first neighbour read
+# after the sun: the first neighbour read, or none with the occlusion off
 def after_sun(+v: U32, +col: U32, +f: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32,
               +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-              r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, dark) = r
-  ao1(v, col, f, Bool.pick(F32, dark, 0.6, 1.0), base, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
-      World.solid(w, base, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
+              aon: Bool, r: Array<U32> & Bool) -> Array<U32> & U32:
+  match aon:
+    case True{}:
+      (w, dark) = r
+      ao1(v, col, f, Bool.pick(F32, dark, 0.6, 1.0), base, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+          World.solid(w, base, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
+    case False{}:
+      (w, dark) = r
+      (w, mix(dim(col, Bool.pick(F32, dark, 0.6, 1.0)), v, (f * f : F32)))
+
+def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
+  match on:
+    case True{}:
+      texture(u, wf)
+    case False{}:
+      1.0
 
 # the type read: one word through the handle, then the look
-def typed(+v: U32, +base: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
+def typed(+v: U32, +fl: U32, +base: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
           +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
           +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   (w, word) = r
   +what = World.nib_at(word, hy)
-  +col = dim(blockcol(what, side, yf), (tone * texture(u, wf) : F32))
-  after_sun(v, col, f, base, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
-            shadow_if(sunny, w, base, sx, sy, sz))
+  +col = dim(blockcol(what, side, yf), (tone * tex_if(Util.on(fl, 4), u, wf) : F32))
+  after_sun(v, col, f, base, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw, Util.on(fl, 2),
+            shadow_if(Util.on(fl, 1), sunny, w, base, sx, sy, sz))
 
 def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
-             +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32) -> Array<U32> & U32:
+             +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32) -> Array<U32> & U32:
   match sky:
     case True{}:
       (w, v)
@@ -297,7 +323,7 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
       +u = Bool.pick(F32, ax, pz, px)
       +wf = Bool.pick(F32, ay, pz, py)
       +tone = Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7))
-      +f = F32.min((t / 48.0 : F32), 1.0)
+      +f = Bool.pick(F32, Util.on(fl, 8), F32.min((t / 48.0 : F32), 1.0), 0.0)
       # O, the air cell before the face: floor of p, except along the face's
       # axis, where p sits on the boundary and O is the side the ray came from
       +bx = Util.floorf((px + 0.5 : F32))
@@ -322,25 +348,40 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
       # shadow ray starts a hair before the face, in O
       +da = Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz))
       +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
-      typed(v, base, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, tone, f,
+      typed(v, fl, base, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, tone, f,
             cx, cy, cz, ux, uz, ey, ez, fu, fw, (da < 0.0 : F32),
             Bool.pick(F32, ax, (px + nudge : F32), px),
             Bool.pick(F32, ay, (py + nudge : F32), py),
             Bool.pick(F32, U32.is_eq(axis, 2), (pz + nudge : F32), pz),
             Array.get(U32, w, (World.col_at(base, Util.f2u(hx), Util.f2u(hz)) + 1 + Util.f2u(hy) / 8 : U32)))
 
-def shade(+v: U32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+# the profile's pixels: the steps to the hit (flag 32), or 1 on a hit (64)
+def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +v: U32,
+               +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+               +c: U32, +t: F32, +n: U32, +fl: U32) -> Array<U32> & U32:
+  match steps:
+    case True{}:
+      (w, n)
+    case False{}:
+      match hits:
+        case True{}:
+          (w, Bool.pick(U32, sky, 0, 1))
+        case False{}:
+          shade_go(sky, w, base, v, ox, oy, oz, dx, dy, dz, c, t, fl)
+
+def shade(+v: U32, +fl: U32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: U32 & F32) -> Array<U32> & U32:
   (+c, t) = ct
-  shade_go((c < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, c, t)
+  +hitw = (c % 4 : U32)
+  shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, (c / 4 : U32), fl)
 
-def finish(+v: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+def finish(+v: U32, +fl: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
            r: Array<U32> & (U32 & F32)) -> Array<U32> & U32:
   (w, ct) = r
-  shade(v, w, base, ox, oy, oz, dx, dy, dz, ct)
+  shade(v, fl, w, base, ox, oy, oz, dx, dy, dz, ct)
 
 def run_dda(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
-            +dx: F32, +dy: F32, +dz: F32, +v: U32) -> Array<U32> & U32:
+            +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32) -> Array<U32> & U32:
   +vx = Util.floorf(F32.max(ox, 0.0))
   +vy = Util.floorf(F32.max(oy, 0.0))
   +vz = Util.floorf(F32.max(oz, 0.0))
@@ -353,26 +394,27 @@ def run_dda(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
   +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
   +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
   +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
-  finish(v, base, ox, oy, oz, dx, dy, dz, dda(60n, base, vx, vy, vz,
+  finish(v, fl, base, ox, oy, oz, dx, dy, dz, dda(60n, base, vx, vy, vz,
            Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
            (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-           1.0, 0, 0.0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
+           1.0, 0, 0.0, 0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
            Array.get(U32, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz)))))
 
-# A ray that misses the loaded box reads the world zero times.
+# A ray that misses the loaded box reads the world zero times (and counts
+# no step and no hit under the profile's flags).
 def shoot(go: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
-          +dx: F32, +dy: F32, +dz: F32, +v: U32) -> Array<U32> & U32:
+          +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32) -> Array<U32> & U32:
   match go:
     case False{}:
-      (w, v)
+      (w, Bool.pick(U32, (fl < 32 : U32), v, 0))
     case True{}:
-      run_dda(w, base, ox, oy, oz, dx, dy, dz, v)
+      run_dda(w, base, ox, oy, oz, dx, dy, dz, v, fl)
 
 def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
-            +dx: F32, +dy: F32, +dz: F32, +v: U32) -> Array<U32> & U32:
+            +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32) -> Array<U32> & U32:
   +rx = (1.0 / F32.max(Util.absf(dx), 0.00001) * Bool.pick(F32, (dx > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
   +ry = (1.0 / F32.max(Util.absf(dy), 0.00001) * Bool.pick(F32, (dy > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
   +rz = (1.0 / F32.max(Util.absf(dz), 0.00001) * Bool.pick(F32, (dz > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
@@ -385,14 +427,18 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
   +tin  = F32.max(F32.max(F32.min(xa, xb), F32.min(ya, yb)), F32.max(F32.min(za, zb), 0.0))
   +tout = F32.min(F32.min(F32.max(xa, xb), F32.max(ya, yb)), F32.max(za, zb))
   +s = (tin + 0.002 : F32)
-  shoot((tin < tout : F32), w, base, (ox + dx * s : F32), (oy + dy * s : F32), (oz + dz * s : F32), dx, dy, dz, v)
+  shoot((tin < tout : F32), w, base, (ox + dx * s : F32), (oy + dy * s : F32), (oz + dz * s : F32), dx, dy, dz, v, fl)
 
 # ---------- the player ----------
 
 # The camera is Data, shared down the fork; the world is the array, threaded.
-# `v` down the leaf is the row's sky colour, ready for the fog.
+# `v` down the leaf is the row's sky colour, ready for the fog. `fl` is the
+# flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
+# 31); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
+# hit and 0 on sky: `make profile` renders with each and prints what costs
+# what.
 type Cam is Data:
-  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, rw: U32, rh: U32}
+  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, fl: U32, rw: U32, rh: U32}
 
 def look_x(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.sin(yaw) : F32)
 def look_y(+pit: F32) -> F32: F32.sin(pit)
@@ -407,7 +453,7 @@ def p2f(+p: U32, +size: U32, +rh: U32) -> F32:
   ((U32.to_f32((p * 2 : U32)) - U32.to_f32(size)) / U32.to_f32(rh) : F32)
 
 def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  Cam{ox, oy, oz, yaw, pit, base, sel, +rw, +rh} = cam
+  Cam{ox, oy, oz, yaw, pit, base, sel, +fl, +rw, +rh} = cam
   +u = p2f(pxi, rw, rh)
   +v = p2f(pyi, rh, rh)
   +fx = look_x(yaw, pit)
@@ -425,7 +471,7 @@ def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32
   +dy = (fy + 0.9 * v * uy : F32)
   +dz = (fz + 0.9 * u * rz + 0.9 * v * uz : F32)
   +n = F32.max(norm3(dx, dy, dz), 0.00001)
-  clipped(w, base, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), sky_at(band(pyi), rh))
+  clipped(w, base, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), sky_at(band(pyi), rh), fl)
 
 # a crosshair straight over the middle
 def cross_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> Bool:
@@ -459,9 +505,16 @@ def hud(+sel: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   Bool.pick(U32, cross_at(pxi, pyi, rw, rh), (1 + rgb(255, 255, 255) : U32),
     Bool.pick(U32, (slot > 0 : U32), (1 + slot_col(sel, slot, pxi, pyi, rw, rh) : U32), 0))
 
+def hud_if(on: Bool, +sel: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+  match on:
+    case True{}:
+      hud(sel, pxi, pyi, rw, rh)
+    case False{}:
+      0
+
 def hud_of(+cam: Cam, +pxi: U32, +pyi: U32) -> U32:
-  Cam{ox, oy, oz, yaw, pit, base, sel, rw, rh} = cam
-  hud(sel, pxi, pyi, rw, rh)
+  Cam{ox, oy, oz, yaw, pit, base, sel, fl, rw, rh} = cam
+  hud_if(Util.on(fl, 16), sel, pxi, pyi, rw, rh)
 
 def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
   match over:

@@ -24,6 +24,7 @@ check:
 	$(BEND) test/physics.bend --check-only
 	$(BEND) test/save.bend --check-only
 	$(BEND) test/bench.bend --check-only
+	$(BEND) test/profile.bend --check-only
 	$(BEND) PROOF.bend
 
 # the game without a window: events through feed and step
@@ -38,6 +39,13 @@ bench: test/bench.bend src/*.bend
 	@mkdir -p build
 	$(BEND) test/bench.bend -o build/bench
 	./build/bench
+
+# the profile: a view rendered with each look off in turn, the rays alone,
+# and the rays' hits and steps, per size; what costs what
+profile: test/profile.bend src/*.bend
+	@mkdir -p build
+	$(BEND) test/profile.bend -o build/profile
+	./build/profile
 
 # the page: WebAssembly, a worker a core, the service worker for the headers
 page: main.bend src/*.bend
@@ -57,4 +65,4 @@ page-test:
 	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
 	kill %1
 
-.PHONY: run full check test bench page publish page-test
+.PHONY: run full check test bench profile page publish page-test

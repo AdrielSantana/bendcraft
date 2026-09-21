@@ -27,16 +27,20 @@ def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
   (G{World.W{ring, m, ox, oz}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res}, img)
 
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
-           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, w: World.World) -> Game & Image:
+           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +fl: U32, w: World.World) -> Game & Image:
   World.W{ring, m, +ox, +oz} = w
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
   view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, m, ox, oz,
-           Render.frame(Render.Cam{px, py, pz, yaw, pit, (ox * 128 + oz : U32), sel, rw, rh}, ring, rw, rh))
+           Render.frame(Render.Cam{px, py, pz, yaw, pit, (ox * 128 + oz : U32), sel, fl, rw, rh}, ring, rw, rh))
+
+# the frame with the render's flags (Render.Cam), all five on for the game
+def view_with(g: Game, +fl: U32) -> Game & Image:
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res} = g
+  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, fl, w)
 
 def view(g: Game) -> Game & Image:
-  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res} = g
-  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, w)
+  view_with(g, 31)
 
 # ---------- input ----------
 # Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, p 256, j l

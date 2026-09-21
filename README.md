@@ -32,7 +32,8 @@ size and stops at the first pixel it meets, so a coarser render scales up
 by itself, nearest neighbour, which suits the pixel art. `make full` asks
 the screen for its visible size with a line of Swift and takes the title
 bar off, at scale 2; `make full SCALE=1` is a ray for every pixel, 16 ms a
-frame on a 14" MacBook. The costs are in the table below.
+frame on a 14" MacBook. The costs are in the table below, and `make profile`
+says what each part of a frame costs.
 
 The page is built with the web target of Bend from
 [bendlang/bend#866](https://github.com/bendlang/bend/pull/866), a checkout
@@ -115,6 +116,8 @@ LAWS.bend          the rules the checker proves; PROOF.bend closes them
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/bench.bend    five frames on the GPU with checksums, untouched and built
+test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
+test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
 test/terrain.bend  rows of the terrain, to see the noise
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -150,6 +153,49 @@ the four-way tree it replaced.
 On the page, `?size=1024x576x2` in the address gives the wide frame, and
 the fullscreen link scales whatever is rendered to the screen.
 
+## What costs what
+
+`make profile` renders one view five times with every look on, then with
+each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
+fog, HUD), then the rays alone, and prints the `!` per frame; then it
+renders the view twice more with numbers for pixels, how many rays reach
+a block and how many DDA steps a ray walks to its hit, summed over the
+image with each pixel weighed by the square it stands for. The same
+checksums as the bench come out of the full render, so the flags cost
+nothing the picture can see. At 1470×796:
+
+| | ms a frame |
+|---|---|
+| all on | 15.6 |
+| shadow off | 13.2 |
+| occlusion off | 14.8 |
+| texture off | 14.8 |
+| fog off | 15.8 |
+| HUD off | 15.4 |
+| rays alone | 11.4 |
+
+52 % of the rays reach a block, after 24 steps on average; the rest walk
+the box's 60. So the primary rays are three quarters of the frame and the
+shadow ray most of the rest; the occlusion and the texture cost under a
+millisecond each, the fog and the HUD nothing measurable. Two lessons
+came out of the first run. A ray that stopped at its hit walked a third
+of the steps and made the frame slower, 15 → 17 ms here and 28 → 32 at
+1920×1080, with the same checksums: the lanes of a SIMD group then leave
+the loop at different steps, and the runtime's switch over segments runs
+them one case at a time, so the loop walks its 60 steps with the state
+frozen, on purpose. And a `Bool.pick` is strict, so a look that is off
+must be skipped by a `match`, or it is paid for anyway.
+
+`test/trace.py` goes one level down: it patches the emitted C so the
+frame's single dispatch runs as four command buffers, one a kernel, and
+prints each kernel's time and the tasks left in the lanes' rings
+(`bend test/bench.bend -o build/bench.c && python3 test/trace.py
+build/bench.c && ./build/bench_trace`). For the 1470×796 frame: grow1
+0.4 ms leaving 128 tasks, grow128 2.0 ms leaving 11504 tasks one a ring,
+work 10.3 ms, pack 0.5 ms. It reaches into the runtime's text, so a new
+Bend may need its snippets updated; it is a diagnostic, not part of the
+build.
+
 ## Laws
 
 `LAWS.bend` states what the checker can decide: integer and bit rules on the
@@ -176,6 +222,9 @@ through a shared tree, was
 file's history from its first commit. Open upstream:
 [#920](https://github.com/bendlang/bend/issues/920), a WGSL lane so the page
 could run its `!` on WebGPU, and
-[#921](https://github.com/bendlang/bend/issues/921), a way to grab the mouse.
+[#921](https://github.com/bendlang/bend/issues/921), a way to grab the mouse,
+[#923](https://github.com/bendlang/bend/issues/923), a way to go full
+screen, and [#925](https://github.com/bendlang/bend/issues/925), the shape
+of the frame's tree deciding the lanes' load, with a 90-line reproduction.
 
 Written by Claude (Anthropic) with Adriel Santana.
