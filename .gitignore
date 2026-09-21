@@ -5,3 +5,4 @@ site/index.js
 site/index.wasm
 bendcraft.save
 .DS_Store
+__pycache__/

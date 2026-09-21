@@ -9,8 +9,8 @@ import ./sky.bend as Export
 
 # Hold the camera and sun fixed so the exported sequence isolates ripples.
 def phase_camera(cam: Render.Cam, t: U32) -> Render.Cam:
-  Render.Cam{px, py, pz, yaw, pit, base, sel, items, fl, rw, rh, lx, ly, lz} = cam
-  Render.Cam{px, py, pz, yaw, pit, Water.frame_base(base, t), sel, items, fl, rw, rh, lx, ly, lz}
+  Render.Cam{px, py, pz, yaw, pit, +base, sel, items, fl, rw, rh, lx, ly, lz} = cam
+  Render.Cam{px, py, pz, yaw, pit, Water.with_looks(Water.frame_base(base, t), base), sel, items, fl, rw, rh, lx, ly, lz}
 
 def phase_view(g: Player.Game, t: U32) -> Player.Game & Image:
   Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, +res, +clock, +bag} = g
@@ -18,7 +18,7 @@ def phase_view(g: Player.Game, t: U32) -> Player.Game & Image:
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
   Player.view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, m, ox, oz,
-    Render.frame(phase_camera(Render.camera(px, py, pz, yaw, pit, Render.stat_base((ox * 128 + oz : U32), 0),
+    Render.frame(phase_camera(Render.camera(px, py, pz, yaw, pit, Render.stat_base((ox * 128 + oz : U32), 0), Render.looks_base(),
       Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), Render.looks(), rw, rh, clock), t), ring, rw, rh))
 
 def motion(n: Nat, +i: U32, g: Player.Game) -> IO(Unit):

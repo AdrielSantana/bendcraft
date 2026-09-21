@@ -35,6 +35,7 @@ def area_sum(+k: Nat, img: Image) -> U32:
 law frames:
   for  n: Nat
   for  +fl: U32
+  for  +more: U32
   for  +lv: Nat
   for  acc: Nat
   for  ssum: U32
@@ -42,21 +43,21 @@ law frames:
   IO(Player.Game & (Nat & U32))
 
 @unsafe
-def frames_fin(n: Nat, +fl: U32, +lv: Nat, +acc: Nat, +ssum: U32, +t0: Nat, +t1: Nat, r: Player.Game & Image) -> IO(Player.Game & (Nat & U32)):
+def frames_fin(n: Nat, +fl: U32, +more: U32, +lv: Nat, +acc: Nat, +ssum: U32, +t0: Nat, +t1: Nat, r: Player.Game & Image) -> IO(Player.Game & (Nat & U32)):
   (g, img) = r
-  frames(n, fl, lv, (acc + (t1 - t0 : Nat) : Nat), (ssum + area_sum(lv, img) : U32), g)
+  frames(n, fl, more, lv, (acc + (t1 - t0 : Nat) : Nat), (ssum + area_sum(lv, img) : U32), g)
 
 @unsafe
-def frames(n, fl, lv, acc, ssum, g):
+def frames(n, fl, more, lv, acc, ssum, g):
   match n:
     case 0n:
       IO.pure(Player.Game & (Nat & U32), (g, (acc, ssum)))
     case 1n+m:
       do IO<Player.Game & (Nat & U32)>:
         t0 : Nat <- IO.now()
-        r : Player.Game & Image = Player.view_with(g, fl)
+        r : Player.Game & Image = Player.view_more(g, fl, 0, more)
         t1 : Nat <- IO.now()
-        frames_fin(m, fl, lv, acc, ssum, t0, t1, r)
+        frames_fin(m, fl, more, lv, acc, ssum, t0, t1, r)
 
 # the variants, in order: a warm-up, all on, each look off, the rays alone,
 # the hits, the steps. HUD off includes the inventory labels under flag 16.
@@ -81,7 +82,13 @@ def off_bit(+i: U32) -> U32:
 def flags_of(+i: U32) -> U32:
   Bool.pick(U32, (i < 2 : U32), Render.looks(),
     Bool.pick(U32, (i < 19 : U32), (Render.looks() .&. U32.not(off_bit(i)) : U32),
-    Bool.pick(U32, U32.is_eq(i, 19), 0, Bool.pick(U32, U32.is_eq(i, 20), 64, 32))))
+    Bool.pick(U32, U32.is_eq(i, 19), Render.looks(),
+    Bool.pick(U32, U32.is_eq(i, 20), 0, Bool.pick(U32, U32.is_eq(i, 21), 64, 32)))))
+
+# the looks that ride in the camera's base: variant 19 turns the world in
+# the water's mirror off
+def more_of(+i: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(i, 19), 0, Render.looks_base())
 
 def label_of(+i: U32) -> String:
   Bool.pick(String, U32.is_eq(i, 0), "warm-up, the GPU program loads",
@@ -102,7 +109,8 @@ def label_of(+i: U32) -> String:
     Bool.pick(String, U32.is_eq(i, 15), "water fog off    ",
     Bool.pick(String, U32.is_eq(i, 16), "Fresnel off      ",
     Bool.pick(String, U32.is_eq(i, 17), "sky reflection off",
-    Bool.pick(String, U32.is_eq(i, 18), "ripples off      ", "rays alone       ")))))))))))))))))))
+    Bool.pick(String, U32.is_eq(i, 18), "ripples off      ",
+    Bool.pick(String, U32.is_eq(i, 19), "world mirror off ", "rays alone       "))))))))))))))))))))
 
 def dec(+t: U32) -> String:
   U32.show((t / 10 : U32)) ++ "." ++ U32.show((t % 10 : U32))
@@ -114,8 +122,8 @@ def per_frame(+ms5: Nat) -> String:
 
 def line(+i: U32, +ms5: Nat, +sum: U32, +px: U32) -> String:
   Bool.pick(String, (i < 1 : U32), "  " ++ label_of(i) ++ " " ++ Nat.show(ms5) ++ " ms, one frame",
-    Bool.pick(String, U32.is_eq(i, 20), "  hits             " ++ U32.show((sum * 100 / px : U32)) ++ " % of the rays reach a block",
-      Bool.pick(String, U32.is_eq(i, 21), "  steps           " ++ dec((sum * 10 / px : U32)) ++ " a ray to its hit, of the 60 it walks (a sky ray's 60 count)",
+    Bool.pick(String, U32.is_eq(i, 21), "  hits             " ++ U32.show((sum * 100 / px : U32)) ++ " % of the rays reach a block",
+      Bool.pick(String, U32.is_eq(i, 22), "  steps           " ++ dec((sum * 10 / px : U32)) ++ " a ray to its hit, of the 60 it walks (a sky ray's 60 count)",
         "  " ++ label_of(i) ++ " " ++ per_frame(ms5) ++ " ms a frame")))
 
 law runs:
@@ -141,14 +149,14 @@ def runs(n, i, lv, px, g):
       IO.pure(Unit, Unit{})
     case 1n+m:
       do IO<Unit>:
-        r : Player.Game & (Nat & U32) <- frames(Bool.pick(Nat, U32.is_eq(i, 0), 1n, 5n), flags_of(i), lv, 0n, 0, g)
+        r : Player.Game & (Nat & U32) <- frames(Bool.pick(Nat, U32.is_eq(i, 0), 1n, 5n), flags_of(i), more_of(i), lv, 0n, 0, g)
         runs_fin(m, i, lv, px, r)
 
 # the image's levels: the fork's depth and the tile's two
 def profile_size(name: String, +rw: U32, +rh: U32) -> IO(Unit):
   do IO<Unit>:
     IO.print(name)
-    runs(22n, 0, (Render.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), Player.start_at(Player.res_of(rw, rh)))
+    runs(23n, 0, (Render.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), Player.start_at(Player.res_of(rw, rh)))
 
 # Stars and the moon are skipped during the day. Measure them in their
 # active state too, looking upward so the moon is in the frame.
@@ -178,10 +186,10 @@ def main() -> IO(Unit):
     profile_size("960 x 540 (a 1920 x 1080 window at scale 2)", 960, 540)
     profile_size("1470 x 796 (a 14-inch MacBook, every pixel a ray)", 1470, 796)
     IO.print("Night at 1470 x 796, looking at the moon")
-    runs(22n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night(Player.start_at(Player.res_of(1470, 796))))
+    runs(23n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Lake at 1470 x 796, looking west")
-    runs(22n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), lake(Player.start_at(Player.res_of(1470, 796))))
+    runs(23n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), lake(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Submerged at 1470 x 796, looking west")
-    runs(22n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), submerged(Player.start_at(Player.res_of(1470, 796))))
+    runs(23n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), submerged(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Night lake at 1470 x 796, looking at the reflected moon")
-    runs(22n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night_lake(Player.start_at(Player.res_of(1470, 796))))
+    runs(23n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night_lake(Player.start_at(Player.res_of(1470, 796))))

@@ -212,3 +212,9 @@ def Laws.ripple_clock_is_not_a_readout(): {==}
 def Laws.split_fps_eight_reads_back(): {==}
 def Laws.split_fps_eight_is_visible(): {==}
 def Laws.ripple_packing_keeps_the_readout_bit(): {==}
+def Laws.mirror_look_reads_back(): {==}
+def Laws.mirror_look_is_off_unasked(): {==}
+def Laws.mirror_look_keeps_the_ring(): {==}
+def Laws.mirror_look_keeps_the_clock(): {==}
+def Laws.mirror_look_keeps_the_readout(): {==}
+

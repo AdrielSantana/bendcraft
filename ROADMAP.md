@@ -43,17 +43,24 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    where the far levels end). The fog measured nothing in the profile, so
    this is nearly free and changes every screenshot. It goes with the day
    cycle: dawn, noon, dusk, night with stars and a moon.
-2. **Water's shader.** Depth tint, Fresnel, the analytic reflected sky and
-   ripples from a noise normal moved by time are done. Next: the world
-   reflected by a second ray, paid like the shadow ray, only on
-   the pixels that show water. Not screen-space reflections: those exist
-   because a rasteriser cannot send a ray into its scene, so it marches
-   the depth buffer instead, and pays with whatever is off the screen or
-   hidden going missing. Here a ray is what we have, and a finished frame
-   is what we cannot read (see "Reading the last frame"). The mirrored ray
-   can be short, 24 to 32 steps: ripples and fog blur what is far. Then,
-   for the view from above, where the mirror is 2% of the colour: the
-   bed's light moved by the same ripple slope, a false caustic.
+2. **Water's shader.** Depth tint, Fresnel, the analytic reflected sky,
+   ripples from a noise normal moved by time, and the world reflected by a
+   second ray (2026-09-21) are done. The mirror is paid like the shadow
+   ray, only on the pixels that show a water top: 32 dry steps, a fade at
+   the end of its reach, bit 27 of the base word. Not screen-space
+   reflections: those exist because a rasteriser cannot send a ray into
+   its scene, so it marches the depth buffer instead, and pays with
+   whatever is off the screen or hidden going missing. Here a ray is what
+   we have, and a finished frame is what we cannot read (see "Reading the
+   last frame"). It is the dearest look so far, 6 to 7 ms of a lake's frame
+   at 1470×796 and 1.6 at scale 2, because a step costs what it costs
+   anywhere (README, "What costs what"). Two ways to make it cheaper, for
+   when the budget asks: walk the far horizon's ring of 4-block cells once
+   it exists (8 steps for the same reach), or let the mirror ride the
+   primary walk's idle steps, since a ray that met the lake's bed walks
+   the rest of its 60 with its state frozen. Next, for the view from
+   above, where the mirror is 2% of the colour: the bed's light moved by
+   the same ripple slope, a false caustic.
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
    them: next to the ring of 128² columns at one block, a ring of 128²
    cells of 4 blocks and one of 16, each cell its highest block and its
@@ -138,7 +145,7 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
    remain authoritative when loading old saves.
    Fresnel, sky reflection and ripples have separate flags. The ripple
    pattern stays in world coordinates through ring shifts.
-   Next: terrain reflection by a second ray, followed by
+   Terrain reflection by a second ray is done. Next:
    physics, a cellular rule over the edits' Map: down first, sideways,
    sources stay. Swimming and collection are not implemented yet.
    The water model was chosen on 2026-09-21: **finite volume with explicit
@@ -394,8 +401,20 @@ Physics stays `73516c0ead87f8c1151e34d25b3ac32e`. Next are ripples, then
 terrain reflection and finite-volume flow/swimming. All `Cam.fl` bits are
 now assigned; another look needs a packing change with readback laws.
 
-What is measured today, at 1470×796 on an M5: 21.8 ms a frame, rays
-alone 12.4, shadow off 18.8, water off 17.4. Small differences between
+The world in the water's mirror, 2026-09-21: a second dry walk of 32
+steps from the water top along the mirrored, rippled direction; the hit's
+colour, texture and face tone, fogged by the whole path, fading into the
+mirrored sky over the last quarter of the reach 28 / (|dx| + |dy| + |dz|).
+The look is bit 27 of `Cam.base` (`Render.looks_base()`), since `Cam.fl`
+is full; five laws keep the ring address, the ripple clock and the readout
+through it. With the look off, four views are the previous commit's bit
+for bit. The bench digest stays `0b9d000fe324fdac57d1dcc98658ec91`: no
+mirrored ray meets a block in its views, though every water-top pixel pays
+the walk (21 → 24 ms at 1470×796). Physics is unchanged. 97 laws.
+
+What is measured today, at 1470×796 on an M5: 25.2 ms a frame (23.0 with
+the mirror off), rays alone 12.4, shadow off 21.6, water off 18.2; a lake
+31.2. Small differences between
 variants are noisy; use alternated runs. A ray walks the box's 60 steps
 whether it hits or not, on purpose (README, "What costs what").
 

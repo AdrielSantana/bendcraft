@@ -369,3 +369,24 @@ law split_fps_eight_is_visible:
 
 law ripple_packing_keeps_the_readout_bit:
   {(Water.frame_base(Render.stat_base(16383, 8), 8191) / 2147483648 : U32) == 1 : U32}
+
+# --- the world in the water's mirror ------------------------------------------
+# Its look rides in bit 27 of the camera's base, put there after the ripple
+# clock: it reads back, it is off when not asked for whatever the address
+# held, and it touches neither the ring's address, the clock nor the readout.
+
+law mirror_look_reads_back:
+  {Water.mirror_on(Water.with_looks(Water.frame_base(16383, 8191), Render.looks_base())) == True{} : Bool}
+
+law mirror_look_is_off_unasked:
+  {Water.mirror_on(Water.with_looks(Water.frame_base(4294967295, 8191), 0)) == False{} : Bool}
+
+law mirror_look_keeps_the_ring:
+  {(World.col_at(Water.with_looks(Water.frame_base(4294967295, 8191), 4294967295), 127, 127) % 131072 : U32) == (World.col_at(4294967295, 127, 127) % 131072 : U32) : U32}
+
+law mirror_look_keeps_the_clock:
+  {Water.clock(Water.with_looks(Water.frame_base(16383, 5000), 4294967295)) == 5000 : U32}
+
+law mirror_look_keeps_the_readout:
+  {Render.stat_fps(Render.stat_flags(1048576, 0, 8), Render.stat_items(0, 8), Water.with_looks(Water.frame_base(Render.stat_base(16383, 8), 8191), Render.looks_base())) == 8 : U32}
+

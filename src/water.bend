@@ -3,11 +3,16 @@ import ./sky.bend as Sky
 import ./util.bend as Util
 
 # Array indices wrap at 2^17 words: only 14 column-address bits matter.
-# The next 13 carry milliseconds in an 8.192-second ripple loop; bit 31
-# belongs to the readout. None of these high bits changes a world load.
+# The next 13 carry milliseconds in an 8.192-second ripple loop; bits
+# 27..30 are looks the flags word has no room for, put there by the camera
+# (27: the world in the water's mirror); bit 31 belongs to the readout.
+# None of these high bits changes a world load.
 def phase(t: U32) -> U32: (t .&. 8191 : U32)
 def frame_base(+base: U32, clock: U32) -> U32:
   ((base .&. 2147500031) .|. (phase(clock) * 16384) : U32)
+def mirror_on(base: U32) -> Bool: Util.on(base, 134217728)
+def with_looks(base: U32, more: U32) -> U32:
+  ((base .&. 2281701375) .|. (more .&. 2013265920) : U32)
 def clock(base: U32) -> U32: (base / 16384 % 8192 : U32)
 def lattice(base: U32, x: U32, z: U32) -> U32:
   ((base + x * 128 + z) .&. 16383 : U32)
@@ -84,6 +89,17 @@ def slope(+base: U32, +x: F32, +z: F32) -> Slope:
 type Reflection is Data:
   Reflection{x: F32, y: F32, z: F32, cosine: F32}
 
+# What the render hands the surface: the ground's colour under the water,
+# the mirrored ray, and what that ray met in the world (render.bend walks
+# it, since the world is its to read): a colour and the fog to the sky
+# behind it, or no hit.
+type Mirror is Data:
+  Mirror{bottom: U32, r: Reflection, hit: Bool, colour: U32, fog: F32}
+
+# a water top seen with no mirror asked for still needs its flat normal
+def flat(dx: F32, +dy: F32, dz: F32) -> Reflection:
+  Reflection{dx, (0.0 - dy : F32), dz, (0.0 - dy : F32)}
+
 # A steep ripple seen at a grazing angle would send the mirrored ray under
 # the water. There it would meet another wave; the cheap stand-in is to
 # lift it back over the horizon and make it a unit again, so the tilt can
@@ -131,15 +147,31 @@ def reflected_sky(+fl: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, +s
   +ry = (0.0 - dy : F32)
   Sky.bodies(fl, Sky.atmosphere(fl, dx, ry, dz, sx, sy, sz), dx, ry, dz, sx, sy, sz)
 
+# The mirror's walk has 32 steps, and a step crosses one face: a ray of
+# direction d has crossed at most (|dx| + |dy| + |dz|) t + 3 faces at the
+# distance t, so whatever lies within 28 / (|dx| + |dy| + |dz|) is met.
+# Over the last quarter of that reach the mirror fades into the sky behind
+# (0 keeps the world, 1 the sky): nothing pops in where the walk ends.
+def reach(t: F32, dx: F32, dy: F32, dz: F32) -> F32:
+  F32.clamp((t * (Util.absf(dx) + Util.absf(dy) + Util.absf(dz)) / 7.0 - 3.0 : F32), 0.0, 1.0)
+
+# The mirror shows the world where its ray met a block, fogged into the
+# sky that lies behind it, and that sky alone where it met none: the same
+# arithmetic as before the world was in it, so a miss is the same byte.
+def in_mirror(hit: Bool, behind: U32, colour: U32, f: F32) -> U32:
+  match hit:
+    case False{}: behind
+    case True{}: Sky.mix(colour, behind, f)
+
 def reflected_colour(+fl: U32, c: U32, sky: U32, front: F32,
-                     +sx: F32, +sy: F32, +sz: F32, r: Reflection) -> U32:
+                     +sx: F32, +sy: F32, +sz: F32, m: Mirror) -> U32:
+  Mirror{bottom, r, hit, colour, f} = m
   Reflection{+rx, +ry, +rz, cosine} = r
-  Sky.mix(c, Sky.mix(Sky.bodies(fl, Sky.atmosphere(fl, rx, ry, rz, sx, sy, sz), rx, ry, rz, sx, sy, sz), sky, front),
+  Sky.mix(c, Sky.mix(in_mirror(hit, Sky.bodies(fl, Sky.atmosphere(fl, rx, ry, rz, sx, sy, sz), rx, ry, rz, sx, sy, sz), colour, f), sky, front),
     fresnel(fresnel_on(fl), cosine))
 
 def surface(on: Bool, hidden: Bool, +fl: U32, c: U32, sky: U32, front: F32,
-            base: U32, x: F32, z: F32, distance: F32,
-            dx: F32, dy: F32, dz: F32, sx: F32, sy: F32, sz: F32) -> U32:
+            sx: F32, sy: F32, sz: F32, m: Mirror) -> U32:
   match on:
     case False{}: c
     case True{}:
@@ -150,8 +182,7 @@ def surface(on: Bool, hidden: Bool, +fl: U32, c: U32, sky: U32, front: F32,
         case False{}:
           # Reflection travels only to the surface; the water depth behind
           # it must not absorb it. Foreground air still fogs the reflection.
-          reflected_colour(fl, c, sky, front, sx, sy, sz,
-            reflected(ripples_on(fl), base, x, z, distance, dx, dy, dz))
+          reflected_colour(fl, c, sky, front, sx, sy, sz, m)
 
 # Full extinction at 24 wet blocks hides the 60-step limit even on a
 # diagonal. Sky and solid rays converge to the same daylight-aware colour.
@@ -162,14 +193,20 @@ def fog(on: Bool, c: U32, ink: U32, sky: U32, front: F32, depth: F32) -> U32:
       +d = F32.clamp((depth / 24.0 : F32), 0.0, 1.0)
       Sky.mix(c, Sky.mix(ink, sky, front), (d * d : F32))
 
-def shade(on: Bool, +fl: U32, +sky: U32, ring_base: U32, ox: F32, +oy: F32, oz: F32, +dx: F32, +dy: F32, +dz: F32,
+def dry(r: Array<U32> & Mirror) -> Array<U32> & U32:
+  (w, m) = r
+  Mirror{bottom, x, hit, colour, f} = m
+  (w, bottom)
+
+def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
           sun_x: F32, +sun_y: F32, sun_z: F32, water_top: Bool,
-          +distance: F32, hit: Bool, tr: Trace, r: Array<U32> & U32) -> Array<U32> & U32:
+          +distance: F32, hit: Bool, tr: Trace, r: Array<U32> & Mirror) -> Array<U32> & U32:
   match on:
-    case False{}: r
+    case False{}: dry(r)
     case True{}:
       Trace{+entry, +depth} = tr
-      (w, bottom) = r
+      (w, +m) = r
+      Mirror{bottom, mr, mhit, mcolour, mf} = m
       +ink = colour(sun_y)
       # Fog the whole solid distance, including air after leaving water.
       # A sky miss already has its atmospheric colour and celestial discs.
@@ -181,4 +218,4 @@ def shade(on: Bool, +fl: U32, +sky: U32, ring_base: U32, ox: F32, +oy: F32, oz: 
       +base = Sky.mix(Sky.mix(bottom, sky, air), ink, (opacity(depth) * (1.0 - front) : F32))
       # A lake beyond the air's visibility limit must also fade to sky.
       (w, surface(water_top && reflection_on(fl), (front >= 1.0 : F32), fl, fog(fog_on(fl), base, ink, sky, front, depth),
-        sky, front, ring_base, (ox + dx * entry : F32), (oz + dz * entry : F32), entry, dx, dy, dz, sun_x, sun_y, sun_z))
+        sky, front, sun_x, sun_y, sun_z, m))

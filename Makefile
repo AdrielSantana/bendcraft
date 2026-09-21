@@ -30,6 +30,8 @@ check:
 	$(BEND) test/water.bend --check-only
 	$(BEND) test/ripples.bend --check-only
 	$(BEND) test/water_view.bend --check-only
+	$(BEND) test/mirror.bend --check-only
+	$(BEND) test/mirror_view.bend --check-only
 	$(BEND) test/sky.bend --check-only
 	$(BEND) test/bench.bend --check-only
 	$(BEND) test/profile.bend --check-only
@@ -45,6 +47,7 @@ test:
 	$(BEND) test/inventory.bend
 	$(BEND) test/water.bend
 	$(BEND) test/ripples.bend
+	$(BEND) test/mirror.bend
 	$(BEND) test/terrain.bend
 	$(BEND) test/readout.bend
 
@@ -69,6 +72,13 @@ sky: test/sky.bend src/*.bend
 	$(PYTHON) test/sky.py
 
 # Inspect the lake, surface flags, submerged views and reflected sky (Pillow).
+# the water's mirror on and off, four views, as a sheet of PNGs (Pillow)
+mirror: test/mirror_view.bend test/profile.bend test/sky.bend src/*.bend
+	@mkdir -p build
+	$(BEND) test/mirror_view.bend -o build/mirror-view
+	./build/mirror-view
+	$(PYTHON) test/mirror.py
+
 water: test/water_view.bend test/profile.bend test/sky.bend src/*.bend
 	@mkdir -p build
 	$(BEND) test/water_view.bend -o build/water-view
@@ -93,4 +103,4 @@ page-test:
 	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
 	kill %1
 
-.PHONY: run full check test bench profile sky water page publish page-test
+.PHONY: mirror run full check test bench profile sky water page publish page-test

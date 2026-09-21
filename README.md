@@ -127,7 +127,22 @@ before the horizon; a mirrored ray that a steep ripple would send under
 the water is lifted back over it and made a unit again, so the tilt stays
 strong where reflections are strongest. Its 8192-ms loop divides the day,
 with no jump when the saved day clock wraps. Flag 20 disables ripples.
-No second world ray is cast; terrain reflections are the next shader step.
+
+The world is in that mirror too, by a second ray: a pixel that shows a
+water top walks the ring again from where it met the water, along the
+mirrored (and rippled) direction, as the shadow walks towards the sun. It
+is a dry DDA of 32 steps over the solid bits alone; what it meets gets the
+block's colour, its texture and its face's tone, with no occlusion and no
+shadow of its own, is fogged by the whole path (eye to water to block) and
+laid over the mirrored sky before Fresnel weighs the two. A step crosses
+one face, so a ray of direction d always meets what lies within
+28 / (|dx| + |dy| + |dz|) blocks, 16 to 28 of them; over the last quarter
+of that reach the mirror fades into the sky, and nothing pops in where
+the walk ends. A ray that meets nothing leaves the mirrored sky's byte as
+it was. The look has a bit of its own, bit 27 of the camera's base word
+(the flags word is full). This is a function of the ray, which a ray
+caster gets for the price of a walk; a screen-space reflection would be a
+function of the image, which a pixel of the fork tree cannot read.
 Placing an inventory block displaces water, and edits survive ring reloads
 and saves. Water cannot be collected with the eight solid-block slots.
 A lake lies west of the initial spawn; `make water` exports daytime,
@@ -135,8 +150,7 @@ dusk, submerged, reflected sun/moon and each surface-look-off view as twelve
 PNGs. It also exports `build/water-motion.gif`, a 128-frame ripple cycle
 with camera and sun fixed, and a contact sheet (requires Pillow).
 This is still water: digging leaves a gap until flow is implemented, and
-movement remains walking/gravity, with swimming and terrain reflections
-left for later steps. Generated trees require dry grass at their origin;
+movement remains walking/gravity, with swimming left for a later step. Generated trees require dry grass at their origin;
 their canopies can extend over water from the bank. Untouched columns
 regenerate with this rule; edited columns in old saves keep their contents,
 including any previously saved submerged wood or grass.
@@ -194,10 +208,10 @@ main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
-src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky and ripple normals
+src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the mirror
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
-src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
+src/render.bend    the DDA, the sun, the texture, the occlusion, the mirror's walk, the fork
 src/player.bend    Game, events, picking, the tick
 src/save.bend      the save file, and the tick that writes it
 LAWS.bend          the rules the checker proves; PROOF.bend closes them
@@ -210,6 +224,8 @@ test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and 
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  clock/address packing, stable world noise, normals and wrap continuity
 test/water_view.bend twelve water views and a fixed-sun ripple cycle for test/water.py
+test/mirror.bend   the mirror's walk over a placed brick, its reach and fade, the byte a miss keeps
+test/mirror_view.bend four views with the world in the mirror and without, for test/mirror.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
@@ -228,6 +244,7 @@ make bench      # five frames on Metal, untouched and with 300 blocks placed
 make profile    # each look off, by size; also night, lake, submerged and night lake
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
 make water      # twelve PNGs and a ripple animation; Python with Pillow
+make mirror     # build/mirror-sheet.png: four views, mirror on and off; Pillow
 make page-test  # the page in headless Chrome, hashes and fps
 ```
 
@@ -294,7 +311,8 @@ the fullscreen link scales whatever is rendered to the screen.
 `make profile` renders one view five times with every look on, then with
 each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
 distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog,
-water, water fog, Fresnel, sky reflection, ripples),
+water, water fog, Fresnel, sky reflection, ripples; and the world in the
+mirror, bit 27 of the base word),
 then the rays alone, and prints the `!` per frame; then it
 renders the view twice more with numbers for pixels, how many rays reach
 a block and how many DDA steps a ray walks to its hit, summed over the
@@ -658,6 +676,33 @@ is lifted over the horizon: 15 levels, about 2% of the pixels, the same
 eight ripple tests, and the same frame (21 ms at 1470×796 and 39 at
 1920×1080 before and after, four alternated rounds).
 
+The world in the mirror is the first look whose price is a walk of its
+own since the shadow. Against the commit before it, at 1470×796, three
+alternated rounds of the whole profile and four of a short one:
+
+| | before, ms | with the mirror | mirror off (bit 27) |
+|---|---|---|---|
+| the bench's view | 21.8 | 25.2 | 23.0 |
+| lake, looking west | 24.4 | 31.2 | 24.0 |
+| night lake | 21.0 | 27.6 | 21.4 |
+| submerged | 21.8 | 22.0 | 21.6 |
+| lake at 735×398 (scale 2) | — | 8.4 | 6.8 |
+
+With the look off the frame is the old one, in time and bit for bit (four
+views compared with the commit before); the `Water.Mirror` record that
+every pixel now carries costs nothing. With it on, the bench's checksums
+did not move either, because no mirrored ray meets a block in its views,
+and yet its frames got slower (21 → 24 ms at 1470×796, 39 → 46 at
+1920×1080): the walk is paid by every pixel of a water top, whether it
+meets a block or the sky, and the frame is its slowest lane. The walk's
+length says what a step costs: 32, 24 and 16 steps gave the lake 30.6,
+29.4 and 28.0 ms, so 0.16 ms a step at this size, the same as the shadow's
+24 steps for 3.6 ms and the primary ray's 60 for about 10, plus 1.6 ms for
+the mirrored direction, the hit's colour and its fog. Sixteen steps would
+save 2.6 ms and cut the reach to 8 blocks; the 32 stay, and the fade at
+the end of the reach costs nothing measurable. Water as a whole is now
+about 13 ms of a lake's 31 at full size, and 1.6 of 8.4 at scale 2.
+
 In the original profile, 52% of the rays reached a block after 24 steps
 on average; the rest walked the box's 60. Primary rays took three quarters
 of the frame and the shadow ray most of the rest; occlusion and texture
@@ -732,7 +777,12 @@ boundary packing checks, flag independence, readout preservation and
 integer recentering. Windowless tests exhaust all 8192 phase values,
 16384 ring addresses and 257 FPS inputs, and check unit normals,
 grazing reflection, positive/negative recentering and temporal continuity.
-There are 92 laws: eight universal claims and 84 concrete
+Five mirror laws keep its look in bit 27 of the base word: it reads back,
+it is off unless asked for, and the ring address, the ripple clock and
+the readout's bit pass through it untouched. Windowless tests walk the
+mirror's ray to a placed brick along an axis and across, past its reach,
+and to the sky, and check the fade and the byte a miss leaves alone.
+There are 97 laws: eight universal claims and 89 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

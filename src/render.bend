@@ -397,6 +397,134 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
             Bool.pick(F32, U32.is_eq(axis, 2), (pz + nudge : F32), pz),
             Array.get(U32, w, (World.col_at(base, Util.f2u(hx), Util.f2u(hz)) + 1 + Util.f2u(hy) / 8 : U32)))
 
+# ---------- the mirror: the world seen in the water's top ----------
+# A second walk, as the shadow is one: from where the ray met the water,
+# along its mirrored direction, 32 steps whatever happens, solid bits
+# alone. What it meets gets the block's colour, its texture and its face's
+# tone, with no occlusion and no shadow ray: ripples and fog blur the rest,
+# and it fades into the sky towards the end of the walk's reach.
+# Only a pixel that shows a water top pays for it.
+
+type Glance is Data:
+  Glance{col: U32, t: F32}
+
+def glance_end(+col: U32, t: F32, r: Array<U32> & U32) -> Array<U32> & Glance:
+  (w, bits) = r
+  (w, Glance{col, t})
+
+def glance(fuel: Nat, +base: U32, +vx: F32, +vy: F32, +vz: F32, +sx: F32, +sy: F32, +sz: F32,
+           +mx: F32, +my: F32, +mz: F32, +ex: F32, +ey: F32, +ez: F32,
+           +axis: F32, +col: U32, +t: F32, +ymask: U32, r: Array<U32> & U32) -> Array<U32> & Glance:
+  match fuel:
+    case 0n:
+      glance_end(col, t, r)
+    case 1n+f:
+      (w, +bits) = r
+      +here = World.inside(vx, vy, vz) && Util.on(bits, ymask) && (col < 1 : U32)
+      +ncol = hit(here, axis, col)
+      +ux = (mx < my : F32) && (mx < mz : F32)
+      +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
+      +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
+      nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
+      +nvz = Bool.pick(F32, ux, vz, Bool.pick(F32, uy, vz, (vz + sz : F32)))
+      nmx = Bool.pick(F32, ux, (mx + ex : F32), mx)
+      nmy = Bool.pick(F32, uy, (my + ey : F32), my)
+      nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + ez : F32)))
+      naxis = Bool.pick(F32, ux, 0.0, Bool.pick(F32, uy, 1.0, 2.0))
+      nymask = Bool.pick(U32, uy, Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
+      nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
+      glance(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nymask,
+             refetch(Bool.not(uy) && (ncol < 1 : U32), w, base, Util.f2u(nvx), Util.f2u(nvz), bits))
+
+def run_glance(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
+               +dx: F32, +dy: F32, +dz: F32) -> Array<U32> & Glance:
+  +vx = F32.floor(ox)
+  +vy = F32.floor(oy)
+  +vz = F32.floor(oz)
+  +px = (dx > 0.0 : F32)
+  +py = (dy > 0.0 : F32)
+  +pz = (dz > 0.0 : F32)
+  +ex = (1.0 / F32.max(Util.absf(dx), 0.00001) : F32)
+  +ey = (1.0 / F32.max(Util.absf(dy), 0.00001) : F32)
+  +ez = (1.0 / F32.max(Util.absf(dz), 0.00001) : F32)
+  glance(32n, base, vx, vy, vz,
+         Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
+         Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
+         Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
+         (Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32)) * ex : F32),
+         (Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32)) * ey : F32),
+         (Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32)) * ez : F32), ex, ey, ez,
+         1.0, 0, 0.0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
+         Array.get(U32, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz))))
+
+# the block the mirror's ray met: its type's colour, the texture, the
+# face's tone, darker when the face is turned from the sun
+def glance_fin(bottom: U32, m: Water.Reflection, +fl: U32, +hy: U32, side: Bool, yf: F32, u: F32, wf: F32,
+               tone: F32, f: F32, r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
+  (w, word) = r
+  (w, Water.Mirror{bottom, m, True{}, dim(blockcol(World.nib_at(word, hy), side, yf),
+    (tone * tex_if(Util.on(fl, 4), u, wf) : F32)), f})
+
+def glance_look(got: Bool, bottom: U32, m: Water.Reflection, +fl: U32, +base: U32,
+                +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +c: U32, +t: F32, w: Array<U32>) -> Array<U32> & Water.Mirror:
+  match got:
+    case False{}:
+      (w, Water.Mirror{bottom, m, False{}, 0, 1.0})
+    case True{}:
+      +axis = (c - 1 : U32)
+      +px = (ox + dx * t : F32)
+      +py = (oy + dy * t : F32)
+      +pz = (oz + dz * t : F32)
+      +ax = U32.is_eq(axis, 0)
+      +ay = U32.is_eq(axis, 1)
+      +bx = Util.floorf((px + 0.5 : F32))
+      +by = Util.floorf((py + 0.5 : F32))
+      +bz = Util.floorf((pz + 0.5 : F32))
+      +hx = Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), bx, (bx - 1.0 : F32)), Util.floorf(px))
+      +hy = Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), by, (by - 1.0 : F32)), Util.floorf(py))
+      +hz = Bool.pick(F32, U32.is_eq(axis, 2), Bool.pick(F32, (dz > 0.0 : F32), bz, (bz - 1.0 : F32)), Util.floorf(pz))
+      +da = Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz))
+      +lit = (ly > 0.0 : F32) && ((da * Bool.pick(F32, ax, lx, Bool.pick(F32, ay, ly, lz)) : F32) < 0.0 : F32)
+      glance_fin(bottom, m, fl, Util.f2u(hy), Bool.not(ay), Util.fracf(py),
+        Bool.pick(F32, ax, pz, px), Bool.pick(F32, ay, pz, py),
+        (Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7)) * (0.18 + 0.82 * Sky.daylight(ly)) * Bool.pick(F32, lit, 1.0, 0.6) : F32),
+        F32.max(Sky.fog(fl, (far + t : F32), eye, py), Water.reach(t, dx, dy, dz)),
+        Array.get(U32, w, (World.col_at(base, Util.f2u(hx), Util.f2u(hz)) + 1 + Util.f2u(hy) / 8 : U32)))
+
+def glance_open(bottom: U32, m: Water.Reflection, +fl: U32, +base: U32,
+                +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Glance) -> Array<U32> & Water.Mirror:
+  (w, g) = r
+  Glance{+c, t} = g
+  glance_look((c > 0 : U32), bottom, m, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, c, t, w)
+
+# the world in the mirror is a look of its own (bit 27 of the camera's base)
+def mirror_world(world: Bool, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32,
+                 +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +m: Water.Reflection,
+                 r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
+  match world:
+    case False{}:
+      (w, bottom) = r
+      (w, Water.Mirror{bottom, m, False{}, 0, 1.0})
+    case True{}:
+      Water.Reflection{+rx, +ry, +rz, cosine} = m
+      (w, bottom) = r
+      # the walk starts a hair over the water, in the air the ray came through
+      glance_open(bottom, m, fl, base, px, (py + 0.01 : F32), pz, rx, ry, rz, far, eye, lx, ly, lz,
+        run_glance(w, base, px, (py + 0.01 : F32), pz, rx, ry, rz))
+
+def mirrored(go: Bool, +fl: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+             +entry: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
+  match go:
+    case False{}:
+      (w, bottom) = r
+      (w, Water.Mirror{bottom, Water.flat(dx, dy, dz), False{}, 0, 1.0})
+    case True{}:
+      mirror_world(Water.mirror_on(base), fl, base, (ox + dx * entry : F32), (oy + dy * entry : F32), (oz + dz * entry : F32),
+        entry, oy, lx, ly, lz,
+        Water.reflected(Water.ripples_on(fl), base, (ox + dx * entry : F32), (oz + dz * entry : F32), entry, dx, dy, dz), r)
+
 # the profile's pixels: the steps to the hit (flag 32), or 1 on a hit (64)
 def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +v: U32,
                +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
@@ -414,12 +542,12 @@ def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +v
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: Ray) -> Array<U32> & U32:
   Ray{+c, +t, +tr} = ct
-  Water.Trace{entry, depth} = tr
+  Water.Trace{+entry, depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
   +hitw = (c % 4 : U32)
-  Water.shade(wet, fl, v, base, ox, oy, oz, dx, dy, dz, lx, ly, lz, Water.top(c), t, (hitw > 0 : U32), tr,
-    shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz))
+  Water.shade(wet, fl, v, oy, dy, lx, ly, lz, Water.top(c), t, (hitw > 0 : U32), tr,
+    mirrored(wet && Water.top(c) && Water.reflection_on(fl), fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz, shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz)))
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
            r: Array<U32> & Ray) -> Array<U32> & U32:
@@ -501,10 +629,14 @@ type Cam is Data:
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
 def looks() -> U32: 4293918751
 
-def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32,
+# the looks that ride in the camera's base, bits 27..30: 27 the world in
+# the water's mirror; 28..30 are spare
+def looks_base() -> U32: 134217728
+
+def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, more: U32, sel: U32, items: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:
   +cycle = Util.on(fl, 33554432)
-  Cam{px, py, pz, yaw, pit, Water.frame_base(base, clock), sel, items, fl, rw, rh,
+  Cam{px, py, pz, yaw, pit, Water.with_looks(Water.frame_base(base, clock), more), sel, items, fl, rw, rh,
       Bool.pick(F32, cycle, Day.sun_x(clock), 0.48),
       Bool.pick(F32, cycle, Day.sun_y(clock), 0.8),
       Bool.pick(F32, cycle, Day.sun_z(clock), 0.36)}

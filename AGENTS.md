@@ -164,7 +164,14 @@ nothing", and the README):
   horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
 - `Cam.base`: low 14 bits address the ring; bits 14..26 hold the ripple
   clock modulo 8192 ms; bit 31 holds FPS bit 3. The array wraps addresses,
-  so clock/readout bits cannot affect world reads. Bits 27..30 remain spare.
+  so clock/readout bits cannot affect world reads. Bits 27..30 are the
+  looks `Cam.fl` has no room for: `Render.looks_base()` holds the ones on
+  by default and `Water.with_looks` puts them in; 27 is the world in the
+  water's mirror, 28..30 remain spare.
+- A walk is the unit of cost: a DDA step is about 0.16 ms a frame at
+  1470×796 wherever it happens (primary 60, shadow 24, mirror 32), because
+  the frame is its slowest lane. Count the steps a new look adds before
+  writing it.
 - `Cam.sel`: selection in bits 0..2, four seven-bit display counts in
   bits 3..30; `Cam.items` holds the other four in bits 0..27. A display count of 100
   means `99+`. `Game.bag` keeps eight full `Nat` counts on the host; labels
