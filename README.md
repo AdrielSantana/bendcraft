@@ -113,7 +113,7 @@ src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
 src/player.bend    Game, events, picking, the tick
 src/save.bend      the save file, and the tick that writes it
 LAWS.bend          the rules the checker proves; PROOF.bend closes them
-ROADMAP.md         what comes next: the game, the engine, what waits on Bend
+ROADMAP.md         the vision and what comes next: the look, the game, the laws, what waits on Bend
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/bench.bend    five frames on the GPU with checksums, untouched and built

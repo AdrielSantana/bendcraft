@@ -1,34 +1,144 @@
 # Roadmap
 
-Written on 2026-09-21. Three tracks: the game, the engine under it, and the
+Written on 2026-09-21. Four tracks: the look, the game, the laws, and the
 Bend compiler, where some steps wait on a decision that is not ours. The
-rule that ties them: the game goes on whatever upstream decides, and every
-step that touches the frame leaves a line in `make profile`.
+game goes on whatever upstream decides.
+
+## The vision
+
+Bendcraft is Minecraft in spirit, not a clone of it. The base is the one
+everybody knows: day and night, water that flows, survival, collecting,
+crafting, mobs and entities. What it adds is what a Minecraft player
+installs mods for, there from the first screen: the light of a shader pack
+and the horizon of Distant Horizons. And one thing no mod can add: the
+rules of the game are proved, so no update breaks them.
+
+The point of it is Bend. Three things the game should show at a glance:
+
+- **It is beautiful.** A sky, water, clouds, fog and a far horizon, all of
+  them pure functions of a ray, run on the GPU by `!` alone: no shader
+  language, no engine, no draw calls.
+- **It is far.** A view of a kilometre from a world that is a function of
+  its seed.
+- **It is proved.** `LAWS.bend` holds the rules; `bend PROOF.bend` is the
+  gate. A rule that a change breaks stops the build.
+
+## The look
+
+The renderer casts a ray for every pixel, so two of the classic cullings
+are already its nature, and the work goes where a ray caster's cost is:
+
+- *Frustum culling:* done by construction. Rays exist only for pixels on
+  the screen, and the frame tree makes no task past the screen's edge.
+- *Occlusion culling:* done by construction. A ray sees the first block it
+  meets and nothing behind it.
+- *What is left to win:* the empty space a ray crosses, and the distance it
+  may reach. Both are the same piece of work, the far levels below.
+
+The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
+
+1. **Sky, sun and fog, done well.** A sky gradient from the sun's height, a
+   sun disc, a horizon glow; fog by distance and by height, its colour
+   taken from the sky so the far terrain melts into it (it also hides
+   where the far levels end). The fog measured nothing in the profile, so
+   this is nearly free and changes every screenshot. It goes with the day
+   cycle: dawn, noon, dusk, night with stars and a moon.
+2. **Water's shader.** Tint by the depth crossed, a Fresnel term, the sky
+   reflected analytically, ripples from a noise normal moved by time; then
+   the world reflected by a second ray, paid like the shadow ray, only on
+   the pixels that show water.
+3. **The far horizon.** Levels over the world as Distant Horizons keeps
+   them: next to the ring of 128² columns at one block, a ring of 128²
+   cells of 4 blocks and one of 16, each cell its highest block and its
+   top's type, a word a cell, filled from the noise as the rings shift. A
+   ray that leaves the near ring goes on in the next level with steps four
+   times as long, against flat-topped prisms. About thirty steps a level:
+   a kilometre for twice the steps of today. The same levels let a near
+   ray skip open air above the ground. Measure the steps with flag 32
+   before and after.
+4. **Clouds with volume.** A slab between two heights, a 3D noise moved by
+   the wind, a short march of 8 to 16 steps for the rays that reach it,
+   lit by the sun's side. And their shadows on the ground: one lookup of
+   the same noise where the sun's line from the hit crosses the slab.
+5. **Vegetation.** Tall grass and flowers as two crossed planes inside a
+   voxel, leaves with holes: a ray that meets alpha goes on. Wind as an
+   offset of the texture's coordinate by time and place.
+6. **Light of the blocks.** Torches and a night that needs them.
+
+**The budget.** At 1470×796 a frame is 15.6 ms with a ray for every pixel
+and 5 ms at scale 2, which suits the pixel art. At 60 frames a second that
+leaves about 11 ms for the look at scale 2. Every piece above says what it
+took of them in the profile table.
 
 ## The game
 
-In this order. None of them needs anything from upstream.
-
 1. **Collecting and an inventory.** Today the hotbar's eight blocks are
-   endless. Breaking a block gives one of it, placing spends one, the HUD
-   shows the count, the save file keeps the counts. Laws to write: a count
-   never goes under zero; break then place gives the world and the counts
-   back. Costs nothing in the frame but the HUD's digits.
-2. **Water.** A block type a ray goes through: the ray keeps walking past
-   the surface and the hit behind is tinted by the depth it crossed. Still
-   water first, in the terrain below a sea level. Flow is a later step, a
-   cellular rule over the edits' Map, a tick at a time. This one touches
-   the DDA, so it gets a flag and a profile line from the first commit.
-3. **A day cycle.** The sun's direction from the clock, the sky's colour
-   with it, night. The shadow ray is written for one sun, (0.48, 0.80,
-   0.36), all components positive, so every step is +1; a moving sun needs
-   the signed step the primary ray has. The direction goes in `Cam`. Expect
-   the shadow's 2.4 ms to grow a little; measure before and after.
+   endless. Breaking gives one, placing spends one, the HUD shows the
+   counts, the save keeps them. Then a time to break by block type, and
+   tools.
+2. **Water.** A block type a ray goes through. Still water first, in the
+   terrain below a sea level; then its physics, a cellular rule over the
+   edits' Map, a tick at a time: down first, then sideways, sources stay.
+3. **Day and night.** The sun's direction from the clock, in `Cam`. The
+   shadow ray is written for one sun, (0.48, 0.80, 0.36), all components
+   positive, so every step is +1; a moving sun needs the signed step the
+   primary ray has. Expect the shadow's 2.4 ms to grow a little.
+4. **Survival.** Health, falling hurts, hunger, death and a place to come
+   back to.
+5. **Crafting.** A recipe is a vector over the counts: what it takes, what
+   it gives. A grid in the HUD.
+6. **Mobs and entities.** An entity is a few boxes a ray tests, binned by
+   column so a ray tests only those of the cells it crosses; a dropped
+   item is an entity too. Their physics is the player's.
 
-Candidates after these, not decided: caves in the noise, a second biome,
-sounds when Bend has a way to make them, something that moves.
+**What only Bend gives**, candidates, not decided. The game's step is a
+pure function, so the whole game is a function of its seed and its inputs.
+That makes a replay a list of inputs, a save as small as one, a rewind key
+that walks back through kept states (the Map of edits shares its
+structure, so a past state costs little), and two players in lockstep
+without a server deciding who is right.
 
-## The engine
+## The laws
+
+Every rule the game adds gets its law in `LAWS.bend` before the feature is
+done, closed in `PROOF.bend`, run by `make check`. A later change, ours or
+a Bend update, that breaks a rule fails the gate. The laws to come:
+
+- *Inventory:* a count never goes under zero; break then place gives the
+  world and the counts back; no sequence of moves makes an item from
+  nothing. Minecraft is famous for its duplication glitches; here there is
+  a proof that there are none.
+- *Crafting:* a recipe changes the counts by exactly its vector, and does
+  nothing when an input is short.
+- *Water:* a tick never raises the amount of water, sources aside; water
+  never moves up.
+- *Day and night:* the sun a full day later is the same sun.
+- *Survival:* health stays within its bounds; the dead do not act.
+- *Entities:* none ends a tick inside a solid block, the player's law.
+- *The picture:* the bench's thirty checksums. A change that should not
+  change the image cannot.
+
+Today's 29 laws are decided by computation on the values the game uses:
+each is one case. The step up is a law stated `for` every value and proved
+by induction, which needs the data in a shape the checker reasons about (a
+count as a `Nat`, an inventory as a list or a map). The inventory is the
+first place to try it. Floats stay in `test/physics.bend`: the checker
+does not compute them.
+
+## The order
+
+A proposal, a piece of the look then a piece of the game, the look first
+since it is what a visitor sees:
+
+1. sky, sun, fog and the day cycle
+2. collecting and the inventory, with the first law stated for every value
+3. water: still, its shader, then its physics
+4. the far horizon
+5. survival and crafting
+6. clouds and their shadows; vegetation
+7. mobs and entities; light of the blocks
+
+## The engine's routine
 
 What is measured today, at 1470×796 on an M5: 15.6 ms a frame, the primary
 rays 11.4 of them, the shadow ray 2.4, occlusion and texture under one
@@ -50,12 +160,6 @@ snippets match the runtime's text and may need an update).
 
 **Work that is ours, when a feature asks for it:**
 
-- *Render distance.* The ring is 128² columns and a ray walks 60 steps.
-  More distance is more steps for every ray, linearly. The engine answer
-  is to skip empty space: a coarse level over the columns (the highest
-  block of each 4×4 group), so a ray above it crosses four columns in one
-  step. Measure the step count with flag 32 first; it only pays if most
-  steps are over open ground.
 - *Full screen by default at scale 2* (5 ms), scale 1 by choice (16 ms).
 - *The page.* 31 fps at 512² on ten wasm threads, 7 on one. The CPU is the
   ceiling there; the way up is the WebGPU lane, below.
