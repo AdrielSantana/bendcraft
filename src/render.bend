@@ -4,6 +4,7 @@ import ./world.bend as World
 import ./day.bend as Day
 import ./sky.bend as Sky
 import ./inventory.bend as Inventory
+import ./water.bend as Water
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -70,10 +71,40 @@ def hit(here: Bool, +axis: F32, +col: U32) -> U32:
     case False{}:
       col
 
-# the hit word comes back with the steps to it above bit 2: `n * 4 + col`
-def dda_end(+col: U32, +n: U32, +t: F32, r: Array<U32> & U32) -> Array<U32> & (U32 & F32):
-  (w, b) = r
-  (w, ((col + n * 4 : U32), t))
+# The dry specialization keeps water loads out of the profile's off row.
+# Both specializations use this same loop and the same fixed fuel.
+type Column is Data:
+  Column{solid: U32, water: U32}
+
+def water_word_fin(bits: U32, r: Array<U32> & U32) -> Array<U32> & Column:
+  (w, water) = r
+  (w, Column{bits, water})
+
+def water_word(on: Bool, +slot: U32, r: Array<U32> & U32) -> Array<U32> & Column:
+  match on:
+    case False{}:
+      (w, bits) = r
+      (w, Column{bits, 0})
+    case True{}:
+      (w, bits) = r
+      water_word_fin(bits, Array.get(U32, w, (slot + 5 : U32)))
+
+def column_words(~water: Bool, w: Array<U32>, +slot: U32) -> Array<U32> & Column:
+  water_word(water, slot, Array.get(U32, w, slot))
+
+def refetch_water(~water: Bool, need: Bool, w: Array<U32>, +base: U32, +x: U32, +z: U32,
+                  old: Column) -> Array<U32> & Column:
+  match need:
+    case True{}: column_words(~water, w, World.col_at(base, x, z))
+    case False{}: (w, old)
+
+type Ray is Data:
+  Ray{hit: U32, t: F32, water: Water.Trace}
+
+# The hit word carries the number of steps above the two face bits.
+def dda_end(+col: U32, +n: U32, t: F32, tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
+  (w, bits) = r
+  (w, Ray{(col + n * 4 : U32), t, tr})
 
 # The loop walks its 60 steps whatever happens, the state frozen after the
 # hit: an exit at the hit (or on leaving the box) walked a third of the
@@ -81,18 +112,20 @@ def dda_end(+col: U32, +n: U32, +t: F32, r: Array<U32> & U32) -> Array<U32> & (U
 # at 1920 x 1080 (2026-09-21, the same checksums), since the lanes of a
 # SIMD group then leave the loop at different steps and the runtime's
 # switch over segments runs them one case at a time. Uniform beats less.
-def dda(fuel: Nat, +base: U32,
+def dda(~water: Bool, fuel: Nat, +base: U32,
         +vx: F32, +vy: F32, +vz: F32,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
         +ex: F32, +ey: F32, +ez: F32,
-        +axis: F32, +col: U32, +t: F32, +n: U32, +ymask: U32, r: Array<U32> & U32) -> Array<U32> & (U32 & F32):
+        +axis: F32, +col: U32, +t: F32, +n: U32, +ymask: U32, tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
   match fuel:
     case 0n:
-      dda_end(col, n, t, r)
+      dda_end(col, n, t, tr, r)
     case 1n+f:
-      (w, +bits) = r
-      +here = World.inside(vx, vy, vz) && Util.on(bits, ymask) && (col < 1 : U32)
+      (w, words) = r
+      Column{+bits, +wetbits} = words
+      +inside = World.inside(vx, vy, vz)
+      +here = inside && Util.on(bits, ymask) && (col < 1 : U32)
       +ncol = hit(here, axis, col)
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
@@ -107,11 +140,12 @@ def dda(fuel: Nat, +base: U32,
       nymask = Bool.pick(U32, uy,
         Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
       # t is where the ray enters the next voxel; it stops moving at the hit
-      nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
+      +nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
       # the steps before the hit, for the profile
       nn = Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n)
-      dda(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nn, nymask,
-          refetch(Bool.not(uy) && (ncol < 1 : U32), w, base, Util.f2u(nvx), Util.f2u(nvz), bits))
+      dda(~water, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nn, nymask,
+          Water.crossed(water, inside && (ncol < 1 : U32) && Util.on(wetbits, ymask), t, nt, tr),
+          refetch_water(~water, Bool.not(uy) && (ncol < 1 : U32), w, base, Util.f2u(nvx), Util.f2u(nvz), Column{bits, wetbits}))
 
 # ---------- the hit's look: sun, texture, ambient occlusion, fog ----------
 # The hit point is o + d t, on a face of the voxel V; the cell before the
@@ -375,17 +409,21 @@ def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +v
           shade_go(sky, w, base, v, ox, oy, oz, dx, dy, dz, c, t, fl, lx, ly, lz)
 
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-          ct: U32 & F32) -> Array<U32> & U32:
-  (+c, t) = ct
+          ct: Ray) -> Array<U32> & U32:
+  Ray{+c, t, +tr} = ct
+  Water.Trace{entry, depth} = tr
+  +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
+  +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
   +hitw = (c % 4 : U32)
-  shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, (c / 4 : U32), fl, lx, ly, lz)
+  Water.shade(wet, fl, v, oy, dy, ly, tr,
+    shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, (c / 4 : U32), ground_flags, lx, ly, lz))
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-           r: Array<U32> & (U32 & F32)) -> Array<U32> & U32:
+           r: Array<U32> & Ray) -> Array<U32> & U32:
   (w, ct) = r
   shade(v, fl, lx, ly, lz, w, base, ox, oy, oz, dx, dy, dz, ct)
 
-def run_dda(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
+def run_dda(~water: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
             +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   +vx = Util.floorf(F32.max(ox, 0.0))
   +vy = Util.floorf(F32.max(oy, 0.0))
@@ -399,14 +437,20 @@ def run_dda(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
   +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
   +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
   +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
-  finish(v, fl, lx, ly, lz, base, ox, oy, oz, dx, dy, dz, dda(60n, base, vx, vy, vz,
+  finish(v, fl, lx, ly, lz, base, ox, oy, oz, dx, dy, dz, dda(~water, 60n, base, vx, vy, vz,
            Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
            (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-           1.0, 0, 0.0, 0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
-           Array.get(U32, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz)))))
+           1.0, 0, 0.0, 0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))), Water.Trace{0.0, 0.0},
+           column_words(~water, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz)))))
+
+def run_water(on: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
+              +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+  match on:
+    case False{}: run_dda(~False{}, w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
+    case True{}: run_dda(~True{}, w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 
 # A ray that misses the loaded box reads the world zero times (and counts
 # no step and no hit under the profile's flags).
@@ -416,7 +460,7 @@ def shoot(go: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
     case False{}:
       (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz), 0))
     case True{}:
-      run_dda(w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
+      run_water(Util.on(fl, 2097152), w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 
 def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
             +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
@@ -442,7 +486,7 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
 # what. Bits 7..20 hold the readout, with four FPS bits in items; 21..24
-# are free. Bits 25..31 enable the day cycle, sky
+# hold water (21) and three free flags (22..24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low three bits, then four seven-bit counts;
 # items holds the other four and the high FPS bits. Counts are capped for the HUD.
@@ -450,7 +494,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4261412895
+def looks() -> U32: 4263510047
 
 def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:

@@ -169,3 +169,13 @@ def Laws.stat_fps_crosses_the_split(): {==}
 def Laws.stat_keeps_water_room(): {==}
 def Laws.stat_water_room_is_not_a_number(): {==}
 def Laws.stat_high_fps_is_visible(): {==}
+
+def Laws.water_fills_above_ground(): {==}
+def Laws.water_stops_at_sea(): {==}
+def Laws.water_generation_skips_solids(): {==}
+def Laws.water_place_is_not_solid(): {==}
+def Laws.solid_displaces_water(): {==}
+def Laws.water_edit_keeps_neighbors(): {==}
+def Laws.draining_water_keeps_solids(): {==}
+def Laws.water_type_reads_back(): {==}
+def Laws.water_cannot_replace_a_bank(): {==}

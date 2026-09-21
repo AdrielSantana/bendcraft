@@ -245,3 +245,32 @@ law stat_water_room_is_not_a_number:
 
 law stat_high_fps_is_visible:
   {Render.stat_on(0, Render.stat_items(0, 16)) == True{} : Bool}
+
+# The still-water mask never turns water into a solid. These integer laws
+# cover generation and displacement; no flow is simulated yet.
+law water_fills_above_ground:
+  {World.flood(10, 0) == 3072 : U32}
+
+law water_stops_at_sea:
+  {World.flood(12, 0) == 0 : U32}
+
+law water_generation_skips_solids:
+  {World.flood(10, 1024) == 2048 : U32}
+
+law water_place_is_not_solid:
+  {World.masks(World.edit_col(World.Col{0, 0, 0, 0, 0, 0}, 31, True{}, 8)) == (0, 2147483648) : U32 & U32}
+
+law solid_displaces_water:
+  {World.masks(World.edit_col(World.Col{0, 0, 0, 0, 0, 1024}, 10, True{}, 6)) == (1024, 0) : U32 & U32}
+
+law water_edit_keeps_neighbors:
+  {World.masks(World.edit_col(World.Col{16, 0, 0, 0, 0, 32}, 10, True{}, 8)) == (16, 1056) : U32 & U32}
+
+law draining_water_keeps_solids:
+  {World.masks(World.edit_col(World.Col{16, 0, 0, 0, 0, 1056}, 10, False{}, 0)) == (16, 32) : U32 & U32}
+
+law water_type_reads_back:
+  {World.nib_get(World.nib_set(0, 7, 8), 7) == 8 : U32}
+
+law water_cannot_replace_a_bank:
+  {World.edit_col(World.Col{1024, 0, 1536, 0, 0, 2048}, 10, True{}, 8) == World.Col{1024, 0, 1536, 0, 0, 2048} : World.Col}

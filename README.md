@@ -55,8 +55,9 @@ owner. Since 2.0.22 an `@unsafe` def may hand one array to both sides of a
 fork anyway, two handles to one block that `Array.join` gives back, so the
 columns around the player live in an `Array<U32>`: eight words a column,
 the first a mask whose bit `y` says "there is a block at height `y`", the
-next four the types of its 32 blocks, four bits each. A ray reads the mask
-through its handle once per column it crosses and the type once, at the
+next four the types of its 32 solid blocks, four bits each. Word six is a
+separate water mask; two words remain spare. A primary ray with water on
+reads both masks once per column it crosses and the solid type once, at the
 hit; an edit is a few `Array.set` on the host; a built world costs what an
 untouched one does. Thirty-two heights in one word is what makes it cheap:
 the ray sees a column as a machine word, and break or place is one bit.
@@ -80,7 +81,8 @@ nibble in the ring and the whole column in the map, so it is there when
 you come back.
 
 **The render** is a DDA through the ring, one ray per pixel, 60 steps. The
-loop returns only what was hit and where; the look is a `match` after it:
+loop returns the solid hit and its distance, plus the first wet entry and
+total wet distance; the look is a `match` after it:
 a second DDA toward the sun for shadows, a pixel-art tile of four shades per
 face, ambient occlusion per vertex from the eight cells around the hit, distance haze and low mist into the sky along the ray. The `!` runs a binary tree down to 4×4 tiles: a
 square splits into its two rows, a row into its two squares, as many levels
@@ -91,6 +93,20 @@ holds one, then runs each task on its lane to the end: a two-way tree fills
 the frontier with tasks of one size, so a wide frame at every pixel takes
 16 ms where the four-way tree took 46, and its pruned form, with some lanes
 holding 64 leaves, 110 to 150.
+
+**Still water** fills terrain below y=12, excluding every solid voxel.
+Material 8 uses the spare column word, so collisions, picking, shadows and
+occlusion keep their original solid mask. The primary ray crosses water
+and sees the ground; its accumulated wet distance gives the tint its depth.
+The tint follows daylight, and air fog ends at the first wet surface.
+This works from below and through vertical sides as well as from above.
+Placing an inventory block displaces water, and edits survive ring reloads
+and saves. Water cannot be collected with the eight solid-block slots.
+A lake lies west of the initial spawn; `make water` exports daytime,
+dusk, submerged and water-off views as PNGs (requires Pillow).
+This is still water: digging leaves a gap until flow is implemented, and
+movement remains walking/gravity, with swimming, reflections and ripples
+left for later steps. Existing terrain and trees are preserved.
 
 **The day clock** is an integer in `Game`, advanced by elapsed milliseconds
 at the window loop, independently of the physics and frame rate. One day is
@@ -122,13 +138,15 @@ render fork. Labels belong to HUD flag 16 and its existing profile row.
 
 **The world is saved.** `bendcraft.save` in the working directory holds
 the corner, position, look, chosen block, day clock and eight counts on its
-first line, then one line per edited column: its key and its five words. The game
+first line, then one line per edited column: its key, five solid words and
+the water mask. The game
 loads it at start, if it is there, and writes it on `P` and on quit; the
 untouched columns are never stored, they come back from the noise. On the
 page the file lives in the browser's memory, so it lasts until the tab is
 closed. Old headers without the optional clock still load at morning;
-headers without counts start with an empty inventory. The column lines
-have not changed. Both `P` and `Esc` save after that tick's edits.
+headers without counts start with an empty inventory. Column lines append the water mask. Old five-word columns restore
+natural water above the original terrain, excluding their saved solids;
+old excavations stay dry, and an explicit zero water word stays zero. Both `P` and `Esc` save after that tick's edits.
 
 **The player** is 1.8 blocks tall with the eye at 1.6. Walking tests the
 feet and the head per axis and stops at walls; gravity pulls, landing snaps
@@ -143,6 +161,7 @@ main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
+src/water.bend     wet ray intervals, depth tint and fog at the surface
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
@@ -155,6 +174,8 @@ test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
+test/water.bend    signed wet rays, displacement, picking, shadows, ring reloads and saves
+test/water_view.bend five fixed water views, Image trees for test/water.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
@@ -237,7 +258,7 @@ the fullscreen link scales whatever is rendered to the screen.
 
 `make profile` renders one view five times with every look on, then with
 each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
-distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog),
+distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog, water),
 then the rays alone, and prints the `!` per frame; then it
 renders the view twice more with numbers for pixels, how many rays reach
 a block and how many DDA steps a ray walks to its hit, summed over the
@@ -305,15 +326,58 @@ frames at the six sizes are 2/2/4/9/16/29 → 2/2/4/8/15/29 ms. The readout
 test checks every FPS value through 256, including clamping and all four
 inventory counts sharing its word.
 
+Still-water delivery, four alternated pre-water/current rounds at 1470×796.
+These compare the same default view; the bench picture changes intentionally.
+Minimum five-frame means:
+
+| | before water | with water, ms |
+|---|---|---|
+| all on | 15.8 | 20.0 |
+| shadow off | 13.0 | 17.2 |
+| occlusion off | 15.0 | 18.8 |
+| texture off | 15.6 | 19.4 |
+| distance fog off | 16.2 | 19.8 |
+| HUD off | 15.8 | 19.8 |
+| day cycle off | 16.0 | 20.4 |
+| sky gradient off | 15.8 | 19.8 |
+| sun disc off | 15.8 | 19.6 |
+| horizon glow off | 15.4 | 20.6 |
+| stars off | 16.2 | 20.0 |
+| moon off | 16.0 | 20.2 |
+| height fog off | 16.0 | 20.2 |
+| water off | — | 17.4 |
+| rays alone | 11.0 | 12.0 |
+
+The cost is real: one extra mask read at each crossed column and wet
+interval arithmetic during the 60-step walk. The emitted dry specialization
+skips those operations but still carries three extra scalar words through
+the loop (water mask, entry, depth), returns two extra words and checks for
+a wet hit before shading. Water-off therefore includes some shared cost;
+subtracting that row alone understates the feature's total cost.
+
+Fresh emitted C and four alternated kernel traces locate the increase in
+ray work: work-kernel minima 14.525 ms before, 15.000 with water off, 17.445
+with water on. Fastest traced dispatch sums are 16.318 / 17.146 / 19.521 ms.
+Camera width and fork shape are unchanged. Tracing submits kernels
+separately, so those totals diagnose the increase rather than replace the
+ordinary bench times. The dry build retains all thirty original checksums.
+
+Fastest ordinary bench frames at the six sizes are
+2/2/4/8/16/29 → 2/2/5/10/19/36 ms. At 735×398, the native scale-2 case,
+the fastest frame is 5 ms. A separate lake view at 1470×796 measures 20.8
+ms all on, 17.6 water off, 12.0 rays alone. Night measures 14.6 / 13.2 /
+11.4 for those same variants. Solid hits and steps in the default view
+remain 52% and 41.3, because water does not stop the ray.
+
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
 5 and 6 are debug renders; 7..16 hold milliseconds and 17..20 the low
 four FPS bits. The high four FPS bits use `Cam.items` bits 28..31, above
-the counts; bits 21..24 are free for water. Bits 25..31 are day
+the counts; bit 21 enables water and bits 22..24 are free. Bits 25..31 are day
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
 sun for profiling. HUD off also disables the new count labels. The default
-picture intentionally changes with those labels: bench digest
-`9e3773a2467d6ccbe097a74a29cf2f89`; physics stays
+picture intentionally changes with the lakes: bench digest
+`a6dac974097868bdae51a1963519f6a2`; physics stays
 `73516c0ead87f8c1151e34d25b3ac32e`.
 
 52 % of the rays reach a block, after 24 steps on average; the rest walk
@@ -372,7 +436,9 @@ counts: a transfer conserves the cell plus its count, and induction extends that
 Empty spending and occupied placement are rejected, break then place
 restores the count, and edits preserve the number of inventory slots.
 The HUD packing has mixed-slot and boundary laws; save/quit edges survive
-the physics step. There are 58 laws: seven universal claims and 51 concrete
+the physics step. Still-water laws cover generation above ground, the sea
+limit, banks preserved on water placement, displacement, neighboring bits
+and material packing. There are 67 laws: seven universal claims and 60 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

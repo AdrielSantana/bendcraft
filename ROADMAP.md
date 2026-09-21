@@ -122,9 +122,12 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
    nothing. New games start empty. The HUD shows counts through `99+`,
    the save keeps their full values, and old saves load with zero counts.
    Time to break by block type and tools remain follow-up work.
-2. **Water.** A block type a ray goes through. Still water first, in the
-   terrain below a sea level; then its physics, a cellular rule over the
-   edits' Map, a tick at a time: down first, then sideways, sources stay.
+2. **Water — still water done (2026-09-21).** Material 8 has its own
+   column mask below y=12. Rays cross it, tint by wet distance and fog at
+   the first surface; placing solids displaces it, and saves keep it.
+   Next: Fresnel, sky reflection and ripples with their own flags, then
+   physics, a cellular rule over the edits' Map: down first, sideways,
+   sources stay. Swimming and collection are not implemented yet.
 3. **Day and night — done with look step 1.** The saved integer clock
    drives the sun in `Cam`; the shadow has signed crossings on every axis.
    A full period returns the same sun phase for every clock word.
@@ -165,9 +168,9 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 58 laws include the day period for every `U32` clock word and
+Today's 67 laws include the day period for every `U32` clock word and
 six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 51 laws are concrete checks, including HUD packing and save/quit
+The other 60 laws are concrete checks, including HUD packing and save/quit
 edges. Floats stay in the windowless tests: the checker does not compute them.
 
 ## The order
@@ -177,7 +180,7 @@ since it is what a visitor sees:
 
 1. sky, sun, fog and the day cycle — done, 2026-09-21
 2. collecting and the inventory, with laws stated for every count — done, 2026-09-21
-3. water: still, its shader, then its physics
+3. water: still water done, 2026-09-21; finish its shader, then its physics
 4. the far horizon
 5. survival and crafting
 6. clouds and their shadows; vegetation
@@ -235,16 +238,38 @@ Four alternated rounds: full profile 16.2 → 16.0 ms, rays alone 11.0 →
 is unchanged, and their readout is disabled. The six bench minima are
 2/2/4/9/16/29 → 2/2/4/8/15/29 ms.
 
-What is measured today, at 1470×796 on an M5: 16.2 ms a frame, rays
-alone 11.0, shadow off 13.2. The flags are measured together in the README;
-small differences are noisy. A ray costs the box's 60 steps whether it hits or not, on purpose
-(README, "What costs what").
+Still water, 2026-09-21: slot +5 stores its mask without changing the
+solid terrain. The primary DDA accumulates wet intervals before the solid
+hit, including signed side entry and a submerged eye. Flag 21 and a profile
+row disable the water look; a lake view measures it active. Old saves load
+natural water above original terrain, keeping excavations dry; the new
+sixth word preserves displacement. Tests cover all six ray directions,
+water behind solids, picking, collisions, shadows, ring reloads and saves.
+67 laws close; all four gates pass. Physics remains
+`73516c0ead87f8c1151e34d25b3ac32e`. Lakes intentionally change the picture:
+bench digest `a6dac974097868bdae51a1963519f6a2`.
+
+Four alternated rounds at 1470×796: full profile 15.8 → 20.0 ms, water off
+17.4, rays alone 11.0 → 12.0. The extra mask load and wet interval arithmetic
+cost time; the dry specialization still transports three added scalar
+words and checks for a wet hit. Fresh-C kernel traces confirm the work
+increase: 14.525 → 15.000 ms dry, 17.445 ms wet. This is measured overhead,
+not a free look. The full table is in README. Bench minima at six sizes:
+2/2/4/8/16/29 → 2/2/5/10/19/36 ms. The lake view is 20.8 ms, water off 17.6.
+The dry build retains the old thirty checksums; camera size and fork shape
+are unchanged. Shader work and water physics remain next; there is no flow
+or swimming in this delivery.
+
+What is measured today, at 1470×796 on an M5: 20.0 ms a frame, rays
+alone 12.0, shadow off 17.2, water off 17.4. Small differences between
+variants are noisy; use alternated runs. A ray walks the box's 60 steps
+whether it hits or not, on purpose (README, "What costs what").
 
 **The routine, for every change to the frame:**
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `9e3773a2467d6ccbe097a74a29cf2f89` when
+- `make bench`: the md5 of the thirty checksums stays `a6dac974097868bdae51a1963519f6a2` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work

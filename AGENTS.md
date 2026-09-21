@@ -83,7 +83,7 @@ make profile    # what each look costs, at four sizes
 ```
 
 - **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut
-  -d= -f2 | md5` is `9e3773a2467d6ccbe097a74a29cf2f89` today. A change that should not alter
+  -d= -f2 | md5` is `a6dac974097868bdae51a1963519f6a2` today. A change that should not alter
   the game's default picture must leave it as it is. A change that alters
   the picture on purpose says so, and its commit message carries the new
   digest. `bend test/physics.bend | md5` is `73516c0ead87...`; same rule.
@@ -158,7 +158,7 @@ nothing", and the README):
 ## The code's fixed points
 
 - `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; bits 7..16 hold milliseconds, 17..20 the low four FPS bits.
-  The high four FPS bits use `Cam.items` bits 28..31; bits 21..24 are free. Bits 25..31 enable day cycle, sky gradient, sun disc,
+  The high four FPS bits use `Cam.items` bits 28..31; bit 21 is water, bits 22..24 are free. Bits 25..31 enable day cycle, sky gradient, sun disc,
   horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
 - `Cam.sel`: selection in bits 0..2, four seven-bit display counts in
   bits 3..30; `Cam.items` holds the other four in bits 0..27. A display count of 100
@@ -167,9 +167,10 @@ nothing", and the README):
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
   512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
 - The world: a ring of 128x128 columns in one `Array<U32>`, eight words a
-  column (a mask of 32 blocks, then their types four bits each); edits in a
-  `Map`; terrain from a seeded noise. Block types 0..7: grass dirt stone
-  sand wood leaves brick snow.
+  column (solid mask, four type words, water mask, two spare); edits in a
+  `Map`; terrain from a seeded noise. Solid types 0..7: grass dirt stone
+  sand wood leaves brick snow. Water is type 8, outside the eight inventory
+  slots; it is absent from solid collision, picking and shadow masks.
 - `main.bend` runs the window's loop itself (not `App.run`), with a `Stat`
   beside the `Game`; `Save.tick` is the game's tick.
 - The save file's first line and its per-column lines are a format: a

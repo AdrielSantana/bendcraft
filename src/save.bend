@@ -9,7 +9,8 @@ import ./inventory.bend as Inventory
 #
 # The file is `bendcraft.save` in the working directory: a first line with
 # the corner, position, look, chosen block, optional day clock and eight
-# optional counts, then a line per edited column, its key "x,z" and its five words. The game loads it
+# optional counts, then a line per edited column: its key "x,z", five solid
+# words and an optional water mask. The game loads it
 # at start and writes it on P and on quit. Floats travel as thousandths,
 # offset by a thousand so they stay positive.
 
@@ -37,8 +38,8 @@ def num(s: String) -> U32:
 
 def col_line(kv: Sigma<&2, &2, String, _ => World.Col>) -> String:
   (k, c) = kv
-  World.Col{m, a, b, cc, d} = c
-  k ++ " " ++ U32.show(m) ++ " " ++ U32.show(a) ++ " " ++ U32.show(b) ++ " " ++ U32.show(cc) ++ " " ++ U32.show(d)
+  World.Col{m, a, b, cc, d, water} = c
+  k ++ " " ++ U32.show(m) ++ " " ++ U32.show(a) ++ " " ++ U32.show(b) ++ " " ++ U32.show(cc) ++ " " ++ U32.show(d) ++ " " ++ U32.show(water)
 
 def col_lines(kvs: List<&2, Sigma<&2, &2, String, _ => World.Col>>) -> String:
   match kvs:
@@ -96,10 +97,24 @@ def save(g: Player.Game) -> IO(Player.Game):
 
 # --- reading ---------------------------------------------------------------
 
+# Five-word columns predate water. Restore only the natural lake above
+# the original terrain, leaving old excavations dry. An explicit zero in
+# the sixth word remains zero after loading.
+def legacy_water(coords: List<&2, String>, +solid: U32) -> U32:
+  match coords:
+    case Con{x, Con{z, rest}}: World.flood(World.terrain(num(x), num(z)), solid)
+    case Con{x, rest}: 0
+    case Nil{}: 0
+
+def water_of(fs: List<&2, String>, k: String, +solid: U32) -> U32:
+  match fs:
+    case Nil{}: legacy_water(String.split(k, ','), solid)
+    case Con{w, rest}: (num(w) .&. U32.not(solid) : U32)
+
 def col_of(fs: List<&2, String>, m: Map<&2, World.Col>) -> Map<&2, World.Col>:
   match fs:
-    case Con{k, Con{ms, Con{a, Con{b, Con{c, Con{d, rest}}}}}}:
-      Map.set(&2, World.Col, m, k, World.Col{num(ms), num(a), num(b), num(c), num(d)})
+    case Con{+k, Con{+ms, Con{a, Con{b, Con{c, Con{d, rest}}}}}}:
+      Map.set(&2, World.Col, m, k, World.Col{num(ms), num(a), num(b), num(c), num(d), water_of(rest, k, num(ms))})
     case Con{k, rest}:
       m
     case Nil{}:
@@ -126,7 +141,7 @@ def natural(m: Maybe<&2, Nat>) -> Nat:
     case Some{n}: n
 
 # Every load makes eight slots. Missing fields in old headers are zero;
-# the optional clock stays before them, so old column lines are unchanged.
+# the optional clock stays before them. Column water is parsed separately.
 def counts_of(n: Nat, fs: List<&2, String>) -> List<&2, Nat>:
   match n:
     case 0n:

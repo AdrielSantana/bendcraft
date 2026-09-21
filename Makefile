@@ -26,6 +26,8 @@ check:
 	$(BEND) test/save.bend --check-only
 	$(BEND) test/day.bend --check-only
 	$(BEND) test/inventory.bend --check-only
+	$(BEND) test/water.bend --check-only
+	$(BEND) test/water_view.bend --check-only
 	$(BEND) test/sky.bend --check-only
 	$(BEND) test/bench.bend --check-only
 	$(BEND) test/profile.bend --check-only
@@ -39,6 +41,7 @@ test:
 	$(BEND) test/save.bend
 	$(BEND) test/day.bend
 	$(BEND) test/inventory.bend
+	$(BEND) test/water.bend
 	$(BEND) test/terrain.bend
 	$(BEND) test/readout.bend
 
@@ -62,6 +65,13 @@ sky: test/sky.bend src/*.bend
 	./build/sky
 	$(PYTHON) test/sky.py
 
+# Inspect the lake, water-off, dusk and submerged views (Pillow).
+water: test/water_view.bend test/profile.bend test/sky.bend src/*.bend
+	@mkdir -p build
+	$(BEND) test/water_view.bend -o build/water-view
+	./build/water-view
+	$(PYTHON) test/water.py
+
 # the page: WebAssembly, a worker a core, the service worker for the headers
 page: main.bend src/*.bend
 	bun $(BEND_WEB) main.bend -o site/index.html
@@ -80,4 +90,4 @@ page-test:
 	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
 	kill %1
 
-.PHONY: run full check test bench profile sky page publish page-test
+.PHONY: run full check test bench profile sky water page publish page-test
