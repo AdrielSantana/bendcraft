@@ -17,29 +17,29 @@ def ticks(n: Nat, g: Player.Game) -> Player.Game:
 def one(e: Event) -> List<Event>:
   Con{e, Nil{}}
 
-def spot_fin(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, res: U32, w: World.World) -> Player.Game & String:
+def spot_fin(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, res: U32, clock: U32, w: World.World) -> Player.Game & String:
   World.W{ring, m, +ox, +oz} = w
-  (Player.G{World.W{ring, m, ox, oz}, px, py, pz, yaw, pit, 0.0, 0, 0, 0, 0, sel, res},
+  (Player.G{World.W{ring, m, ox, oz}, px, py, pz, yaw, pit, 0.0, 0, 0, 0, 0, sel, res, clock},
    "p=(" ++ F32.show(px) ++ ", " ++ F32.show(py) ++ ", " ++ F32.show(pz) ++ ") yaw=" ++ F32.show(yaw) ++ " pit=" ++ F32.show(pit) ++ " sel=" ++ U32.show(sel) ++ " corner=" ++ U32.show(ox) ++ "," ++ U32.show(oz))
 
 def spot(g: Player.Game) -> Player.Game & String:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res} = g
-  spot_fin(px, py, pz, yaw, pit, sel, res, w)
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock} = g
+  spot_fin(px, py, pz, yaw, pit, sel, res, clock, w)
 
 # the brick sits at world column (1048572, 1048572): local (60, 60) at
 # the start, (60, 55) once the walk has moved the corner five columns
-def brick_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32,
+def brick_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32,
               +lz: U32, r: World.World & U32) -> Player.Game & String:
   (w, t) = r
-  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res}, "type at local (60, 25, " ++ U32.show(lz) ++ ") = " ++ U32.show(t) ++ " (6 is brick)")
+  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock}, "type at local (60, 25, " ++ U32.show(lz) ++ ") = " ++ U32.show(t) ++ " (6 is brick)")
 
 def brick(g: Player.Game, +lz: U32) -> Player.Game & String:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res} = g
-  brick_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, lz, World.voxel(w, 60, 25, lz))
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock} = g
+  brick_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, lz, World.voxel(w, 60, 25, lz))
 
 def place(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res} = g
-  Player.G{World.edit(w, 60, 60, 25, True{}, 6), px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock} = g
+  Player.G{World.edit(w, 60, 60, 25, True{}, 6), px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock}
 
 def say(tag: String, r: Player.Game & String) -> IO(Player.Game):
   (g, s) = r

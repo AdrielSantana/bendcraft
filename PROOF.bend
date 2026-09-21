@@ -40,3 +40,15 @@ def Laws.stat_ms_reads_back(): {==}
 def Laws.stat_fps_reads_back(): {==}
 def Laws.stat_stops_at_its_room(): {==}
 def Laws.stat_zero_is_the_game(): {==}
+
+def Laws.day_returns_at_dawn(): {==}
+def Laws.day_returns_at_noon(): {==}
+def Laws.day_returns_at_dusk(): {==}
+def Laws.day_returns_at_night(): {==}
+def Laws.day_returns_at_morning(): {==}
+def Laws.day_returns_across_word_wrap(): {==}
+def Laws.day_wraps_to_dawn(): {==}
+def Laws.stat_keeps_high_looks(): {==}
+def Laws.stat_high_ms_reads_back(): {==}
+def Laws.stat_high_fps_reads_back(): {==}
+def Laws.stat_high_zero_is_the_game(): {==}

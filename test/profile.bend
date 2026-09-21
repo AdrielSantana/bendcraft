@@ -60,17 +60,27 @@ def frames(n, fl, lv, acc, ssum, g):
 
 # the variants, in order: a warm-up, all on, each look off, the rays alone,
 # the hits, the steps
+def off_bit(+i: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(i, 2), 1,
+    Bool.pick(U32, U32.is_eq(i, 3), 2,
+    Bool.pick(U32, U32.is_eq(i, 4), 4,
+    Bool.pick(U32, U32.is_eq(i, 5), 8,
+    Bool.pick(U32, U32.is_eq(i, 6), 16, 33554432)))))
+
 def flags_of(+i: U32) -> U32:
-  Bool.pick(U32, (i < 5 : U32),
-    Bool.pick(U32, (i < 2 : U32), 31, Bool.pick(U32, U32.is_eq(i, 2), 30, Bool.pick(U32, U32.is_eq(i, 3), 29, 27))),
-    Bool.pick(U32, (i < 8 : U32), Bool.pick(U32, U32.is_eq(i, 5), 23, Bool.pick(U32, U32.is_eq(i, 6), 15, 0)),
-      Bool.pick(U32, U32.is_eq(i, 8), 64, 32)))
+  Bool.pick(U32, (i < 2 : U32), Render.looks(),
+    Bool.pick(U32, (i < 8 : U32), (Render.looks() .&. U32.not(off_bit(i)) : U32),
+    Bool.pick(U32, U32.is_eq(i, 8), 0, Bool.pick(U32, U32.is_eq(i, 9), 64, 32))))
 
 def label_of(+i: U32) -> String:
-  Bool.pick(String, (i < 5 : U32),
-    Bool.pick(String, (i < 2 : U32), Bool.pick(String, U32.is_eq(i, 0), "warm-up, the GPU program loads", "all on           "),
-      Bool.pick(String, U32.is_eq(i, 2), "shadow off       ", Bool.pick(String, U32.is_eq(i, 3), "occlusion off    ", "texture off      "))),
-    Bool.pick(String, U32.is_eq(i, 5), "fog off          ", Bool.pick(String, U32.is_eq(i, 6), "HUD off          ", "rays alone       ")))
+  Bool.pick(String, U32.is_eq(i, 0), "warm-up, the GPU program loads",
+    Bool.pick(String, U32.is_eq(i, 1), "all on           ",
+    Bool.pick(String, U32.is_eq(i, 2), "shadow off       ",
+    Bool.pick(String, U32.is_eq(i, 3), "occlusion off    ",
+    Bool.pick(String, U32.is_eq(i, 4), "texture off      ",
+    Bool.pick(String, U32.is_eq(i, 5), "fog off          ",
+    Bool.pick(String, U32.is_eq(i, 6), "HUD off          ",
+    Bool.pick(String, U32.is_eq(i, 7), "day cycle off    ", "rays alone       "))))))))
 
 def dec(+t: U32) -> String:
   U32.show((t / 10 : U32)) ++ "." ++ U32.show((t % 10 : U32))
@@ -82,8 +92,8 @@ def per_frame(+ms5: Nat) -> String:
 
 def line(+i: U32, +ms5: Nat, +sum: U32, +px: U32) -> String:
   Bool.pick(String, (i < 1 : U32), "  " ++ label_of(i) ++ " " ++ Nat.show(ms5) ++ " ms, one frame",
-    Bool.pick(String, U32.is_eq(i, 8), "  hits             " ++ U32.show((sum * 100 / px : U32)) ++ " % of the rays reach a block",
-      Bool.pick(String, U32.is_eq(i, 9), "  steps           " ++ dec((sum * 10 / px : U32)) ++ " a ray to its hit, of the 60 it walks (a sky ray's 60 count)",
+    Bool.pick(String, U32.is_eq(i, 9), "  hits             " ++ U32.show((sum * 100 / px : U32)) ++ " % of the rays reach a block",
+      Bool.pick(String, U32.is_eq(i, 10), "  steps           " ++ dec((sum * 10 / px : U32)) ++ " a ray to its hit, of the 60 it walks (a sky ray's 60 count)",
         "  " ++ label_of(i) ++ " " ++ per_frame(ms5) ++ " ms a frame")))
 
 law runs:
@@ -116,7 +126,7 @@ def runs(n, i, lv, px, g):
 def profile_size(name: String, +rw: U32, +rh: U32) -> IO(Unit):
   do IO<Unit>:
     IO.print(name)
-    runs(10n, 0, (Render.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), Player.start_at(Player.res_of(rw, rh)))
+    runs(11n, 0, (Render.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), Player.start_at(Player.res_of(rw, rh)))
 
 def main() -> IO(Unit):
   do IO<Unit>:

@@ -2,11 +2,12 @@ import Base
 import ./util.bend as Util
 import ./world.bend as World
 import ./player.bend as Player
+import ./day.bend as Day
 
 # SAVE AND LOAD: the edited columns and where the player stands, as text.
 #
 # The file is `bendcraft.save` in the working directory: a first line with
-# the corner, the position, the look and the chosen block, then one line
+# the corner, position, look, chosen block and optional day clock, then a line
 # per edited column, its key "x,z" and its five words. The game loads it
 # at start and writes it on P and on quit. Floats travel as thousandths,
 # offset by a thousand so they stay positive.
@@ -45,21 +46,21 @@ def col_lines(kvs: List<&2, Sigma<&2, &2, String, _ => World.Col>>) -> String:
     case Con{kv, rest}:
       "\n" ++ col_line(kv) ++ col_lines(rest)
 
-def text_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, w: World.World) -> World.World & String:
+def text_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, clock: U32, w: World.World) -> World.World & String:
   World.W{ring, +m, +ox, +oz} = w
   (World.W{ring, m, ox, oz},
    "bendcraft 1 " ++ U32.show(ox) ++ " " ++ U32.show(oz) ++ " " ++ U32.show(enc(px)) ++ " " ++ U32.show(enc(py)) ++ " " ++ U32.show(enc(pz))
-   ++ " " ++ U32.show(enc(wrap(yaw))) ++ " " ++ U32.show(enc(pit)) ++ " " ++ U32.show(sel)
+   ++ " " ++ U32.show(enc(wrap(yaw))) ++ " " ++ U32.show(enc(pit)) ++ " " ++ U32.show(sel) ++ " " ++ U32.show(clock)
    ++ col_lines(Map.to_list(&2, World.Col, m)))
 
-def text_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32,
+def text_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32,
              r: World.World & String) -> Player.Game & String:
   (w, s) = r
-  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res}, s)
+  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock}, s)
 
 def text(g: Player.Game) -> Player.Game & String:
-  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, res} = g
-  text_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, text_w(px, py, pz, yaw, pit, sel, w))
+  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, res, +clock} = g
+  text_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, text_w(px, py, pz, yaw, pit, sel, clock, w))
 
 def written(fr: File & Result<&1, &1, U32 & String, Unit>) -> IO(Unit):
   (f, r) = fr
@@ -103,13 +104,21 @@ def cols_of(ls: List<&2, String>, m: Map<&2, World.Col>) -> Map<&2, World.Col>:
     case Con{l, rest}:
       cols_of(rest, col_of(String.split(l, ' '), m))
 
+# Old headers end after sel; their morning is the new game's morning.
+def clock_of(fs: List<&2, String>) -> U32:
+  match fs:
+    case Nil{}:
+      Day.morning()
+    case Con{t, rest}:
+      Day.phase(num(t))
+
 def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Game:
   match fs:
     case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, rest}}}}}}}}}}:
       +cx = num(ox)
       +cz = num(oz)
       Player.G{World.load_all(128n, World.W{[0 : U32^17n], cols_of(ls, Map.new(&2, World.Col)), cx, cz}, cx, cz),
-               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, num(sel), res}
+               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, num(sel), res, clock_of(rest)}
     case Con{tag, rest}:
       Player.start_at(res)
     case Nil{}:
@@ -181,9 +190,9 @@ def alive_go(act: Bool, +quit: Bool, g: Player.Game) -> IO(Maybe<Player.Game>):
       IO.pure(Maybe<Player.Game>, Some{g})
 
 def alive(g: Player.Game) -> IO(Maybe<Player.Game>):
-  Player.G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res, clock} = g
   +quit = Util.on(edge, 4096)
-  alive_go(quit || Util.on(edge, 256), quit, Player.G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res})
+  alive_go(quit || Util.on(edge, 256), quit, Player.G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res, clock})
 
 def tick(evs: List<Event>, g: Player.Game) -> IO(Maybe<Player.Game>):
   alive(Player.step(Player.feed(evs, g)))

@@ -163,7 +163,7 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 29 laws are decided by computation on the values the game uses:
+Today's 45 laws are decided by computation on the values the game uses:
 each is one case. The step up is a law stated `for` every value and proved
 by induction, which needs the data in a shape the checker reasons about (a
 count as a `Nat`, an inventory as a list or a map). The inventory is the
@@ -175,13 +175,22 @@ does not compute them.
 A proposal, a piece of the look then a piece of the game, the look first
 since it is what a visitor sees:
 
-1. sky, sun, fog and the day cycle
+1. sky, sun, fog and the day cycle — in progress: the saved clock and
+   signed shadows are done; the sky and fog follow
 2. collecting and the inventory, with the first law stated for every value
 3. water: still, its shader, then its physics
 4. the far horizon
 5. survival and crafting
 6. clouds and their shadows; vegetation
 7. mobs and entities; light of the blocks
+
+The day-cycle foundation (2026-09-21) passed all four gates. Four
+alternated rounds at 1470×796: full profile 15.0 → 15.8 ms, shadows off
+12.6 → 12.6, rays alone 11.0 → 11.0. Signed shadow crossings account for
+the increase. Fastest bench frames: 14 → 15 ms there, unchanged at the
+other five sizes. The integer clock is saved in an optional header field;
+old saves still load. Its default morning intentionally changes the bench
+digest to `9a69584df64263efa23186046b24e5a2`; physics is unchanged.
 
 ## The engine's routine
 

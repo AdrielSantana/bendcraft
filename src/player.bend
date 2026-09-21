@@ -2,6 +2,7 @@ import Base
 import ./util.bend as Util
 import ./world.bend as World
 import ./render.bend as Render
+import ./day.bend as Day
 
 # THE PLAYER: the game state, the events, the tick, the edits.
 #
@@ -11,7 +12,7 @@ import ./render.bend as Render
 
 type Game is Type:
   G{w: World.World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-    held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32}
+    held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32}
 
 # the render's size, width above height in one word; 512 x 512 by default
 def res_of(+rw: U32, +rh: U32) -> U32:
@@ -21,30 +22,35 @@ def res512() -> U32:
   res_of(512, 512)
 
 def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, m: Map<&2, World.Col>, ox: U32, oz: U32,
+             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, m: Map<&2, World.Col>, ox: U32, oz: U32,
              r: Array<U32> & Image) -> Game & Image:
   (ring, img) = r
-  (G{World.W{ring, m, ox, oz}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res}, img)
+  (G{World.W{ring, m, ox, oz}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock}, img)
 
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
-           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +fl: U32, w: World.World) -> Game & Image:
+           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +fl: U32, w: World.World) -> Game & Image:
   World.W{ring, m, +ox, +oz} = w
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
-  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, m, ox, oz,
-           Render.frame(Render.Cam{px, py, pz, yaw, pit, (ox * 128 + oz : U32), sel, fl, rw, rh}, ring, rw, rh))
+  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, m, ox, oz,
+           Render.frame(Render.camera(px, py, pz, yaw, pit, (ox * 128 + oz : U32), sel, fl, rw, rh, clock), ring, rw, rh))
 
-# the frame with the render's flags (Render.Cam), all five on for the game
+# the frame with the render's flags (Render.Cam), all looks on for the game
 def view_with(g: Game, +fl: U32) -> Game & Image:
-  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res} = g
-  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, fl, w)
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock} = g
+  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, fl, w)
 
 def view(g: Game) -> Game & Image:
-  view_with(g, 31)
+  view_with(g, Render.looks())
 
 # the game's frame with the readout in its corner; zeros hide it
 def view_stat(g: Game, +ms10: U32, +fps: U32) -> Game & Image:
-  view_with(g, Render.stat_flags(31, ms10, fps))
+  view_with(g, Render.stat_flags(Render.looks(), ms10, fps))
+
+# Time advances at the IO edge; a physics step has no wall-clock dependency.
+def advance(g: Game, ms: U32) -> Game:
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock} = g
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, Day.advance(clock, ms)}
 
 # ---------- input ----------
 # Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, p 256, f 512, j l
@@ -64,25 +70,25 @@ def kmask(+c: U32) -> U32:
     .|. kbit(c, 27, 4096) .|. kbit(c, 32, 8192) : U32)
 
 def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-              +held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, +m: U32) -> Game:
+              +held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, +m: U32) -> Game:
   match down:
     case True{}:
       G{w, px, py, pz, yaw, pit, vy, (held .|. m : U32),
-        (edge .|. (m .&. U32.not(held)) : U32), mx, my, sel, res}
+        (edge .|. (m .&. U32.not(held)) : U32), mx, my, sel, res, clock}
     case False{}:
-      G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, mx, my, sel, res}
+      G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, mx, my, sel, res, clock}
 
 # the digits 1..8 choose the block to place
 def on_key(g: Game, +code: U32, +down: Bool) -> Game:
-  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, +sel, res} = g
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, +sel, res, clock} = g
   +lower = Bool.pick(U32, ((code >= 65) && (code <= 90) : U32), (code + 32 : U32), code)
   +digit = down && (code >= 49 : U32) && (code <= 56 : U32)
   key_apply(down, w, px, py, pz, yaw, pit, vy, held, edge, mx, my,
-            Bool.pick(U32, digit, (code - 49 : U32), sel), res, kmask(lower))
+            Bool.pick(U32, digit, (code - 49 : U32), sel), res, clock, kmask(lower))
 
 # button 0 is the left one, 1 the right one, on both windows
 def on_button(g: Game, +x: U32, +y: U32, +b: U32, +down: Bool) -> Game:
-  G{w, px, py, pz, yaw, pit, vy, +held, +edge, mx, my, sel, res} = g
+  G{w, px, py, pz, yaw, pit, vy, +held, +edge, mx, my, sel, res, clock} = g
   +press = U32.is_eq(b, 0) && down
   +release = U32.is_eq(b, 0) && Bool.not(down)
   +click = release && U32.is_eq((held .&. 49152 : U32), 16384)
@@ -91,11 +97,11 @@ def on_button(g: Game, +x: U32, +y: U32, +b: U32, +down: Bool) -> Game:
   G{w, px, py, pz, yaw, pit, vy,
     Bool.pick(U32, release, (held1 .&. U32.not(16384) : U32), held1),
     (edge .|. Bool.pick(U32, click, 1024, 0) .|. Bool.pick(U32, place, 2048, 0) : U32),
-    Bool.pick(U32, press, x, mx), Bool.pick(U32, press, y, my), sel, res}
+    Bool.pick(U32, press, x, mx), Bool.pick(U32, press, y, my), sel, res, clock}
 
 # a drag turns the camera, 0.0045 rad per pixel; y grows downwards
 def on_move(g: Game, +x: U32, +y: U32) -> Game:
-  G{w, px, py, pz, +yaw, +pit, vy, +held, edge, +mx, +my, sel, res} = g
+  G{w, px, py, pz, +yaw, +pit, vy, +held, edge, +mx, +my, sel, res, clock} = g
   +drag = Util.on(held, 16384)
   +dx = (Util.u2f(x) - Util.u2f(mx) : F32)
   +dy = (Util.u2f(y) - Util.u2f(my) : F32)
@@ -106,17 +112,17 @@ def on_move(g: Game, +x: U32, +y: U32) -> Game:
     vy,
     Bool.pick(U32, drag && far, (held .|. 32768 : U32), held),
     edge,
-    Bool.pick(U32, drag, x, mx), Bool.pick(U32, drag, y, my), sel, res}
+    Bool.pick(U32, drag, x, mx), Bool.pick(U32, drag, y, my), sel, res, clock}
 
 # whether a key of the mask went down in the events just fed (main.bend
 # asks for F, the readout's switch, before the tick clears the edges)
 def pressed(g: Game, +bit: U32) -> Game & Bool:
-  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res} = g
-  (G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res}, Util.on(edge, bit))
+  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res, clock} = g
+  (G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock}, Util.on(edge, bit))
 
 def quit_now(g: Game) -> Game:
-  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res} = g
-  G{w, px, py, pz, yaw, pit, vy, held, (edge .|. 4096 : U32), mx, my, sel, res}
+  G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock} = g
+  G{w, px, py, pz, yaw, pit, vy, held, (edge .|. 4096 : U32), mx, my, sel, res, clock}
 
 def feed(evs: List<Event>, g: Game) -> Game:
   match evs:
@@ -239,7 +245,7 @@ def ax2(+held: U32, +negbit: U32, +posbit: U32) -> F32:
    - Bool.pick(F32, Util.on(held, negbit), 1.0, 0.0) : F32)
 
 def step_edit(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
-              held: U32, +edge: U32, mx: U32, my: U32, +sel: U32, res: U32, w: World.World, ph: U32 & U32) -> Game:
+              held: U32, +edge: U32, mx: U32, my: U32, +sel: U32, res: U32, clock: U32, w: World.World, ph: U32 & U32) -> Game:
   (+prev, +hit) = ph
   +got = (hit > 0 : U32)
   +tgt = (prev - 1 : U32)
@@ -247,15 +253,15 @@ def step_edit(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
   +brk = got && Util.on(edge, 1024)
   +put = got && (prev > 0 : U32) && Util.on(edge, 2048) && Bool.not(onme)
   G{apply_edit(put, apply_edit(brk, w, (hit - 1 : U32), False{}, 0), tgt, True{}, sel),
-    npx, npy, npz, nyaw, npit, nvy, held, (edge .&. 4096 : U32), mx, my, sel, res}
+    npx, npy, npz, nyaw, npit, nvy, held, (edge .&. 4096 : U32), mx, my, sel, res, clock}
 
 def step_aim(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
-             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, r: World.World & (U32 & U32)) -> Game:
+             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, r: World.World & (U32 & U32)) -> Game:
   (w, ph) = r
-  step_edit(npx, npy, npz, nvy, nyaw, npit, held, edge, mx, my, sel, res, w, ph)
+  step_edit(npx, npy, npz, nvy, nyaw, npit, held, edge, mx, my, sel, res, clock, w, ph)
 
 def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool,
-              +nyaw: F32, +npit: F32, +held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32,
+              +nyaw: F32, +npit: F32, +held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32,
               r: World.World & Bool) -> Game:
   (w, above) = r
   +bump = (vy1 > 0.0 : F32) && above
@@ -269,36 +275,36 @@ def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool,
   +cz = Util.f2u(npz)
   +lx = (npx - Util.u2f(cx) + 64.0 : F32)
   +lz = (npz - Util.u2f(cz) + 64.0 : F32)
-  step_aim(lx, npy, lz, nvy, nyaw, npit, held, edge, mx, my, sel, res,
+  step_aim(lx, npy, lz, nvy, nyaw, npit, held, edge, mx, my, sel, res, clock,
            waim(World.follow_z(U32.to_nat(Bool.pick(U32, (cz > 64 : U32), (cz - 64 : U32), (64 - cz : U32))), (cz > 64 : U32),
                 World.follow_x(U32.to_nat(Bool.pick(U32, (cx > 64 : U32), (cx - 64 : U32), (64 - cx : U32))), (cx > 64 : U32), w)),
                 lx, npy, lz, Render.look_x(nyaw, npit), Render.look_y(npit), Render.look_z(nyaw, npit)))
 
 def step_land(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32,
-              nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32,
+              nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32,
               r: World.World & Bool) -> Game:
   (w, below) = r
-  step_bump(npx, py, npz, ty, vy1, (vy1 < 0.0 : F32) && below, nyaw, npit, held, edge, mx, my, sel, res,
+  step_bump(npx, py, npz, ty, vy1, (vy1 < 0.0 : F32) && below, nyaw, npit, held, edge, mx, my, sel, res, clock,
             World.wsolid(w, npx, (ty + 0.2 : F32), npz))
 
 def step_z(+npx: F32, +py: F32, +pz: F32, +tz: F32, +vy1: F32,
-           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32,
+           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32,
            r: World.World & Bool) -> Game:
   (w, bz) = r
   +npz = Bool.pick(F32, bz, pz, tz)
   +ty = (py + vy1 : F32)
-  step_land(npx, py, npz, ty, vy1, nyaw, npit, held, edge, mx, my, sel, res,
+  step_land(npx, py, npz, ty, vy1, nyaw, npit, held, edge, mx, my, sel, res, clock,
             World.wsolid(w, npx, (ty - eye() : F32), npz))
 
 def step_x(+px: F32, +py: F32, +pz: F32, +tx: F32, +tz: F32, +vy1: F32,
-           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32,
+           nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32,
            r: World.World & Bool) -> Game:
   (w, bx) = r
   +npx = Bool.pick(F32, bx, px, tx)
-  step_z(npx, py, pz, tz, vy1, nyaw, npit, held, edge, mx, my, sel, res, blocked(w, npx, py, tz))
+  step_z(npx, py, pz, tz, vy1, nyaw, npit, held, edge, mx, my, sel, res, clock, blocked(w, npx, py, tz))
 
 def step(g: Game) -> Game:
-  G{w, +px, +py, +pz, yaw, pit, vy, +held, edge, mx, my, sel, res} = g
+  G{w, +px, +py, +pz, yaw, pit, vy, +held, edge, mx, my, sel, res, clock} = g
   +nyaw = (yaw + 0.055 * ax2(held, 64, 128) : F32)
   +npit = F32.clamp((pit + 0.045 * ax2(held, 32, 16) : F32), (0.0 - 1.45 : F32), 1.45)
   +sy = F32.sin(nyaw)
@@ -308,13 +314,13 @@ def step(g: Game) -> Game:
   +tx = (px + 0.16 * (fw * sy + st * cy) : F32)
   +tz = (pz + 0.16 * (fw * cy - st * sy) : F32)
   +vy1 = F32.max((vy - 0.012 : F32), (0.0 - 0.9 : F32))
-  step_x(px, py, pz, tx, tz, vy1, nyaw, npit, held, edge, mx, my, sel, res, blocked(w, tx, py, pz))
+  step_x(px, py, pz, tx, tz, vy1, nyaw, npit, held, edge, mx, my, sel, res, clock, blocked(w, tx, py, pz))
 
 def alive(g: Game) -> IO(Maybe<Game>):
-  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res} = g
+  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res, clock} = g
   Bool.pick(IO(Maybe<Game>), Util.on(edge, 4096),
     IO.pure(Maybe<Game>, None{}),
-    IO.pure(Maybe<Game>, Some{G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res}}))
+    IO.pure(Maybe<Game>, Some{G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res, clock}}))
 
 def tick(evs: List<Event>, g: Game) -> IO(Maybe<Game>):
   alive(step(feed(evs, g)))
@@ -322,7 +328,7 @@ def tick(evs: List<Event>, g: Game) -> IO(Maybe<Game>):
 # the world's corner starts far from zero, so walking west never wraps it
 def start_at(+res: U32) -> Game:
   G{World.load_all(128n, World.W{[0 : U32^17n], Map.new(&2, World.Col), 1048512, 1048512}, 1048512, 1048512),
-    64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0, 0, res}
+    64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0, 0, res, Day.morning()}
 
 def start() -> Game:
   start_at(res512())

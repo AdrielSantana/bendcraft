@@ -89,13 +89,22 @@ the frontier with tasks of one size, so a wide frame at every pixel takes
 16 ms where the four-way tree took 46, and its pruned form, with some lanes
 holding 64 leaves, 110 to 150.
 
+**The day clock** is an integer in `Game`, advanced by elapsed milliseconds
+at the window loop, independently of the physics and frame rate. One day is
+1048576 ms (17 minutes 28.576 seconds); phase zero is dawn, one quarter noon,
+one half dusk and three quarters midnight. Its sine and cosine are computed
+on the host and the three sun components ride in `Cam`. The shadow walks
+with signed steps on all three axes; the terrain dims when the sun sets.
+The default starts in the morning.
+
 **The world is saved.** `bendcraft.save` in the working directory holds
-the corner, the position, the look and the chosen block on its first line,
+the corner, position, look, chosen block and day clock on its first line,
 then one line per edited column: its key and its five words. The game
 loads it at start, if it is there, and writes it on `P` and on quit; the
 untouched columns are never stored, they come back from the noise. On the
 page the file lives in the browser's memory, so it lasts until the tab is
-closed.
+closed. Old headers without the optional clock still load, at morning;
+the column lines have not changed.
 
 **The player** is 1.8 blocks tall with the eye at 1.6. Walking tests the
 feet and the head per axis and stops at walls; gravity pulls, landing snaps
@@ -106,7 +115,8 @@ frames the chosen one.
 ## Layout
 
 ```
-main.bend          App.run: the window, the view, the tick
+main.bend          the window loop, elapsed time, the view, the tick
+src/day.bend       integer day phase and the sun direction
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
@@ -117,6 +127,7 @@ AGENTS.md          for an agent (or a person) about to write Bend here: the gate
 ROADMAP.md         the vision and what comes next: the look, the game, the laws, what waits on Bend
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
+test/day.bend      signed shadows, clock wrapping, frame rate, old and new saves
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
@@ -160,22 +171,34 @@ the fullscreen link scales whatever is rendered to the screen.
 
 `make profile` renders one view five times with every look on, then with
 each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
-fog, HUD), then the rays alone, and prints the `!` per frame; then it
+fog, HUD, day cycle), then the rays alone, and prints the `!` per frame; then it
 renders the view twice more with numbers for pixels, how many rays reach
 a block and how many DDA steps a ray walks to its hit, summed over the
 image with each pixel weighed by the square it stands for. The same
 checksums as the bench come out of the full render, so the flags cost
 nothing the picture can see. At 1470×796:
 
-| | ms a frame |
-|---|---|
-| all on | 15.6 |
-| shadow off | 13.2 |
-| occlusion off | 14.8 |
-| texture off | 14.8 |
-| fog off | 15.8 |
-| HUD off | 15.4 |
-| rays alone | 11.4 |
+Four alternated baseline/day-cycle rounds, minimum five-frame mean per
+variant (the timer resolves milliseconds); bench minima at 1470×796 are
+14 → 15 ms. The extra 0.8 ms in the full profile is in the signed shadow:
+shadow-off and rays-alone times are unchanged.
+
+| | before | day cycle, ms a frame |
+|---|---|---|
+| all on | 15.0 | 15.8 |
+| shadow off | 12.6 | 12.6 |
+| occlusion off | 13.8 | 14.2 |
+| texture off | 14.8 | 15.2 |
+| fog off | 14.8 | 15.2 |
+| HUD off | 14.8 | 15.0 |
+| day cycle off | — | 15.2 |
+| rays alone | 11.0 | 11.0 |
+
+`Cam.fl` bits 0..4 are the existing looks; 5 and 6 are debug renders;
+7..24 hold the readout, and bit 25 enables the moving sun. Turning it off
+uses the original fixed sun for profiling. The new morning picture changes
+on purpose: bench digest `9a69584df64263efa23186046b24e5a2`;
+physics stays `73516c0ead87f8c1151e34d25b3ac32e`.
 
 52 % of the rays reach a block, after 24 steps on average; the rest walk
 the box's 60. So the primary rays are three quarters of the frame and the
@@ -224,7 +247,9 @@ the terrain's layers are what they should be, a trunk packs as wood with
 leaves over it and grass under it, and the packed word the loader writes
 reads back the same; no key touches the mouse's bits of the held mask;
 the readout's numbers ride above the looks without touching them, read
-back, and stop at their room.
+back, and stop at their room even with high look flags set. The day phase
+returns after a whole turn at each quarter, at morning and across U32 wrap;
+its last millisecond advances to dawn.
 `bend PROOF.bend` is the gate. The float physics, a player
 never inside a block or a jump that lands where it left, is checked by
 `test/physics.bend`, whose lines the README of the history records.

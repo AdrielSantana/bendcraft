@@ -23,6 +23,7 @@ check:
 	$(BEND) main.bend --check-only
 	$(BEND) test/physics.bend --check-only
 	$(BEND) test/save.bend --check-only
+	$(BEND) test/day.bend --check-only
 	$(BEND) test/bench.bend --check-only
 	$(BEND) test/profile.bend --check-only
 	$(BEND) test/readout.bend --check-only
@@ -33,6 +34,7 @@ test:
 	@mkdir -p build
 	$(BEND) test/physics.bend
 	$(BEND) test/save.bend
+	$(BEND) test/day.bend
 	$(BEND) test/terrain.bend
 	$(BEND) test/readout.bend
 

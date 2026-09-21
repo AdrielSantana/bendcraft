@@ -10,6 +10,7 @@ import Base
 import ./src/world.bend as World
 import ./src/player.bend as Player
 import ./src/render.bend as Render
+import ./src/day.bend as Day
 
 # --- the pick word: (lx * 32 + y) * 128 + lz, and back --------------------
 # (the checker computes integers, not floats: the laws are on the integer
@@ -144,3 +145,39 @@ law stat_stops_at_its_room:
 
 law stat_zero_is_the_game:
   {Render.stat_flags(31, 0, 0) == 31 : U32}
+
+# The integer phase is the sole input to the sun's trigonometry. A whole
+# turn returns it at each quarter, at the default morning and at U32 wrap.
+
+law day_returns_at_dawn:
+  {Day.advance(0, Day.length()) == Day.phase(0) : U32}
+
+law day_returns_at_noon:
+  {Day.advance(262144, Day.length()) == Day.phase(262144) : U32}
+
+law day_returns_at_dusk:
+  {Day.advance(524288, Day.length()) == Day.phase(524288) : U32}
+
+law day_returns_at_night:
+  {Day.advance(786432, Day.length()) == Day.phase(786432) : U32}
+
+law day_returns_at_morning:
+  {Day.advance(Day.morning(), Day.length()) == Day.phase(Day.morning()) : U32}
+
+law day_returns_across_word_wrap:
+  {Day.advance(4294967295, Day.length()) == Day.phase(4294967295) : U32}
+
+law day_wraps_to_dawn:
+  {Day.advance(1048575, 1) == 0 : U32}
+
+law stat_keeps_high_looks:
+  {(Render.stat_flags(4261412895, 164, 60) .&. 4261412991 : U32) == 4261412895 : U32}
+
+law stat_high_ms_reads_back:
+  {Render.stat_ms(Render.stat_flags(4261412895, 164, 60)) == 164 : U32}
+
+law stat_high_fps_reads_back:
+  {Render.stat_fps(Render.stat_flags(4261412895, 164, 60)) == 60 : U32}
+
+law stat_high_zero_is_the_game:
+  {Render.stat_flags(4261412895, 0, 0) == 4261412895 : U32}
