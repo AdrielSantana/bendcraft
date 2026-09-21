@@ -109,6 +109,12 @@ allows, from `bend guide shaders` and the emitted C:
 - Either way `main.bend` must call `Window.frame` itself, which hands the
   image back, in place of `App.run`, which drops it.
 
+**Tried, and worth nothing here** (2026-09-21, so nobody tries again
+without a reason): typed picks, `pick(c, a: F32, b: F32)` and `word` for
+U32, in place of the 159 generic `Bool.pick` of the renderer, the world
+and the player, which `bend guide shaders` says box their words. Same
+checksums, same fastest frame at all six sizes, four alternated rounds.
+
 ## The game
 
 1. **Collecting and an inventory.** Today the hotbar's eight blocks are
