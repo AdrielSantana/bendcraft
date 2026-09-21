@@ -1,17 +1,77 @@
 # For an agent working on Bendcraft
 
+Bend's guide gives an agent four lines, and they hold here:
+
+```
+When using Bend:
+- run `bend guide` to learn it
+- use `LAWS.bend` to keep important rules
+- run `bend PROOF.bend` before committing
+- parallelize the code whenever possible
+```
+
+The rest of this file is what those lines mean in this repository.
+
 Bendcraft is a voxel game written in Bend 2, a new language: pure, affine,
 proof-checked, run on the GPU by a parallel call marked `!`. You have very
 likely not seen Bend 2 in training. Do not guess its syntax from Python or
 from Bend 1. Read before you write:
 
-- `bend guide` (the language) and `bend guide shaders` (what makes a `!`
-  fast or slow). Both ship with the compiler.
+- `bend guide` (the language), `bend guide shaders` (what makes a `!` fast
+  or slow, written by AIs for AIs from a 120 FPS demo) and `bend base` (the
+  Base library's source). All ship with the compiler.
 - `README.md` (how the game works, the numbers, what costs what) and
   `ROADMAP.md` (the vision, the order of work, what was tried and failed).
 - `src/*.bend` as the examples of every construct you will need.
 
 Check early and often: `bend file.bend --check-only` takes a second.
+
+## Think in Bend, not in OpenGL
+
+The habit to drop first. An agent asked for graphics reaches for what it
+knows: vertex buffers, a draw loop that mutates a framebuffer, shader
+source in strings, a C effect that calls Metal or OpenGL, a thread pool.
+None of that exists here and none of it is wanted. The game's point is
+that Bend alone is enough. What takes their place:
+
+- **A frame is a value.** `view : Game -> Game & Image`, and an `Image` is
+  a quadtree: `Pix{colour}` paints a square, `Qua{tl, tr, bl, br}` splits
+  it. The frame is built by recursion, handed to `Window.frame`, and the
+  window's own shader shows it. There is no framebuffer to write, no draw
+  call, no texture to upload, nothing to bind.
+- **Parallelism is the recursion's shape.** A parallel let, `a b = f(x)
+  f(y)`, says two calls are independent. One `!` at the root of the frame
+  (`fork!` in `Render.frame`) hands the whole tree to the GPU. The same
+  defs run on Metal, on CUDA, on every CPU core, and on wasm workers in the
+  page. You never write a kernel, a thread or a lock. "Parallelize whenever
+  possible" means: shape the work as a balanced tree of independent calls
+  of about equal cost, one `!` a frame. It does not mean forking small
+  things: a job under a third of a millisecond loses to the wake-up.
+- **A renderer is a function of a ray.** This is a ray caster, not a
+  rasteriser. There are no meshes, no triangles, no culling passes, no
+  depth buffer: a ray a pixel walks the voxel grid (a DDA) and the first
+  block it meets is what is seen. A new look (water, clouds, a reflection,
+  a shadow) is more arithmetic along the ray, or a second ray. An entity is
+  a few boxes a ray tests. Texture, fog, light: pure functions of the hit.
+- **Data is small and plain.** Scalars in a record (`Cam`) ride in
+  registers to every lane. The world is one `Array<U32>` every ray reads by
+  index. Sparse edits live in a `Map` on the host. There are no handles
+  into GPU memory and no copies to manage: one heap is shared by the CPU
+  and the GPU.
+- **State is threaded, effects sit at the edge.** `tick : events -> Game
+  -> IO(Maybe<Game>)`; the step, the physics, the picking and the view are
+  pure. That is why the whole game runs in tests with no window. A loop is
+  a recursion with fuel (a `Nat`), and a tail call compiles to a real loop.
+- **No new effects to get around the language.** `bend guide effects`
+  shows how a C or JS effect is written; here that is a last resort, never
+  a way to draw, and the user decides. What the platform lacks (grabbing
+  the mouse, true full screen) is reported upstream, not patched around.
+- **Rules are proved.** A rule of the game is a law in `LAWS.bend`, closed
+  in `PROOF.bend`. That is the other half of why this is written in Bend.
+
+If you catch yourself designing a pipeline of passes, a buffer to fill and
+read back, or a cache keyed by frame, stop: ask what pure function of the
+ray, or of the game's state, gives the same thing.
 
 ## The gate: every change passes all of it
 
@@ -82,8 +142,13 @@ nothing", and the README):
   slower. Do not change `fork`'s shape without the bench.
 - The GPU never shifts by a variable: pick by a division and a mask, or by
   a chain of `Bool.pick` (see `nib_at`, `row_div`).
-- Never unroll a walk into a row of non-recursive defs: the emitted program
-  explodes. A walk is one recursive def with fuel.
+- A tile's fixed squares are unrolled, as the shaders guide says (`t4` is
+  four `t2`, straight-line). A long walk is never unrolled into a row of
+  non-recursive defs: the emitted program explodes. The DDA's 60 steps are
+  one recursive def with fuel.
+- The shaders guide's "Do not" list applies, with one note measured here:
+  its typed picks in place of the generic `Bool.pick` changed nothing in
+  this game (ROADMAP.md).
 - What every lane shares must be flat (`Cam`: scalars, copied by words) or
   the one array (`w`, read at a plain load). A `+` tree read by every lane
   costs a count a node a pixel, on every node of that type.
