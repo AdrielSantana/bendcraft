@@ -410,12 +410,12 @@ def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +v
 
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: Ray) -> Array<U32> & U32:
-  Ray{+c, t, +tr} = ct
+  Ray{+c, +t, +tr} = ct
   Water.Trace{entry, depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
   +hitw = (c % 4 : U32)
-  Water.shade(wet, fl, v, oy, dy, ly, tr,
+  Water.shade(wet, fl, v, oy, dy, ly, t, (hitw > 0 : U32), tr,
     shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, (c / 4 : U32), ground_flags, lx, ly, lz))
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
@@ -486,7 +486,7 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
 # what. Bits 7..20 hold the readout, with four FPS bits in items; 21..24
-# hold water (21) and three free flags (22..24). Bits 25..31 enable the day cycle, sky
+# hold water (21), water fog (22) and two free flags (23..24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low three bits, then four seven-bit counts;
 # items holds the other four and the high FPS bits. Counts are capped for the HUD.
@@ -494,7 +494,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4263510047
+def looks() -> U32: 4267704351
 
 def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:

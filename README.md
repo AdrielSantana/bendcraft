@@ -98,7 +98,13 @@ holding 64 leaves, 110 to 150.
 Material 8 uses the spare column word, so collisions, picking, shadows and
 occlusion keep their original solid mask. The primary ray crosses water
 and sees the ground; its accumulated wet distance gives the tint its depth.
-The tint follows daylight, and air fog ends at the first wet surface.
+The tint follows daylight. Distance and height fog use the full solid-hit
+path, including air after leaving the lake, so entering water never resets
+visibility to zero. A separate water-fog flag fades to the water colour by
+24 wet blocks, before the 60-step ray limit. Foreground air fog also fades
+that colour, keeping distant lakes hidden. Sky rays keep their celestial
+discs through short wet paths and converge to the same water colour on
+long ones.
 This works from below and through vertical sides as well as from above.
 Placing an inventory block displaces water, and edits survive ring reloads
 and saves. Water cannot be collected with the eight solid-block slots.
@@ -161,7 +167,7 @@ main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
-src/water.bend     wet ray intervals, depth tint and fog at the surface
+src/water.bend     wet ray intervals, depth tint and air/water fog
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
@@ -174,8 +180,8 @@ test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
-test/water.bend    signed wet rays, displacement, picking, shadows, ring reloads and saves
-test/water_view.bend five fixed water views, Image trees for test/water.py
+test/water.bend    signed wet rays, underwater fog, displacement, picking, shadows and saves
+test/water_view.bend six fixed water views, Image trees for test/water.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
@@ -191,8 +197,9 @@ site/              the page: notes.mjs post-processes the built index.html
 make check      # the modules, the tests, the laws
 make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
-make profile    # each look off, by size; also stars and moon active at night
+make profile    # each look off, by size; also night, lake and submerged views
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
+make water      # six PNGs, including underwater fog on/off; Python with Pillow
 make page-test  # the page in headless Chrome, hashes and fps
 ```
 
@@ -258,7 +265,7 @@ the fullscreen link scales whatever is rendered to the screen.
 
 `make profile` renders one view five times with every look on, then with
 each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
-distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog, water),
+distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog, water, water fog),
 then the rays alone, and prints the `!` per frame; then it
 renders the view twice more with numbers for pixels, how many rays reach
 a block and how many DDA steps a ray walks to its hit, summed over the
@@ -369,15 +376,65 @@ ms all on, 17.6 water off, 12.0 rays alone. Night measures 14.6 / 13.2 /
 11.4 for those same variants. Solid hits and steps in the default view
 remain 52% and 41.3, because water does not stop the ray.
 
+Underwater fog correction, four fresh alternated before/after rounds at
+1470×796. An open game may have affected the earlier measurement session;
+that series is excluded here. Process checks throughout the timed runs
+found no running Bendcraft instance. Minimum five-frame means:
+
+| | before fog correction | after, ms |
+|---|---|---|
+| all on | 21.0 | 21.4 |
+| shadow off | 18.0 | 18.0 |
+| occlusion off | 20.0 | 20.6 |
+| texture off | 20.0 | 20.2 |
+| distance fog off | 21.2 | 21.8 |
+| HUD off | 21.0 | 21.4 |
+| day cycle off | 22.0 | 21.6 |
+| sky gradient off | 20.6 | 21.2 |
+| sun disc off | 20.2 | 21.2 |
+| horizon glow off | 20.4 | 21.4 |
+| stars off | 21.2 | 21.4 |
+| moon off | 21.8 | 22.0 |
+| height fog off | 21.4 | 21.6 |
+| water off | 17.8 | 18.0 |
+| water fog off | — | 21.2 |
+| rays alone | 12.6 | 12.4 |
+
+The new work is a second distance/height fog evaluation for the full
+solid-hit path, plus density and two colour mixes for water extinction.
+It runs only on wet rays; disabling water fog skips the extinction work
+but retains the corrected air fog. The DDA, camera width and fork shape
+are unchanged. The all-on means span 21.0–23.0 before and 21.4–22.4 after.
+The larger off-row deltas also overlap: sun disc 20.2–22.6 → 21.2–25.8,
+horizon glow 20.4–23.0 → 21.4–23.2. Water-off skips the changed shading
+and spans 17.8–19.4 → 18.0–19.4; a 0.2 ms minimum difference does not
+establish a slowdown on that path. Closing the game removes one source
+of contention, not all timing noise.
+
+The submerged view now has its own profile at 1470×796: all on
+20.6 → 21.2 ms, water fog off 21.2, rays alone 12.2 → 12.0. Its water-off
+means span 17.4–22.8 → 18.4–19.6. The lake view is 22.0 → 22.0 ms,
+water fog off 21.8; night is 14.8 → 14.4. Night's unchanged rays-only
+path spans 11.4–13.0 → 11.8–12.2. Fastest ordinary bench frames at the
+six sizes are 3/3/6/10/19/36 → 2/3/6/10/20/37 ms. The extra wet-ray
+shading is paid for; the overlapping ranges limit how precisely these
+runs can separate that cost from noise.
+
+Four alternated traces from freshly emitted C locate the increase in the
+work kernel: 17.430 → 19.290 ms minimum at 1470×796. Grow and pack remain
+within 0.051 ms; the fastest traced dispatch sums are 19.425 → 21.080 ms.
+These separately submitted kernels diagnose the added pixel arithmetic;
+their totals do not replace the ordinary bench or profile numbers.
+
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
 5 and 6 are debug renders; 7..16 hold milliseconds and 17..20 the low
 four FPS bits. The high four FPS bits use `Cam.items` bits 28..31, above
-the counts; bit 21 enables water and bits 22..24 are free. Bits 25..31 are day
+the counts; bit 21 enables water, bit 22 water fog, and bits 23..24 are free. Bits 25..31 are day
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
 sun for profiling. HUD off also disables the new count labels. The default
-picture intentionally changes with the lakes: bench digest
-`a6dac974097868bdae51a1963519f6a2`; physics stays
+picture intentionally changes with the corrected water fog: bench digest
+`eb4026d59c88c6fa0d1e00ab7990e825`; physics stays
 `73516c0ead87f8c1151e34d25b3ac32e`.
 
 52 % of the rays reach a block, after 24 steps on average; the rest walk
@@ -438,7 +495,8 @@ restores the count, and edits preserve the number of inventory slots.
 The HUD packing has mixed-slot and boundary laws; save/quit edges survive
 the physics step. Still-water laws cover generation above ground, the sea
 limit, banks preserved on water placement, displacement, neighboring bits
-and material packing. There are 67 laws: seven universal claims and 60 concrete
+and material packing. Water fog has its own flag, enabled by default and
+preserved by readout packing. There are 70 laws: seven universal claims and 63 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

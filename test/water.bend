@@ -108,9 +108,40 @@ def shadow(r: Array<U32> & Bool) -> Bool:
   (w, hit) = r
   hit
 
+# A horizontal strip lets a real ray either stay wet until the DDA limit
+# or leave water after half a block and meet a distant wall in air.
+def pool(n: Nat, w: World.World, +x: U32, +wet_until: U32) -> World.World:
+  match n:
+    case 0n: w
+    case 1n+k:
+      pool(k, World.edit(w, x, 64, 10, (x < wet_until : U32), 8), (x + 1 : U32), wet_until)
+
+def pixel(r: Array<U32> & U32) -> U32:
+  (w, c) = r
+  c
+
+def fog_ray_w(+fl: U32, w: World.World) -> U32:
+  World.W{ring, m, ox, oz} = w
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 1.5, 10.5, 64.5,
+    1.0, 0.0, 0.0, Render.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
+
+def fog_ray(fl: U32, wet_until: U32, wall: U32) -> U32:
+  fog_ray_w(fl, World.edit(pool(128n, empty(), 0, wet_until), wall, 64, 10, True{}, 2))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     axes(3n, 0)
+    expect(U32.is_eq(fog_ray(2097160, 2, 40), Render.rgb(100, 140, 180)), "distance fog survives starting in water and exiting to air")
+    expect(U32.is_eq(fog_ray_w(6291464, World.edit(pool(88n, empty(), 40, 128), 56, 64, 10, True{}, 2)),
+      Render.rgb(100, 140, 180)), "distant water stays hidden by foreground air fog")
+    expect(U32.is_eq(fog_ray(6291464, 128, 40), Water.colour(0.8))
+      && U32.is_eq(fog_ray(6291464, 128, 100), Water.colour(0.8)), "underwater wall and ray limit converge to the same fog colour")
+    expect(U32.is_ne(fog_ray(2097160, 128, 40), Water.colour(0.8)), "water fog has its own flag")
+    expect(U32.is_eq(fog_ray(4194312, 128, 40), Render.rgb(100, 140, 180)), "water off keeps ordinary fog")
+    expect(U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 0.0), 123)
+      && U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 24.0), 456)
+      && U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 80.0), 456)
+      && U32.is_eq(Water.fog(False{}, 123, 456, 456, 0.0, 80.0), 123), "wet fog bounds and disable")
     expect(picked(Player.waim(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8),
       64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "picking traverses water and finds the bottom")
     expect(Bool.not(shadow(Render.run_shadow(World.put_col([0 : U32^17n], World.col_at(0, 64, 64), World.Col{0, 0, 0, 0, 0, 1024}),

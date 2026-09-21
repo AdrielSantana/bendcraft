@@ -1,9 +1,10 @@
 import Base
 import ./sky.bend as Sky
+import ./util.bend as Util
 
 # A ray accumulates only the wet intervals before its first solid hit.
-# The entry distance gives air fog its endpoint, including a submerged eye
-# (entry zero), vertical banks and gaps left by edits.
+# Entry locates the first surface; it is zero for a submerged eye and
+# cannot stand in for the whole ray's distance when computing fog.
 type Trace is Data:
   Trace{entry: F32, depth: F32}
 
@@ -17,15 +18,38 @@ def crossed(on: Bool, +wet: Bool, +t: F32, +next: F32, tr: Trace) -> Trace:
 
 # Still water starts with depth absorption. Reflection and ripples will
 # have separate flags when added; this look takes no second ray.
-def tint(+bottom: U32, +depth: F32, +sun_y: F32) -> U32:
-  +colour = Sky.mix(Sky.rgb(7, 28, 43), Sky.rgb(26, 113, 132), Sky.daylight(sun_y))
-  Sky.mix(bottom, colour, (0.18 + 0.72 * depth / (depth + 4.0) : F32))
+def colour(sun_y: F32) -> U32:
+  Sky.mix(Sky.rgb(7, 28, 43), Sky.rgb(26, 113, 132), Sky.daylight(sun_y))
+
+def opacity(+depth: F32) -> F32:
+  (0.18 + 0.72 * depth / (depth + 4.0) : F32)
+
+def tint(bottom: U32, depth: F32, sun_y: F32) -> U32:
+  Sky.mix(bottom, colour(sun_y), opacity(depth))
+
+def fog_on(fl: U32) -> Bool: Util.on(fl, 4194304)
+
+# Full extinction at 24 wet blocks hides the 60-step limit even on a
+# diagonal. Sky and solid rays converge to the same daylight-aware colour.
+def fog(on: Bool, c: U32, ink: U32, sky: U32, front: F32, depth: F32) -> U32:
+  match on:
+    case False{}: c
+    case True{}:
+      +d = F32.clamp((depth / 24.0 : F32), 0.0, 1.0)
+      Sky.mix(c, Sky.mix(ink, sky, front), (d * d : F32))
 
 def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32, +sun_y: F32,
-          tr: Trace, r: Array<U32> & U32) -> Array<U32> & U32:
+          +distance: F32, hit: Bool, tr: Trace, r: Array<U32> & U32) -> Array<U32> & U32:
   match on:
     case False{}: r
     case True{}:
-      Trace{+entry, depth} = tr
+      Trace{+entry, +depth} = tr
       (w, bottom) = r
-      (w, Sky.mix(tint(bottom, depth, sun_y), sky, Sky.fog(fl, entry, oy, (oy + dy * entry : F32))))
+      +ink = colour(sun_y)
+      # Fog the whole solid distance, including air after leaving water.
+      # A sky miss already has its atmospheric colour and celestial discs.
+      +front = Sky.fog(fl, entry, oy, (oy + dy * entry : F32))
+      +air = Bool.pick(F32, hit, Sky.fog(fl, distance, oy, (oy + dy * distance : F32)), front)
+      +base = Sky.mix(Sky.mix(bottom, ink, opacity(depth)), sky, air)
+      # A lake beyond the air's visibility limit must also fade to sky.
+      (w, fog(fog_on(fl), base, ink, sky, front, depth))

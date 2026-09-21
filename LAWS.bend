@@ -12,6 +12,7 @@ import ./src/player.bend as Player
 import ./src/render.bend as Render
 import ./src/day.bend as Day
 import ./src/inventory.bend as Inventory
+import ./src/water.bend as Water
 
 # --- the pick word: (lx * 32 + y) * 128 + lz, and back --------------------
 # (the checker computes integers, not floats: the laws are on the integer
@@ -274,3 +275,12 @@ law water_type_reads_back:
 
 law water_cannot_replace_a_bank:
   {World.edit_col(World.Col{1024, 0, 1536, 0, 0, 2048}, 10, True{}, 8) == World.Col{1024, 0, 1536, 0, 0, 2048} : World.Col}
+
+law water_fog_has_its_own_flag:
+  {Water.fog_on(2097152) == False{} : Bool}
+
+law water_fog_is_on_by_default:
+  {Water.fog_on(Render.looks()) == True{} : Bool}
+
+law readout_keeps_water_fog:
+  {Water.fog_on(Render.stat_flags(4194304, 999, 255)) == True{} : Bool}

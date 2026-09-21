@@ -123,11 +123,25 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
    the save keeps their full values, and old saves load with zero counts.
    Time to break by block type and tools remain follow-up work.
 2. **Water — still water done (2026-09-21).** Material 8 has its own
-   column mask below y=12. Rays cross it, tint by wet distance and fog at
-   the first surface; placing solids displaces it, and saves keep it.
+   column mask below y=12. Rays cross it, tint by wet distance and retain
+   air fog underwater; water fog hides the ray limit. Placing solids
+   displaces it, and saves keep it.
    Next: Fresnel, sky reflection and ripples with their own flags, then
    physics, a cellular rule over the edits' Map: down first, sideways,
    sources stay. Swimming and collection are not implemented yet.
+   The water model was chosen on 2026-09-21: **finite volume with explicit
+   river sources**. Ordinary flow conserves volume; lakes can drain, and
+   adjacent water does not create a new source. Use bounded integer amounts
+   per cell and fixed simulation ticks independent of rendered frames:
+   transfer down first, then sideways into remaining capacity. Read the old
+   state and resolve competing transfers before applying the new one, so
+   traversal order cannot duplicate water. Creation by sources and removal
+   by explicit edits need accounting separate from ordinary flow. Keep
+   unloaded boundaries closed to transfer and preserve edited amounts in
+   saves. Work is limited to active cells; choose volume resolution and the
+   tick/work budget with the bench. Prove bounds and transfer conservation
+   before integrating flow. Player immersion, drag and swimming are a
+   separate implementation step.
 3. **Day and night — done with look step 1.** The saved integer clock
    drives the sun in `Cam`; the shadow has signed crossings on every axis.
    A full period returns the same sun phase for every clock word.
@@ -168,9 +182,9 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 67 laws include the day period for every `U32` clock word and
+Today's 70 laws include the day period for every `U32` clock word and
 six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 60 laws are concrete checks, including HUD packing and save/quit
+The other 63 laws are concrete checks, including HUD packing and save/quit
 edges. Floats stay in the windowless tests: the checker does not compute them.
 
 ## The order
@@ -260,8 +274,31 @@ The dry build retains the old thirty checksums; camera size and fork shape
 are unchanged. Shader work and water physics remain next; there is no flow
 or swimming in this delivery.
 
-What is measured today, at 1470×796 on an M5: 20.0 ms a frame, rays
-alone 12.0, shadow off 17.2, water off 17.4. Small differences between
+Underwater fog, 2026-09-21: using the first water entry as the fog
+distance made fog vanish for a submerged eye (entry zero). Air fog now
+uses the full solid-hit path, including dry distance after leaving water.
+Flag 22 adds extinction over 24 wet blocks, before the 60-step limit;
+foreground air fog still hides distant lakes. The submerged profile and
+sixth exported image expose the new flag. Regression rays cover exit to
+air, distant lakes, fog endpoints, the DDA limit and disabled flags.
+70 laws close and all four gates pass. The default picture intentionally
+changes to bench digest `eb4026d59c88c6fa0d1e00ab7990e825`; physics stays
+`73516c0ead87f8c1151e34d25b3ac32e`.
+
+After a possible open-game timing conflict, four fresh alternated rounds
+checked that no Bendcraft process was running. At 1470×796, full profile
+21.0 → 21.4 ms; submerged 20.6 → 21.2. The added work is the full-path
+fog evaluation and water-extinction colour mixes, with unchanged DDA and
+camera. Water-off and rays-only changes fall within overlapping run
+ranges, recorded with the full table in README. Four alternated fresh-C
+traces locate the increase in the work kernel, 17.430 → 19.290 ms minimum;
+grow and pack stay within 0.051 ms. Six bench minima:
+3/3/6/10/19/36 → 2/3/6/10/20/37 ms. The earlier possibly contended series
+is not used for this comparison. Finite-volume flow with explicit river
+sources is agreed above; flow and swimming remain unimplemented.
+
+What is measured today, at 1470×796 on an M5: 21.4 ms a frame, rays
+alone 12.4, shadow off 18.0, water off 18.0. Small differences between
 variants are noisy; use alternated runs. A ray walks the box's 60 steps
 whether it hits or not, on purpose (README, "What costs what").
 
@@ -269,7 +306,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `a6dac974097868bdae51a1963519f6a2` when
+- `make bench`: the md5 of the thirty checksums stays `eb4026d59c88c6fa0d1e00ab7990e825` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work

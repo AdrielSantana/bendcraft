@@ -179,3 +179,7 @@ def Laws.water_edit_keeps_neighbors(): {==}
 def Laws.draining_water_keeps_solids(): {==}
 def Laws.water_type_reads_back(): {==}
 def Laws.water_cannot_replace_a_bank(): {==}
+
+def Laws.water_fog_has_its_own_flag(): {==}
+def Laws.water_fog_is_on_by_default(): {==}
+def Laws.readout_keeps_water_fog(): {==}
