@@ -83,12 +83,13 @@ make profile    # what each look costs, at four sizes
 ```
 
 - **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut
-  -d= -f2 | md5` is `0b9d000fe324fdac57d1dcc98658ec91` today. A change that should not alter
+  -d= -f2 | md5` is `123459508674587f4d41b6c63389c05b` today. A change that should not alter
   the game's default picture must leave it as it is. A change that alters
   the picture on purpose says so, and its commit message carries the new
   digest. `bend test/physics.bend | md5` is `73516c0ead87...`; same rule.
 - **The frame's time.** Compare two builds by alternated runs and their
-  fastest frames, never by one run: the small sizes read twice as slow on a
+  fastest frames, swapping the order every round (the build that runs
+  second reads slower on a busy machine), never by one run: the small sizes read twice as slow on a
   busy or cold machine. The user's machine is often busy.
 - **A look is a flag.** Whatever a pixel can do without (shadow, fog,
   water's reflection, clouds) gets a bit in `Cam.fl` and a line in

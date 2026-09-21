@@ -49,13 +49,21 @@ def crossed(on: Bool, +wet: Bool, +t: F32, +next: F32, tr: Trace) -> Trace:
 
 # Depth absorption and the reflected sky take no second world ray.
 def colour(sun_y: F32) -> U32:
-  Sky.mix(Sky.rgb(7, 28, 43), Sky.rgb(26, 113, 132), Sky.daylight(sun_y))
+  Sky.mix(Sky.rgb(7, 28, 43), Sky.rgb(18, 84, 112), Sky.daylight(sun_y))
 
-def opacity(+depth: F32) -> F32:
-  (0.18 + 0.72 * depth / (depth + 4.0) : F32)
+# How much of the water's colour a wet path of `depth` blocks leaves over
+# what is behind it. Seen from the air the water is dense, 1 - 0.88 / (1 +
+# 0.35 d)^2 (an exponential's shape without one: a half at one block, 0.85
+# at four), so the bed does not compete with what the surface mirrors. An
+# eye under the water keeps the clear one, or a diver would see two blocks.
+def opacity(from_air: Bool, +depth: F32) -> F32:
+  +k = (1.0 + 0.35 * depth : F32)
+  Bool.pick(F32, from_air, (1.0 - 0.88 / (k * k) : F32), (0.18 + 0.72 * depth / (depth + 4.0) : F32))
 
-def tint(bottom: U32, depth: F32, sun_y: F32) -> U32:
-  Sky.mix(bottom, colour(sun_y), opacity(depth))
+# The light that shows the bed went down to it before coming up the ray:
+# looking straight down doubles the wet path, a grazing look leaves it.
+def lit_path(depth: F32, dy: F32) -> F32:
+  (depth * (1.0 + F32.max((0.0 - dy : F32), 0.0)) : F32)
 
 def fog_on(fl: U32) -> Bool: Util.on(fl, 4194304)
 def fresnel_on(fl: U32) -> Bool: Util.on(fl, 8388608)
@@ -133,15 +141,16 @@ def reflected(on: Bool, +base: U32, x: F32, z: F32, distance: F32,
         slope(base, (x + 256.0 + 0.8 * F32.sin(angle) : F32),
                     (z + 256.0 + 0.8 * F32.cos(angle) : F32)))
 
-# Schlick's air/water approximation, with about 2% reflection head-on.
+# About 2% reflection head-on, a mirror at grazing angles, as Schlick's
+# approximation has it, but by a cube and not his fifth power: the mirror
+# shows at the angles a player sees a lake from (14% at 30 degrees, not 5).
 # Disabling Fresnel leaves that normal-incidence reflectance constant.
 def fresnel(on: Bool, cosine: F32) -> F32:
   match on:
     case False{}: 0.02
     case True{}:
       +c = (1.0 - F32.clamp(cosine, 0.0, 1.0) : F32)
-      +c2 = (c * c : F32)
-      (0.02 + 0.98 * c2 * c2 * c : F32)
+      (0.02 + 0.98 * c * c * c : F32)
 
 def reflected_sky(+fl: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, +sz: F32) -> U32:
   +ry = (0.0 - dy : F32)
@@ -215,7 +224,7 @@ def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
       # Fog the background before tinting it: a hidden block and the sky
       # behind it must pass through the same water. Foreground haze reduces
       # the tint so a lake beyond the air's visibility limit stays hidden.
-      +base = Sky.mix(Sky.mix(bottom, sky, air), ink, (opacity(depth) * (1.0 - front) : F32))
+      +base = Sky.mix(Sky.mix(bottom, sky, air), ink, (opacity((entry > 0.0 : F32), lit_path(depth, dy)) * (1.0 - front) : F32))
       # A lake beyond the air's visibility limit must also fade to sky.
       (w, surface(water_top && reflection_on(fl), (front >= 1.0 : F32), fl, fog(fog_on(fl), base, ink, sky, front, depth),
         sky, front, sun_x, sun_y, sun_z, m))

@@ -8,6 +8,9 @@ import ../src/inventory.bend as Inventory
 import ../src/util.bend as Util
 import ../src/sky.bend as Sky
 
+def near(a: F32, b: F32, epsilon: F32) -> Bool:
+  (F32.abs((a - b : F32)) <= epsilon : F32)
+
 def expect(ok: Bool, name: String) -> IO(Unit):
   match ok:
     case True{}: IO.print("ok " ++ name)
@@ -170,8 +173,13 @@ def main() -> IO(Unit):
   do IO<Unit>:
     axes(3n, 0)
     expect(F32.is_eq(Water.fresnel(True{}, 1.0), 0.02) && F32.is_eq(Water.fresnel(True{}, 0.0), 1.0)
-      && (Water.fresnel(True{}, 0.5) > 0.05 : F32) && (Water.fresnel(True{}, 0.5) < 0.051 : F32)
+      && (Water.fresnel(True{}, 0.5) > 0.142 : F32) && (Water.fresnel(True{}, 0.5) < 0.143 : F32)
       && F32.is_eq(Water.fresnel(False{}, 0.0), 0.02), "Fresnel grows toward grazing angles; off keeps normal reflectance")
+    expect(near(Water.opacity(True{}, 0.0), 0.12, 0.0001) && near(Water.opacity(True{}, 1.0), 0.5171, 0.001)
+      && (Water.opacity(True{}, 4.0) > 0.84 : F32) && (Water.opacity(True{}, 60.0) < 1.0 : F32)
+      && near(Water.opacity(False{}, 4.0), 0.54, 0.0001) && (Water.opacity(False{}, 4.0) < Water.opacity(True{}, 4.0) : F32), "water is dense seen from the air and clear for an eye under it")
+    expect(near(Water.lit_path(3.0, (0.0 - 1.0 : F32)), 6.0, 0.0001) && near(Water.lit_path(3.0, 0.0), 3.0, 0.0001)
+      && near(Water.lit_path(3.0, 0.5), 3.0, 0.0001), "the bed's light went down before it came up the ray")
     expect(F32.is_eq(Water.fresnel(True{}, (0.0 - 1.0 : F32)), 1.0)
       && F32.is_eq(Water.fresnel(True{}, 2.0), 0.02), "Fresnel clamps its angular input")
     expect(U32.is_ne(surface_ray(31457280, False{}, False{}), surface_ray(14680064, False{}, False{})), "reflection colours a real top entry at an edited water height")

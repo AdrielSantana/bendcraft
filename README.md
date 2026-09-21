@@ -100,6 +100,13 @@ holding 64 leaves, 110 to 150.
 Material 8 uses the spare column word, so collisions, picking, shadows and
 occlusion keep their original solid mask. The primary ray crosses water
 and sees the ground; its accumulated wet distance gives the tint its depth.
+Seen from the air the water is dense: the tint takes 1 - 0.88 / (1 + 0.35
+d)² of the colour (an exponential's shape, which Bend has no function for:
+a half at one block, 0.85 at four), and d counts the light's way down to
+the bed as well as the ray's way up, so a look straight down doubles it.
+A clear lake showed its bed through every mirror; a dense one leaves the
+surface to the sky, the ripples and the bank. An eye under the water keeps
+the clear tint (0.18 + 0.72 d / (d + 4)), or a diver would see two blocks.
 The tint follows daylight. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
@@ -113,7 +120,9 @@ long ones.
 This works from below and through vertical sides as well as from above.
 Top surfaces also reflect the analytic sky, including its sun, stars and
 moon. Fresnel raises reflectance from about 2% head-on toward a mirror at
-grazing angles; disabling it keeps the 2% value. Reflection and Fresnel have
+grazing angles, by a cube where Schlick has a fifth power, so the mirror
+shows at the angles a player sees a lake from (14% at 30 degrees, not 5);
+disabling it keeps the 2% value. Reflection and Fresnel have
 separate flags. The DDA marks the first downward entry through a water top
 in a spare bit of its step counter, so vertical sides and submerged eyes
 retain absorption alone, even for edited water away from the sea height.
@@ -702,6 +711,14 @@ the mirrored direction, the hit's colour and its fog. Sixteen steps would
 save 2.6 ms and cut the reach to 8 blocks; the 32 stay, and the fade at
 the end of the reach costs nothing measurable. Water as a whole is now
 about 13 ms of a lake's 31 at full size, and 1.6 of 8.4 at scale 2.
+
+The dense water, the deeper colour and the cubed Fresnel are arithmetic
+on a pixel and cost nothing measurable (lake 31.0 and 31.0 ms, 8.4 and 8.2
+at scale 2); with them the mirror moves up to 53 levels on 10% of the
+bank view's pixels, where it moved 37 on 7%. Measuring it taught the
+routine something: on a busy machine the build that runs second in a pair
+reads 2 to 3 ms slower, whichever it is, so alternated rounds also swap
+their order.
 
 In the original profile, 52% of the rays reached a block after 24 steps
 on average; the rest walked the box's 60. Primary rays took three quarters

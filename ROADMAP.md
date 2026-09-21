@@ -412,6 +412,13 @@ for bit. The bench digest stays `0b9d000fe324fdac57d1dcc98658ec91`: no
 mirrored ray meets a block in its views, though every water-top pixel pays
 the walk (21 → 24 ms at 1470×796). Physics is unchanged. 97 laws.
 
+Dense water, 2026-09-21: the user found the water too clear to show its
+mirror. Seen from the air the tint is now 1 - 0.88 / (1 + 0.35 d)², with
+the light's way down counted in d; the day colour is deeper (18, 84, 112);
+Fresnel grows by a cube, not Schlick's fifth power; an eye under the water
+keeps the clear tint. No measurable cost. New picture digest
+`123459508674587f4d41b6c63389c05b`; physics unchanged; 118 tests.
+
 What is measured today, at 1470×796 on an M5: 25.2 ms a frame (23.0 with
 the mirror off), rays alone 12.4, shadow off 21.6, water off 18.2; a lake
 31.2. Small differences between
@@ -422,7 +429,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `0b9d000fe324fdac57d1dcc98658ec91` when
+- `make bench`: the md5 of the thirty checksums stays `123459508674587f4d41b6c63389c05b` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work
