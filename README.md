@@ -107,7 +107,10 @@ the bed as well as the ray's way up, so a look straight down doubles it.
 A clear lake showed its bed through every mirror; a dense one leaves the
 surface to the sky, the ripples and the bank. An eye under the water keeps
 the clear tint (0.18 + 0.72 d / (d + 4)), or a diver would see two blocks.
-The tint follows daylight. Distance and height fog use the full solid-hit
+The tint's colour darkens with the depth under the surface, to a
+near-black blue six blocks down, so a deep lake reads as deep and the
+caustic's threads dim into it; the fog keeps the one colour, since it is
+a length of wet path and not a depth. The tint follows daylight. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -742,7 +745,9 @@ at 1470×796 the lake goes 31.0 → 32.0 ms (caustic off 30.8), the bench's
 view 25.2 → 25.6, the lake at scale 2 8.4 → 8.6; four alternated rounds,
 order swapped. At night its factor is 1.0 and the sun's height is the
 same for every pixel, so the render skips it there with no divergence:
-the night lake stays at 28.2, where paying it read 29.2.
+the night lake stays at 28.2, where paying it read 29.2. The colour that
+darkens with depth is one more mix and costs nothing measurable (lake
+32.2 and 32.2).
 
 In the original profile, 52% of the rays reached a block after 24 steps
 on average; the rest walked the box's 60. Primary rays took three quarters

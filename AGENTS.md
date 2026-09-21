@@ -83,7 +83,7 @@ make profile    # what each look costs, at four sizes
 ```
 
 - **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut
-  -d= -f2 | md5` is `788495f2eae1d62c6cd89f92af855661` today. A change that should not alter
+  -d= -f2 | md5` is `bb0a2b5042e9720be30cb2914db01a4a` today. A change that should not alter
   the game's default picture must leave it as it is. A change that alters
   the picture on purpose says so, and its commit message carries the new
   digest. `bend test/physics.bend | md5` is `73516c0ead87...`; same rule.

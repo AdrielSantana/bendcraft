@@ -430,6 +430,12 @@ costs 1.0 to 1.4 ms on a lake at 1470×796 (31.0 → 32.0), 0.2 at scale 2,
 nothing at night (skipped there, uniformly). New picture digest
 `788495f2eae1d62c6cd89f92af855661`; physics unchanged.
 
+Depth-darkened water, 2026-09-21: the tint's colour goes to a near-black
+blue by six blocks of drop (`Water.ink_at`), the fog's colour unchanged;
+the user asked whether the caustic should darken with depth, and what did
+not darken was the water. No cost. New picture digest
+`bb0a2b5042e9720be30cb2914db01a4a`.
+
 What is measured today, at 1470×796 on an M5: 25.2 ms a frame (23.0 with
 the mirror off), rays alone 12.4, shadow off 21.6, water off 18.2; a lake
 31.2. Small differences between
@@ -440,7 +446,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `788495f2eae1d62c6cd89f92af855661` when
+- `make bench`: the md5 of the thirty checksums stays `bb0a2b5042e9720be30cb2914db01a4a` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work

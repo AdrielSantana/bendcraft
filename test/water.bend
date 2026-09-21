@@ -178,6 +178,11 @@ def main() -> IO(Unit):
     expect(near(Water.opacity(True{}, 0.0), 0.12, 0.0001) && near(Water.opacity(True{}, 1.0), 0.5171, 0.001)
       && (Water.opacity(True{}, 4.0) > 0.84 : F32) && (Water.opacity(True{}, 60.0) < 1.0 : F32)
       && near(Water.opacity(False{}, 4.0), 0.54, 0.0001) && (Water.opacity(False{}, 4.0) < Water.opacity(True{}, 4.0) : F32), "water is dense seen from the air and clear for an eye under it")
+    expect(U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 0.0), Water.colour(0.8))
+      && U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 6.0), Water.deep(0.8))
+      && U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 20.0), Water.deep(0.8))
+      && (Water.deep(0.8) < Water.colour(0.8) : U32) && (Water.deep((0.0 - 0.5 : F32)) < Water.colour((0.0 - 0.5 : F32)) : U32),
+      "the water's colour darkens with the depth under the surface, by day and by night")
     expect(near(Water.lit_path(3.0, (0.0 - 1.0 : F32)), 6.0, 0.0001) && near(Water.lit_path(3.0, 0.0), 3.0, 0.0001)
       && near(Water.lit_path(3.0, 0.5), 3.0, 0.0001), "the bed's light went down before it came up the ray")
     expect((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9) >= 0.5 : F32)
