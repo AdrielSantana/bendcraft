@@ -28,6 +28,7 @@ check:
 	$(BEND) test/day.bend --check-only
 	$(BEND) test/inventory.bend --check-only
 	$(BEND) test/water.bend --check-only
+	$(BEND) test/ripples.bend --check-only
 	$(BEND) test/water_view.bend --check-only
 	$(BEND) test/sky.bend --check-only
 	$(BEND) test/bench.bend --check-only
@@ -43,6 +44,7 @@ test:
 	$(BEND) test/day.bend
 	$(BEND) test/inventory.bend
 	$(BEND) test/water.bend
+	$(BEND) test/ripples.bend
 	$(BEND) test/terrain.bend
 	$(BEND) test/readout.bend
 

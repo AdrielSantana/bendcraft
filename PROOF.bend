@@ -7,6 +7,7 @@ import Base
 import ./LAWS.bend as Laws
 import ./src/day.bend as Day
 import ./src/inventory.bend as Inventory
+import ./src/water.bend as Water
 
 def Laws.pick_origin(): {==}
 def Laws.pick_far_corner(): {==}
@@ -194,3 +195,20 @@ def Laws.water_reflection_has_its_own_flag(): {==}
 def Laws.water_fresnel_has_its_own_flag(): {==}
 def Laws.water_surface_looks_are_on_by_default(): {==}
 def Laws.readout_keeps_water_surface_looks(): {==}
+
+def Laws.ripple_clock_returns_after_a_turn(t):
+  match t:
+    case U32{w}:
+      %period_mask(32n, 13n, w) : {U32{Word.and(32n, Word.add(32n, w, period(32n, 13n)), mask(32n, 13n))} == U32{_} : U32}
+      {==}
+
+def Laws.ripple_clock_wraps_with_the_day(): {==}
+def Laws.ripple_clock_reads_back(): {==}
+def Laws.ripple_address_keeps_the_ring(): {==}
+def Laws.ripple_lattice_follows_recentering(): {==}
+def Laws.ripple_flag_is_independent(): {==}
+def Laws.readout_keeps_ripples(): {==}
+def Laws.ripple_clock_is_not_a_readout(): {==}
+def Laws.split_fps_eight_reads_back(): {==}
+def Laws.split_fps_eight_is_visible(): {==}
+def Laws.ripple_packing_keeps_the_readout_bit(): {==}

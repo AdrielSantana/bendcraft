@@ -158,10 +158,10 @@ law stat_ms_reads_back:
   {Render.stat_ms(Render.stat_flags(31, 164, 60)) == 164 : U32}
 
 law stat_fps_reads_back:
-  {Render.stat_fps(Render.stat_flags(31, 164, 60), Render.stat_items(0, 60)) == 60 : U32}
+  {Render.stat_fps(Render.stat_flags(31, 164, 60), Render.stat_items(0, 60), Render.stat_base(0, 60)) == 60 : U32}
 
 law stat_stops_at_its_room:
-  {(Render.stat_ms(Render.stat_flags(31, 5000, 900)), Render.stat_fps(Render.stat_flags(31, 5000, 900), Render.stat_items(0, 900))) == (999, 255) : U32 & U32}
+  {(Render.stat_ms(Render.stat_flags(31, 5000, 900)), Render.stat_fps(Render.stat_flags(31, 5000, 900), Render.stat_items(0, 900), Render.stat_base(0, 900))) == (999, 255) : U32 & U32}
 
 law stat_zero_is_the_game:
   {Render.stat_flags(31, 0, 0) == 31 : U32}
@@ -179,7 +179,7 @@ law stat_high_ms_reads_back:
   {Render.stat_ms(Render.stat_flags(4261412895, 164, 60)) == 164 : U32}
 
 law stat_high_fps_reads_back:
-  {Render.stat_fps(Render.stat_flags(4261412895, 164, 60), Render.stat_items(0, 60)) == 60 : U32}
+  {Render.stat_fps(Render.stat_flags(4261412895, 164, 60), Render.stat_items(0, 60), Render.stat_base(0, 60)) == 60 : U32}
 
 law stat_high_zero_is_the_game:
   {Render.stat_flags(4261412895, 0, 0) == 4261412895 : U32}
@@ -254,16 +254,16 @@ law stat_items_keeps_counts:
   {(Render.stat_items(268435455, 255) .&. 268435455 : U32) == 268435455 : U32}
 
 law stat_fps_crosses_the_split:
-  {Render.stat_fps(Render.stat_flags(0, 0, 16), Render.stat_items(0, 16)) == 16 : U32}
+  {Render.stat_fps(Render.stat_flags(0, 0, 16), Render.stat_items(0, 16), Render.stat_base(0, 16)) == 16 : U32}
 
 law stat_keeps_water_room:
   {(Render.stat_flags(31457280, 999, 255) .&. 31457280 : U32) == 31457280 : U32}
 
 law stat_water_room_is_not_a_number:
-  {Render.stat_on(31457280, 0) == False{} : Bool}
+  {Render.stat_on(31457280, 0, 0) == False{} : Bool}
 
 law stat_high_fps_is_visible:
-  {Render.stat_on(0, Render.stat_items(0, 16)) == True{} : Bool}
+  {Render.stat_on(0, Render.stat_items(0, 16), Render.stat_base(0, 16)) == True{} : Bool}
 
 # The still-water mask never turns water into a solid. These integer laws
 # cover generation and displacement; no flow is simulated yet.
@@ -335,3 +335,37 @@ law water_surface_looks_are_on_by_default:
 
 law readout_keeps_water_surface_looks:
   {(Render.stat_flags(25165824, 999, 255) .&. 25165824 : U32) == 25165824 : U32}
+
+law ripple_clock_returns_after_a_turn:
+  for t: U32
+  {Water.phase((t + 8192 : U32)) == Water.phase(t) : U32}
+
+law ripple_clock_wraps_with_the_day:
+  {(Water.phase((Day.length() - 1 : U32)), Water.phase(Day.advance((Day.length() - 1 : U32), 1))) == (8191, 0) : U32 & U32}
+
+law ripple_clock_reads_back:
+  {(Water.clock(Water.frame_base(4294967295, 0)), Water.clock(Water.frame_base(4294967295, 8191))) == (0, 8191) : U32 & U32}
+
+law ripple_address_keeps_the_ring:
+  {(World.col_at(Water.frame_base(4294967295, 8191), 127, 127) % 131072 : U32) == (World.col_at(4294967295, 127, 127) % 131072 : U32) : U32}
+
+law ripple_lattice_follows_recentering:
+  {(Water.lattice(Water.frame_base(16383, 8191), 65, 64), Water.lattice(Water.frame_base((16383 + 129 : U32), 0), 64, 63)) == (8383, 8383) : U32 & U32}
+
+law ripple_flag_is_independent:
+  {(Water.ripples_on(1048576), Water.ripples_on(25165824), Water.ripples_on(Render.looks())) == (True{}, False{}, True{}) : Bool & (Bool & Bool)}
+
+law readout_keeps_ripples:
+  {(Render.stat_flags(1048576, 999, 255) .&. 1048576 : U32) == 1048576 : U32}
+
+law ripple_clock_is_not_a_readout:
+  {Render.stat_on(1048576, 0, Water.frame_base(16383, 8191)) == False{} : Bool}
+
+law split_fps_eight_reads_back:
+  {Render.stat_fps(Render.stat_flags(1048576, 0, 8), Render.stat_items(0, 8), Water.frame_base(Render.stat_base(16383, 8), 8191)) == 8 : U32}
+
+law split_fps_eight_is_visible:
+  {Render.stat_on(0, 0, Water.frame_base(Render.stat_base(16383, 8), 8191)) == True{} : Bool}
+
+law ripple_packing_keeps_the_readout_bit:
+  {(Water.frame_base(Render.stat_base(16383, 8), 8191) / 2147483648 : U32) == 1 : U32}

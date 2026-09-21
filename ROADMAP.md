@@ -43,9 +43,9 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    where the far levels end). The fog measured nothing in the profile, so
    this is nearly free and changes every screenshot. It goes with the day
    cycle: dawn, noon, dusk, night with stars and a moon.
-2. **Water's shader.** Depth tint, Fresnel and the analytic reflected sky
-   are done. Next: ripples from a noise normal moved by time; then
-   the world reflected by a second ray, paid like the shadow ray, only on
+2. **Water's shader.** Depth tint, Fresnel, the analytic reflected sky and
+   ripples from a noise normal moved by time are done. Next: the world
+   reflected by a second ray, paid like the shadow ray, only on
    the pixels that show water.
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
    them: next to the ring of 128² columns at one block, a ring of 128²
@@ -129,8 +129,9 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
    dirt; the lowest sandy beds remain sand. Trees only generate on dry grass;
    canopies may overhang the water from a dry bank. Existing edited columns
    remain authoritative when loading old saves.
-   Fresnel and sky reflection are implemented with separate flags.
-   Next: ripples, then terrain reflection by a second ray, followed by
+   Fresnel, sky reflection and ripples have separate flags. The ripple
+   pattern stays in world coordinates through ring shifts.
+   Next: terrain reflection by a second ray, followed by
    physics, a cellular rule over the edits' Map: down first, sideways,
    sources stay. Swimming and collection are not implemented yet.
    The water model was chosen on 2026-09-21: **finite volume with explicit
@@ -186,9 +187,9 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 81 laws include the day period for every `U32` clock word and
-six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 74 laws are concrete checks, including water surface packing,
+Today's 92 laws include day and ripple periods for every `U32` clock word
+and six universal inventory laws, with counts as `Nat` and slots as a list.
+The other 84 laws are concrete checks, including water surface packing,
 lake floors, dry tree roots, HUD packing and save/quit
 edges. Floats stay in the windowless tests: the checker does not compute them.
 
@@ -395,7 +396,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `4e4c70d58bf32c4c721ae9eaae96e707` when
+- `make bench`: the md5 of the thirty checksums stays `076045524d393df1570308a9683b4705` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work

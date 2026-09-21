@@ -1,8 +1,33 @@
 import Base
 import ../src/player.bend as Player
 import ../src/render.bend as Render
+import ../src/world.bend as World
+import ../src/water.bend as Water
+import ../src/inventory.bend as Inventory
 import ./profile.bend as Profile
 import ./sky.bend as Export
+
+# Hold the camera and sun fixed so the exported sequence isolates ripples.
+def phase_camera(cam: Render.Cam, t: U32) -> Render.Cam:
+  Render.Cam{px, py, pz, yaw, pit, base, sel, items, fl, rw, rh, lx, ly, lz} = cam
+  Render.Cam{px, py, pz, yaw, pit, Water.frame_base(base, t), sel, items, fl, rw, rh, lx, ly, lz}
+
+def phase_view(g: Player.Game, t: U32) -> Player.Game & Image:
+  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, +res, +clock, +bag} = g
+  World.W{ring, m, +ox, +oz} = w
+  +rw = (res / 65536 : U32)
+  +rh = (res % 65536 : U32)
+  Player.view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, m, ox, oz,
+    Render.frame(phase_camera(Render.camera(px, py, pz, yaw, pit, Render.stat_base((ox * 128 + oz : U32), 0),
+      Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), Render.looks(), rw, rh, clock), t), ring, rw, rh))
+
+def motion(n: Nat, +i: U32, g: Player.Game) -> IO(Unit):
+  match n:
+    case 0n: IO.pure(Unit, Unit{})
+    case 1n+k:
+      do IO<Unit>:
+        next : Player.Game <- Export.save("build/water-motion-" ++ U32.show(i) ++ ".tree", phase_view(g, (i * 64 : U32)))
+        motion(k, (i + 1 : U32), next)
 
 # Inspect the real GPU image, above and below the surface and with the
 # look disabled. This camera sits beside the seed's lake west of spawn.
@@ -11,7 +36,8 @@ def main() -> IO(Unit):
     g : Player.Game = Player.start_at(Player.res_of(512, 288))
     a : Player.Game <- Export.save("build/water-default.tree", Player.view(g))
     b : Player.Game <- Export.save("build/water-lake.tree", Player.view(Profile.lake(a)))
-    r : Player.Game <- Export.save("build/water-reflection-off.tree", Player.view_with(b, (Render.looks() .&. U32.not(16777216) : U32)))
+    q : Player.Game <- Export.save("build/water-ripples-off.tree", Player.view_with(b, (Render.looks() .&. U32.not(1048576) : U32)))
+    r : Player.Game <- Export.save("build/water-reflection-off.tree", Player.view_with(q, (Render.looks() .&. U32.not(16777216) : U32)))
     s : Player.Game <- Export.save("build/water-fresnel-off.tree", Player.view_with(r, (Render.looks() .&. U32.not(8388608) : U32)))
     c : Player.Game <- Export.save("build/water-off.tree", Player.view_with(s, (Render.looks() .&. U32.not(2097152) : U32)))
     d : Player.Game <- Export.save("build/water-dusk.tree", Player.view(Export.aim(c, 524288, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32))))
@@ -19,4 +45,5 @@ def main() -> IO(Unit):
     f : Player.Game <- Export.save("build/water-under-off.tree", Player.view_with(e, (Render.looks() .&. U32.not(4194304) : U32)))
     h : Player.Game <- Export.save("build/water-sunset-reflection.tree", Player.view(Export.aim(Profile.lake(f), 480000, 4.068888, (0.0 - 0.35 : F32))))
     i : Player.Game <- Export.save("build/water-night-reflection.tree", Player.view(Profile.night_lake(h)))
-    IO.pure(Unit, Unit{})
+    j : Player.Game <- Export.save("build/water-night-ripples-off.tree", Player.view_with(i, (Render.looks() .&. U32.not(1048576) : U32)))
+    motion(128n, 0, j)

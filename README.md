@@ -118,15 +118,22 @@ separate flags. The DDA marks the first downward entry through a water top
 in a spare bit of its step counter, so vertical sides and submerged eyes
 retain absorption alone, even for edited water away from the sea height.
 The reflected sky is fogged to the surface, before any water depth, and
-fully hidden lakes return the exact atmospheric colour. No second world
-ray is cast; terrain reflections and moving ripples are subsequent steps.
+fully hidden lakes return the exact atmospheric colour. Ripples tilt the
+surface normal with smooth value noise moved by the game clock. The noise
+uses world lattice addresses, so loading columns never drags the pattern.
+Its analytic gradient takes four hashes and no extra world loads; the
+normal fades at distance and grazing angles to limit shimmer and keep
+reflected rays above the water horizon. Its 8192-ms loop divides the day,
+with no jump when the saved day clock wraps. Flag 20 disables ripples.
+No second world ray is cast; terrain reflections are the next shader step.
 Placing an inventory block displaces water, and edits survive ring reloads
 and saves. Water cannot be collected with the eight solid-block slots.
 A lake lies west of the initial spawn; `make water` exports daytime,
-dusk, submerged, reflected sun/moon and each surface-look-off view as PNGs
-(requires Pillow).
+dusk, submerged, reflected sun/moon and each surface-look-off view as twelve
+PNGs. It also exports `build/water-motion.gif`, a 128-frame ripple cycle
+with camera and sun fixed, and a contact sheet (requires Pillow).
 This is still water: digging leaves a gap until flow is implemented, and
-movement remains walking/gravity, with swimming, terrain reflections and ripples
+movement remains walking/gravity, with swimming and terrain reflections
 left for later steps. Generated trees require dry grass at their origin;
 their canopies can extend over water from the bank. Untouched columns
 regenerate with this rule; edited columns in old saves keep their contents,
@@ -185,7 +192,7 @@ main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
-src/water.bend     wet intervals, depth tint, fog, Fresnel and reflected sky
+src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky and ripple normals
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
@@ -199,7 +206,8 @@ test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
-test/water_view.bend ten fixed water views, Image trees for test/water.py
+test/ripples.bend  clock/address packing, stable world noise, normals and wrap continuity
+test/water_view.bend twelve water views and a fixed-sun ripple cycle for test/water.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
@@ -217,7 +225,7 @@ make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
 make profile    # each look off, by size; also night, lake, submerged and night lake
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
-make water      # ten PNGs, including reflection and Fresnel off; Python with Pillow
+make water      # twelve PNGs and a ripple animation; Python with Pillow
 make page-test  # the page in headless Chrome, hashes and fps
 ```
 
@@ -284,7 +292,7 @@ the fullscreen link scales whatever is rendered to the screen.
 `make profile` renders one view five times with every look on, then with
 each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
 distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog,
-water, water fog, Fresnel, sky reflection),
+water, water fog, Fresnel, sky reflection, ripples),
 then the rays alone, and prints the `!` per frame; then it
 renders the view twice more with numbers for pixels, how many rays reach
 a block and how many DDA steps a ray walks to its hit, summed over the
@@ -605,16 +613,39 @@ rendered and inspected. Normal bench minima at the six sizes are
 2/3/6/10/21/36 → 3/3/6/11/21/38 ms.
 
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
-5 and 6 are debug renders; 7..16 hold milliseconds and 17..20 the low
-four FPS bits. The high four FPS bits use `Cam.items` bits 28..31, above
-the counts; bit 21 enables water, bit 22 water fog, bit 23 Fresnel and bit 24
+5 and 6 are debug renders; 7..16 hold milliseconds and 17..19 the low
+three FPS bits. FPS bit 3 uses `Cam.base` bit 31; the high four use
+`Cam.items` bits 28..31, above the counts. Bit 20 enables ripples;
+bit 21 enables water, bit 22 water fog, bit 23 Fresnel and bit 24
 sky reflection. Bits 25..31 are day
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
 sun for profiling. HUD off also disables the new count labels. The default
-picture intentionally changes with Fresnel and the reflected sky:
-bench digest `4e4c70d58bf32c4c721ae9eaae96e707`; physics stays
+picture intentionally changes with animated water normals:
+bench digest `076045524d393df1570308a9683b4705`; physics stays
 `73516c0ead87f8c1151e34d25b3ac32e`.
+
+Ripples, three alternated before/after rounds at 1470×796 with no game
+process running. Minimum five-frame means, default view:
+
+| | before ripples | after, ms |
+|---|---|---|
+| all on | 22.2 | 22.6 |
+| shadow off | 18.2 | 19.0 |
+| water off | 17.8 | 17.6 |
+| sky reflection off | 21.2 | 21.2 |
+| ripples off | — | 22.0 |
+| rays alone | 12.2 | 12.4 |
+
+The tilted normal costs about 0.4 ms in the default view and 0.2 at the
+lake (23.4 → 23.6, ripples off 22.8); the night view is unchanged (15.2 →
+15.4). It is four hashes and a square root on the pixels that show a
+water top, and no world read. The bench agrees: 21 → 22 ms at 1470×796,
+38 → 39 at 1920×1080, the smaller sizes the same. Water as a whole is now
+the dearest look, about 5 ms of the 22.6, ahead of the shadow ray's 3.6:
+the wet intervals are tracked along every ray's 60 steps. The Codex session
+that wrote the ripples ended before these rounds; they were run afterwards
+on the same tree.
 
 In the original profile, 52% of the rays reached a block after 24 steps
 on average; the rest walked the box's 60. Primary rays took three quarters
@@ -646,9 +677,11 @@ the frames that reached the screen, which the display's rate caps, so a
 render of 5 ms still reads 60 or 120. `main.bend` runs the window's loop
 itself, in `App.run`'s shape, to read the clock on each side of the view
 and not around the wait for the screen; twice a second it publishes the
-mean since. The two numbers ride to the GPU in the flags word and the spare high
-bits of the inventory word, above the
-looks, and the HUD draws them with glyphs of 3 × 5 picked by divisions
+mean since. The two numbers ride to the GPU in the flags word and spare
+bits of the inventory and ring-address words. The camera keeps its 14
+words: only 14 low address bits affect the ring's wrapping array reads;
+bits 14..26 carry the ripple clock, and bit 31 carries one FPS bit.
+The HUD draws the readout with glyphs of 3 × 5 picked by divisions
 and masks (no table, no variable shift). With the readout off the frame
 is the same bit for bit: the bench's checksums and its times did not move.
 
@@ -683,7 +716,12 @@ Six surface laws cover independent flags, readout preservation and packing
 the top-entry bit with all 61 step counts and four face codes. Float tests
 cover Fresnel endpoints and growth, reflected sun/moon, signed entry,
 submerged eyes, foreground banks and distant fog.
-There are 81 laws: seven universal claims and 74 concrete
+Eleven ripple laws include the 8192-ms period for every clock word,
+boundary packing checks, flag independence, readout preservation and
+integer recentering. Windowless tests exhaust all 8192 phase values,
+16384 ring addresses and 257 FPS inputs, and check unit normals,
+grazing reflection, positive/negative recentering and temporal continuity.
+There are 92 laws: eight universal claims and 84 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

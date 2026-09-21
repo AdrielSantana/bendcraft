@@ -178,6 +178,9 @@ def main() -> IO(Unit):
     expect(U32.is_eq(surface_ray(31457280, True{}, False{}), surface_ray(14680064, True{}, False{}))
       && U32.is_eq(surface_ray(31457280, False{}, True{}), surface_ray(14680064, False{}, True{})), "reflection leaves submerged eyes and foreground banks unchanged")
     expect(U32.is_eq(emerged_ray(31457288, 0.8, 40), emerged_ray(14680072, 0.8, 40)), "upward water exit does not acquire a sky mirror")
+    expect(U32.is_eq(surface_ray(Render.looks(), True{}, False{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), True{}, False{}))
+      && U32.is_eq(surface_ray(Render.looks(), False{}, True{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), False{}, True{})),
+      "ripples preserve submerged eyes and foreground banks")
     expect(U32.is_eq(far_surface_w(pool(88n, empty(), 40, 128)), Sky.rgb(100, 140, 180)), "air fog hides a distant reflecting water top")
     expect(U32.is_ne(Water.reflected_sky(134217728, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, 1.0, 0.0),
       Water.reflected_sky(0, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, 1.0, 0.0))

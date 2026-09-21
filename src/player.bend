@@ -29,12 +29,12 @@ def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
   (G{World.W{ring, m, ox, oz}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, img)
 
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
-           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, fps: U32, w: World.World) -> Game & Image:
+           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, +fps: U32, w: World.World) -> Game & Image:
   World.W{ring, m, +ox, +oz} = w
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
   view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, m, ox, oz,
-           Render.frame(Render.camera(px, py, pz, yaw, pit, (ox * 128 + oz : U32), Inventory.hud_lo(sel, bag), Render.stat_items(Inventory.hud_hi(bag), fps), fl, rw, rh, clock), ring, rw, rh))
+           Render.frame(Render.camera(px, py, pz, yaw, pit, Render.stat_base((ox * 128 + oz : U32), fps), Inventory.hud_lo(sel, bag), Render.stat_items(Inventory.hud_hi(bag), fps), fl, rw, rh, clock), ring, rw, rh))
 
 # the frame with the render's flags (Render.Cam), all looks on for the game
 def view_info(g: Game, +fl: U32, fps: U32) -> Game & Image:

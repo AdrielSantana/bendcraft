@@ -153,7 +153,7 @@ def main() -> IO(Unit):
     expect(picked_top(Player.waim(World.edit(empty_world(), 64, 66, 31, True{}, 3),
       64.5, 33.5, 66.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "pick above world cannot alias a placement cell")
     expect(packing(102n), "all display counts read back in every slot")
-    expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
+    expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
     saved : Player.Game <- Save.save_to("build/inventory-test.save", fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], 6))
     loaded : Player.Game <- Save.load_from("build/inventory-test.save", Player.res512())
     expect(cell(loaded, [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], Player.pk_u(64, 10, 66), True{}, 3), "file roundtrip keeps counts and cell type")
