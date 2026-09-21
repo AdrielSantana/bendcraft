@@ -1,5 +1,6 @@
 import Base
 import ../src/day.bend as Day
+import ../src/sky.bend as Sky
 import ../src/render.bend as Render
 import ../src/world.bend as World
 import ../src/player.bend as Player
@@ -36,6 +37,15 @@ def fixture(t: U32) -> Player.Game:
 
 def main() -> IO(Unit):
   do IO<Unit>:
+    expect(U32.is_ne(Sky.gradient(True{}, 0.0, 0.8), Sky.gradient(True{}, 1.0, 0.8)), "sky has a vertical gradient")
+    expect((Sky.gradient(True{}, 0.5, (0.0 - 1.0 : F32)) < Sky.gradient(True{}, 0.5, 1.0) : U32), "night sky is darker")
+    expect(F32.is_eq(Sky.fog(0, 40.0, 5.0, 5.0), 0.0), "fog flags disable both terms")
+    expect(F32.is_eq(Sky.fog(8, 34.0, 30.0, 30.0), 1.0), "distant terrain reaches sky colour")
+    expect((Sky.fog(2147483648, 20.0, 5.0, 5.0) > Sky.fog(2147483648, 20.0, 30.0, 30.0) : F32), "mist is denser near the ground")
+    expect(U32.is_ne(Sky.sun(True{}, 0, 1.0, 0.8, 0.8), 0), "sun disc")
+    expect(U32.is_eq(Sky.sun(False{}, 123, 1.0, 0.8, 0.8), 123), "sun flag")
+    expect(U32.is_ne(Sky.moon(True{}, 0, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 0), "moon disc")
+    expect(U32.is_eq(Sky.moon(False{}, 123, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 123), "moon flag")
     expect(probe(69, 10, 64, 1.0, 0.0, 0.0), "shadow +x")
     expect(probe(59, 10, 64, (0.0 - 1.0 : F32), 0.0, 0.0), "shadow -x")
     expect(probe(64, 15, 64, 0.0, 1.0, 0.0), "shadow +y")

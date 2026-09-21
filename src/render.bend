@@ -2,6 +2,7 @@ import Base
 import ./util.bend as Util
 import ./world.bend as World
 import ./day.bend as Day
+import ./sky.bend as Sky
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -13,7 +14,7 @@ import ./day.bend as Day
 # itself.
 
 def rgb(r: U32, g: U32, b: U32) -> U32:
-  (r * 65536 + g * 256 + b : U32)
+  Sky.rgb(r, g, b)
 
 # value noise: a hash on a lattice, blended smoothly. The texture's hash
 # is a product, fine at the eight tile coordinates; the terrain's mixes
@@ -46,13 +47,6 @@ def dim(+c: U32, +k: F32) -> U32:
   +g = (c / 256 % 256 : U32)
   +b = (c % 256 : U32)
   rgb(scale(r, k), scale(g, k), scale(b, k))
-
-def sky_at(+yq: U32, +rh: U32) -> U32:
-  +g = (yq * 55 / rh : U32)
-  rgb((110 + g : U32), (150 + g : U32), 235)
-
-def band(+y: U32) -> U32:
-  (y / 8 * 8 : U32)
 
 # ---------- DDA over the array ----------
 
@@ -128,15 +122,10 @@ def dda(fuel: Nat, +base: U32,
 # under a green band. The four cells beside O along the face each darken
 # the half of the face they touch, more towards their edge: the ambient
 # occlusion, four column reads through the handle the ray brought back.
-# The fog blends the result into this row's sky by the square of t / 48.
+# Distance haze and low mist blend into the atmosphere along the ray.
 
-def lerp(+x: U32, +y: U32, +f: F32) -> U32:
-  F32.to_u32((Util.u2f(x) * (1.0 - f) + Util.u2f(y) * f : F32))
-
-def mix(+a: U32, +b: U32, +f: F32) -> U32:
-  rgb(lerp((a / 65536 : U32), (b / 65536 : U32), f),
-      lerp((a / 256 % 256 : U32), (b / 256 % 256 : U32), f),
-      lerp((a % 256 : U32), (b % 256 : U32), f))
+def mix(a: U32, b: U32, f: F32) -> U32:
+  Sky.mix(a, b, f)
 
 # a tile of 8x8 texels, the same on every block: each texel is one of four
 # shades, from a smooth noise sampled at its centre, so the shades come in
@@ -239,7 +228,7 @@ def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +fu: F32, +fw: F32, 
   +pm = vao(Util.on(m8, 1), Util.on(m8, 8), Util.on(m8, 64))
   +mm = vao(Util.on(m8, 2), Util.on(m8, 8), Util.on(m8, 128))
   +ao = ((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)
-  (w, mix(dim(col, (ao * sun : F32)), v, (f * f : F32)))
+  (w, mix(dim(col, (ao * sun : F32)), v, f))
 
 def ao7(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
         +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
@@ -301,7 +290,7 @@ def after_sun(+v: U32, +col: U32, +f: F32, +base: U32, +ox: F32, +oy: F32, +oz: 
           World.solid(w, base, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
     case False{}:
       (w, dark) = r
-      (w, mix(dim(col, Bool.pick(F32, dark, 0.6, 1.0)), v, (f * f : F32)))
+      (w, mix(dim(col, Bool.pick(F32, dark, 0.6, 1.0)), v, f))
 
 def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
   match on:
@@ -324,7 +313,7 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match sky:
     case True{}:
-      (w, v)
+      (w, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz))
     case False{}:
       +axis = (c - 1 : U32)
       +px = (ox + dx * t : F32)
@@ -336,8 +325,8 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
       +ay = U32.is_eq(axis, 1)
       +u = Bool.pick(F32, ax, pz, px)
       +wf = Bool.pick(F32, ay, pz, py)
-      +tone = (Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7)) * (0.18 + 0.82 * F32.clamp((ly * 1.25 : F32), 0.0, 1.0)) : F32)
-      +f = Bool.pick(F32, Util.on(fl, 8), F32.min((t / 48.0 : F32), 1.0), 0.0)
+      +tone = (Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7)) * (0.18 + 0.82 * Sky.daylight(ly)) : F32)
+      +f = Sky.fog(fl, t, oy, py)
       # O, the air cell before the face: floor of p, except along the face's
       # axis, where p sits on the boundary and O is the side the ray came from
       +bx = Util.floorf((px + 0.5 : F32))
@@ -424,7 +413,7 @@ def shoot(go: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
           +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match go:
     case False{}:
-      (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), v, 0))
+      (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz), 0))
     case True{}:
       run_dda(w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 
@@ -447,16 +436,17 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # ---------- the player ----------
 
 # The camera is Data, shared down the fork; the world is the array, threaded.
-# `v` down the leaf is the row's sky colour, ready for the fog. `fl` is the
+# `v` down the leaf is the ray's atmospheric colour, ready for the fog. `fl` is the
 # flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
-# what. Bits 7..24 hold the readout; bit 25 enables the day cycle.
+# what. Bits 7..24 hold the readout; 25..31 enable the day cycle, sky
+# gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 33554463
+def looks() -> U32: 4261412895
 
 def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:
@@ -479,7 +469,7 @@ def p2f(+p: U32, +size: U32, +rh: U32) -> F32:
   ((U32.to_f32((p * 2 : U32)) - U32.to_f32(size)) / U32.to_f32(rh) : F32)
 
 def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  Cam{ox, oy, oz, yaw, pit, base, sel, +fl, +rw, +rh, lx, ly, lz} = cam
+  Cam{ox, oy, oz, yaw, pit, base, sel, +fl, +rw, +rh, +lx, +ly, +lz} = cam
   +u = p2f(pxi, rw, rh)
   +v = p2f(pyi, rh, rh)
   +fx = look_x(yaw, pit)
@@ -497,7 +487,7 @@ def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32
   +dy = (fy + 0.9 * v * uy : F32)
   +dz = (fz + 0.9 * u * rz + 0.9 * v * uz : F32)
   +n = F32.max(norm3(dx, dy, dz), 0.00001)
-  clipped(w, base, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), sky_at(band(pyi), rh), fl, lx, ly, lz)
+  clipped(w, base, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), Sky.atmosphere(fl, (dx / n : F32), (dy / n : F32), (dz / n : F32), lx, ly, lz), fl, lx, ly, lz)
 
 # a crosshair straight over the middle
 def cross_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> Bool:

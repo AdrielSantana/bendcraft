@@ -83,7 +83,7 @@ make profile    # what each look costs, at four sizes
 ```
 
 - **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut
-  -d= -f2 | md5` is `e5582afca9ac...` today. A change that should not alter
+  -d= -f2 | md5` is `78d5ae6b7301de08432c237f1bbecc0b` today. A change that should not alter
   the game's default picture must leave it as it is. A change that alters
   the picture on purpose says so, and its commit message carries the new
   digest. `bend test/physics.bend | md5` is `73516c0ead87...`; same rule.
@@ -158,7 +158,8 @@ nothing", and the README):
 ## The code's fixed points
 
 - `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; bits 7..24 are the
-  readout's numbers, and bit 25 enables the day cycle (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
+  readout's numbers. Bits 25..31 enable day cycle, sky gradient, sun disc,
+  horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
   512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
 - The world: a ring of 128x128 columns in one `Array<U32>`, eight words a

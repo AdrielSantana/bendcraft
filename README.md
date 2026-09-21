@@ -78,8 +78,7 @@ you come back.
 **The render** is a DDA through the ring, one ray per pixel, 60 steps. The
 loop returns only what was hit and where; the look is a `match` after it:
 a second DDA toward the sun for shadows, a pixel-art tile of four shades per
-face, ambient occlusion per vertex from the eight cells around the hit, fog
-into the sky by distance. The `!` runs a binary tree down to 4×4 tiles: a
+face, ambient occlusion per vertex from the eight cells around the hit, distance haze and low mist into the sky along the ray. The `!` runs a binary tree down to 4×4 tiles: a
 square splits into its two rows, a row into its two squares, as many levels
 as the larger side needs, and a half that lies past the render's edge is
 one pixel and never a task. The shape follows the GPU runtime, which grows
@@ -95,7 +94,12 @@ at the window loop, independently of the physics and frame rate. One day is
 one half dusk and three quarters midnight. Its sine and cosine are computed
 on the host and the three sun components ride in `Cam`. The shadow walks
 with signed steps on all three axes; the terrain dims when the sun sets.
-The default starts in the morning.
+The default starts in the morning. A world-direction sky gradient follows
+the sun's height, with a warm glow toward dawn and dusk, a sun disc, fixed
+stars fading in at night and a moon opposite the sun. Fog takes the gradient
+and glow's colour, without celestial discs; its distance term reaches the
+sky at 34 blocks, before the 60-step ray budget ends even on a diagonal.
+A separate height term thickens in the low ground.
 
 **The world is saved.** `bendcraft.save` in the working directory holds
 the corner, position, look, chosen block and day clock on its first line,
@@ -117,6 +121,7 @@ frames the chosen one.
 ```
 main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
+src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the fork
@@ -127,7 +132,8 @@ AGENTS.md          for an agent (or a person) about to write Bend here: the gate
 ROADMAP.md         the vision and what comes next: the look, the game, the laws, what waits on Bend
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
-test/day.bend      signed shadows, clock wrapping, frame rate, old and new saves
+test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
+test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
@@ -142,12 +148,15 @@ site/              the page: notes.mjs post-processes the built index.html
 make check      # the modules, the tests, the laws
 make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
+make profile    # each look off, by size; also stars and moon active at night
+make sky        # six PNGs and build/sky-contact.png; Python with Pillow
 make page-test  # the page in headless Chrome, hashes and fps
 ```
 
 ## Numbers
 
-Apple M5, Bend 2.0.24 (the same numbers as on 2.0.23). The bench times
+Apple M5, Bend 2.0.24. The historical tree comparison below predates the
+day cycle; the current measurements follow it. The bench times
 the `!` only, five frames with the camera turning; the thirty checksums are the same on every build that
 changes nothing visible. The first column is the binary tree, the second
 the four-way tree it replaced.
@@ -164,6 +173,21 @@ the four-way tree it replaced.
 | WebAssembly, 512×512, 1 thread | 7 fps | 7 fps |
 | WebAssembly, 512×288 rays in a 1024×576 canvas, 10 threads | 54 fps | 54–56 fps |
 
+After sky and day cycle, four alternated rounds against the original build:
+
+| fastest bench frame | before | after |
+|---|---|---|
+| 512×512 | 2 ms | 2 ms |
+| 512×512, 300 blocks placed | 2 ms | 2 ms |
+| 735×398 | 4 ms | 4 ms |
+| 960×540 | 8 ms | 9 ms |
+| 1470×796 | 15 ms | 16 ms |
+| 1920×1080 | 28 ms | 30 ms |
+
+The extra work is the signed shadow, sky colour and height/distance fog;
+the larger frames pay for that arithmetic at more pixels. The rays-alone
+profile remains 11.0 ms at 1470×796. Web numbers have not been remeasured.
+
 On the page, `?size=1024x576x2` in the address gives the wide frame, and
 the fullscreen link scales whatever is rendered to the screen.
 
@@ -171,34 +195,50 @@ the fullscreen link scales whatever is rendered to the screen.
 
 `make profile` renders one view five times with every look on, then with
 each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
-fog, HUD, day cycle), then the rays alone, and prints the `!` per frame; then it
+distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog),
+then the rays alone, and prints the `!` per frame; then it
 renders the view twice more with numbers for pixels, how many rays reach
 a block and how many DDA steps a ray walks to its hit, summed over the
 image with each pixel weighed by the square it stands for. The same
-checksums as the bench come out of the full render, so the flags cost
-nothing the picture can see. At 1470×796:
+view as the bench is used for the full render (the profile sums by pixel
+area; the bench sums the tree's leaves). At 1470×796:
 
-Four alternated baseline/day-cycle rounds, minimum five-frame mean per
-variant (the timer resolves milliseconds); bench minima at 1470×796 are
-14 → 15 ms. The extra 0.8 ms in the full profile is in the signed shadow:
-shadow-off and rays-alone times are unchanged.
+Four alternated original/final rounds, minimum five-frame mean per variant
+(the timer resolves milliseconds). The full profile grows by 0.8 ms;
+shadow-off grows by 0.6 ms with the new atmosphere, while rays alone stay
+unchanged. Differences of a few tenths, including an off variant slower
+than all-on, are measurement noise; these are not additive cost estimates.
 
-| | before | day cycle, ms a frame |
+| | before | after, ms a frame |
 |---|---|---|
-| all on | 15.0 | 15.8 |
-| shadow off | 12.6 | 12.6 |
-| occlusion off | 13.8 | 14.2 |
-| texture off | 14.8 | 15.2 |
-| fog off | 14.8 | 15.2 |
-| HUD off | 14.8 | 15.0 |
-| day cycle off | — | 15.2 |
+| all on | 15.2 | 16.0 |
+| shadow off | 12.6 | 13.2 |
+| occlusion off | 14.2 | 15.2 |
+| texture off | 15.0 | 15.8 |
+| distance fog off | 15.0 | 16.2 |
+| HUD off | 15.2 | 16.2 |
+| day cycle off | — | 16.4 |
+| sky gradient off | — | 16.0 |
+| sun disc off | — | 16.0 |
+| horizon glow off | — | 15.8 |
+| stars off | — | 16.0 |
+| moon off | — | 16.2 |
+| height fog off | — | 16.0 |
 | rays alone | 11.0 | 11.0 |
 
-`Cam.fl` bits 0..4 are the existing looks; 5 and 6 are debug renders;
-7..24 hold the readout, and bit 25 enables the moving sun. Turning it off
-uses the original fixed sun for profiling. The new morning picture changes
-on purpose: bench digest `9a69584df64263efa23186046b24e5a2`;
-physics stays `73516c0ead87f8c1151e34d25b3ac32e`.
+Stars and moon are skipped in this morning view. The profile also looks
+up at midnight, at 1470×796: all on 11.8 ms, stars off 11.4, moon off
+11.8, rays alone 10.6. The moon is visible in that view. The gradient and
+fog take no extra ray; the sun and moon are angular discs and the stars
+are a fixed hash of direction.
+
+`Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
+5 and 6 are debug renders; 7..24 hold the readout. Bits 25..31 are day
+cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
+`Render.looks()` enables them all. Day cycle off uses the original fixed
+sun for profiling. The new picture changes on purpose: bench digest
+`78d5ae6b7301de08432c237f1bbecc0b`; physics stays
+`73516c0ead87f8c1151e34d25b3ac32e`.
 
 52 % of the rays reach a block, after 24 steps on average; the rest walk
 the box's 60. So the primary rays are three quarters of the frame and the
@@ -248,8 +288,10 @@ leaves over it and grass under it, and the packed word the loader writes
 reads back the same; no key touches the mouse's bits of the held mask;
 the readout's numbers ride above the looks without touching them, read
 back, and stop at their room even with high look flags set. The day phase
-returns after a whole turn at each quarter, at morning and across U32 wrap;
-its last millisecond advances to dawn.
+returns after a whole turn for every `U32` clock value, including overflow,
+proved by induction over the low 20 bits. This is the sun's sole integer
+input. Its last millisecond advances to dawn. There are 40 laws: this
+universal period law and 39 concrete checks.
 `bend PROOF.bend` is the gate. The float physics, a player
 never inside a block or a jump that lands where it left, is checked by
 `test/physics.bend`, whose lines the README of the history records.

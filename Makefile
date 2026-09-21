@@ -1,5 +1,6 @@
 # Bendcraft. `make` builds the native game; `make run` starts it on the GPU.
 BEND ?= bend
+PYTHON ?= python3
 # the web-wasm fork of the compiler (bendlang/bend#866), for the page
 BEND_WEB ?= ../bend-web/bend2/main.ts
 
@@ -24,6 +25,7 @@ check:
 	$(BEND) test/physics.bend --check-only
 	$(BEND) test/save.bend --check-only
 	$(BEND) test/day.bend --check-only
+	$(BEND) test/sky.bend --check-only
 	$(BEND) test/bench.bend --check-only
 	$(BEND) test/profile.bend --check-only
 	$(BEND) test/readout.bend --check-only
@@ -51,6 +53,13 @@ profile: test/profile.bend src/*.bend
 	$(BEND) test/profile.bend -o build/profile
 	./build/profile
 
+# Inspect dawn, morning, noon, dusk, night and the default frame (Pillow).
+sky: test/sky.bend src/*.bend
+	@mkdir -p build
+	$(BEND) test/sky.bend -o build/sky
+	./build/sky
+	$(PYTHON) test/sky.py
+
 # the page: WebAssembly, a worker a core, the service worker for the headers
 page: main.bend src/*.bend
 	bun $(BEND_WEB) main.bend -o site/index.html
@@ -69,4 +78,4 @@ page-test:
 	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
 	kill %1
 
-.PHONY: run full check test bench profile page publish page-test
+.PHONY: run full check test bench profile sky page publish page-test

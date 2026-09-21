@@ -37,7 +37,7 @@ are already its nature, and the work goes where a ray caster's cost is:
 
 The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
 
-1. **Sky, sun and fog, done well.** A sky gradient from the sun's height, a
+1. **Sky, sun and fog, done well — done (2026-09-21).** A sky gradient from the sun's height, a
    sun disc, a horizon glow; fog by distance and by height, its colour
    taken from the sky so the far terrain melts into it (it also hides
    where the far levels end). The fog measured nothing in the profile, so
@@ -124,10 +124,9 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
 2. **Water.** A block type a ray goes through. Still water first, in the
    terrain below a sea level; then its physics, a cellular rule over the
    edits' Map, a tick at a time: down first, then sideways, sources stay.
-3. **Day and night.** The sun's direction from the clock, in `Cam`. The
-   shadow ray is written for one sun, (0.48, 0.80, 0.36), all components
-   positive, so every step is +1; a moving sun needs the signed step the
-   primary ray has. Expect the shadow's 2.4 ms to grow a little.
+3. **Day and night — done with look step 1.** The saved integer clock
+   drives the sun in `Cam`; the shadow has signed crossings on every axis.
+   A full period returns the same sun phase for every clock word.
 4. **Survival.** Health, falling hurts, hunger, death and a place to come
    back to.
 5. **Crafting.** A recipe is a vector over the counts: what it takes, what
@@ -157,27 +156,26 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
   nothing when an input is short.
 - *Water:* a tick never raises the amount of water, sources aside; water
   never moves up.
-- *Day and night:* the sun a full day later is the same sun.
+- *Day and night (done):* the sun a full day later is the same sun phase,
+  for every clock word, including overflow.
 - *Survival:* health stays within its bounds; the dead do not act.
 - *Entities:* none ends a tick inside a solid block, the player's law.
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 45 laws are decided by computation on the values the game uses:
-each is one case. The step up is a law stated `for` every value and proved
-by induction, which needs the data in a shape the checker reasons about (a
-count as a `Nat`, an inventory as a list or a map). The inventory is the
-first place to try it. Floats stay in `test/physics.bend`: the checker
-does not compute them.
+Today's 40 laws include the day period for every `U32` clock word,
+proved by induction over its bits; the other 39 are concrete cases decided
+by computation. The inventory is the next place to state laws for every
+value, with a count as a `Nat` and an inventory as a list or map. Floats
+stay in the windowless tests: the checker does not compute them.
 
 ## The order
 
 A proposal, a piece of the look then a piece of the game, the look first
 since it is what a visitor sees:
 
-1. sky, sun, fog and the day cycle — in progress: the saved clock and
-   signed shadows are done; the sky and fog follow
-2. collecting and the inventory, with the first law stated for every value
+1. sky, sun, fog and the day cycle — done, 2026-09-21
+2. collecting and the inventory, with laws stated for every count
 3. water: still, its shader, then its physics
 4. the far horizon
 5. survival and crafting
@@ -192,18 +190,31 @@ other five sizes. The integer clock is saved in an optional header field;
 old saves still load. Its default morning intentionally changes the bench
 digest to `9a69584df64263efa23186046b24e5a2`; physics is unchanged.
 
+Step 1 is complete (2026-09-21): sky gradient, sun disc, horizon glow,
+stars, moon, distance haze and low mist, each optional look with its flag
+and profile row. Fog uses the atmospheric sky colour and reaches it before
+the primary ray's step limit. Six fixed views are available with `make sky`
+(Pillow). The final four alternated rounds against the original build give
+15.2 → 16.0 ms at 1470×796; shadows off 12.6 → 13.2, rays alone 11.0 →
+11.0. Extra shadow crossings and atmospheric arithmetic explain the cost;
+the 735×398 bench minimum is still 4 ms. Night, looking at the moon: 11.8
+ms, stars off 11.4, moon off 11.8. The full table is in README. All four
+gates pass, physics remains `73516c0ead87f8c1151e34d25b3ac32e`, and the
+intentional new picture digest is `78d5ae6b7301de08432c237f1bbecc0b`.
+The full-day law now covers every clock word by bit induction.
+
 ## The engine's routine
 
-What is measured today, at 1470×796 on an M5: 15.6 ms a frame, the primary
-rays 11.4 of them, the shadow ray 2.4, occlusion and texture under one
-each. A ray costs the box's 60 steps whether it hits or not, on purpose
+What is measured today, at 1470×796 on an M5: 16.0 ms a frame, rays
+alone 11.0, shadow off 13.2. The flags are measured together in the README;
+small differences are noisy. A ray costs the box's 60 steps whether it hits or not, on purpose
 (README, "What costs what").
 
 **The routine, for every change to the frame:**
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `e5582afca9ac` when
+- `make bench`: the md5 of the thirty checksums stays `78d5ae6b7301de08432c237f1bbecc0b` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work
