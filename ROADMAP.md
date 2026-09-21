@@ -195,9 +195,14 @@ each. A ray costs the box's 60 steps whether it hits or not, on purpose
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
 - `make bench`: the md5 of the thirty checksums stays `e5582afca9ac` when
-  the picture did not change; when it did, the new one goes in the commit;
+  the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
+  cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work
   for some rays has cost more than it saved, twice.
+
+A single run reads high at the small sizes when the GPU is cold or the
+machine busy (512² at 6 ms for 2): compare builds by alternated runs and
+their fastest frames.
 
 **The routine, for every `bend update`:** `make check test bench profile`,
 rebuild the page with the rebased fork, run `test/trace.py` once (its
