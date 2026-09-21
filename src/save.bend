@@ -52,14 +52,14 @@ def text_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, w: Wor
    ++ " " ++ U32.show(enc(wrap(yaw))) ++ " " ++ U32.show(enc(pit)) ++ " " ++ U32.show(sel)
    ++ col_lines(Map.to_list(&2, World.Col, m)))
 
-def text_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32,
+def text_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32,
              r: World.World & String) -> Player.Game & String:
   (w, s) = r
-  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel}, s)
+  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res}, s)
 
 def text(g: Player.Game) -> Player.Game & String:
-  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel} = g
-  text_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, text_w(px, py, pz, yaw, pit, sel, w))
+  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, res} = g
+  text_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, text_w(px, py, pz, yaw, pit, sel, w))
 
 def written(fr: File & Result<&1, &1, U32 & String, Unit>) -> IO(Unit):
   (f, r) = fr
@@ -103,63 +103,63 @@ def cols_of(ls: List<&2, String>, m: Map<&2, World.Col>) -> Map<&2, World.Col>:
     case Con{l, rest}:
       cols_of(rest, col_of(String.split(l, ' '), m))
 
-def game_of(fs: List<&2, String>, ls: List<&2, String>) -> Player.Game:
+def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Game:
   match fs:
     case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, rest}}}}}}}}}}:
       +cx = num(ox)
       +cz = num(oz)
       Player.G{World.load_all(128n, World.W{[0 : U32^17n], cols_of(ls, Map.new(&2, World.Col)), cx, cz}, cx, cz),
-               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, num(sel)}
+               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, num(sel), res}
     case Con{tag, rest}:
-      Player.start()
+      Player.start_at(res)
     case Nil{}:
-      Player.start()
+      Player.start_at(res)
 
-def parse(ls: List<&2, String>) -> Player.Game:
+def parse(ls: List<&2, String>, +res: U32) -> Player.Game:
   match ls:
     case Nil{}:
-      Player.start()
+      Player.start_at(res)
     case Con{head, rest}:
-      game_of(String.split(head, ' '), rest)
+      game_of(String.split(head, ' '), rest, res)
 
-def load_text(r: Result<&1, &1, U32 & String, String>) -> Player.Game:
+def load_text(r: Result<&1, &1, U32 & String, String>, +res: U32) -> Player.Game:
   match r:
     case Fail{e}:
-      Player.start()
+      Player.start_at(res)
     case Done{s}:
-      parse(String.lines(s))
+      parse(String.lines(s), res)
 
-def read_fin(fr: File & Result<&1, &1, U32 & String, String>) -> IO(Player.Game):
+def read_fin(+res: U32, fr: File & Result<&1, &1, U32 & String, String>) -> IO(Player.Game):
   (f, r) = fr
   do IO<Player.Game>:
     File.close(f)
-    IO.pure(Player.Game, load_text(r))
+    IO.pure(Player.Game, load_text(r, res))
 
-def sized_r(f: File, r: Result<&1, &1, U32 & String, U32>) -> IO(Player.Game):
+def sized_r(+res: U32, f: File, r: Result<&1, &1, U32 & String, U32>) -> IO(Player.Game):
   match r:
     case Fail{e}:
       do IO<Player.Game>:
         File.close(f)
-        IO.pure(Player.Game, Player.start())
+        IO.pure(Player.Game, Player.start_at(res))
     case Done{n}:
-      IO.bind(File & Result<&1, &1, U32 & String, String>, Player.Game, File.read(f, n), read_fin)
+      IO.bind(File & Result<&1, &1, U32 & String, String>, Player.Game, File.read(f, n), read_fin(res))
 
-def sized(fr: File & Result<&1, &1, U32 & String, U32>) -> IO(Player.Game):
+def sized(+res: U32, fr: File & Result<&1, &1, U32 & String, U32>) -> IO(Player.Game):
   (f, r) = fr
-  sized_r(f, r)
+  sized_r(res, f, r)
 
-def opened_r(r: Result<&1, &1, U32 & String, File>) -> IO(Player.Game):
+def opened_r(+res: U32, r: Result<&1, &1, U32 & String, File>) -> IO(Player.Game):
   match r:
     case Fail{e}:
-      IO.pure(Player.Game, Player.start())
+      IO.pure(Player.Game, Player.start_at(res))
     case Done{f}:
-      IO.bind(File & Result<&1, &1, U32 & String, U32>, Player.Game, File.size(f), sized)
+      IO.bind(File & Result<&1, &1, U32 & String, U32>, Player.Game, File.size(f), sized(res))
 
-def load_from(path: String) -> IO(Player.Game):
-  IO.bind(Result<&1, &1, U32 & String, File>, Player.Game, File.open(path, "r"), opened_r)
+def load_from(path: String, +res: U32) -> IO(Player.Game):
+  IO.bind(Result<&1, &1, U32 & String, File>, Player.Game, File.open(path, "r"), opened_r(res))
 
-def load() -> IO(Player.Game):
-  load_from("bendcraft.save")
+def load(+res: U32) -> IO(Player.Game):
+  load_from("bendcraft.save", res)
 
 # --- the tick with the file: P saves, quitting saves ------------------------
 
@@ -181,9 +181,9 @@ def alive_go(act: Bool, +quit: Bool, g: Player.Game) -> IO(Maybe<Player.Game>):
       IO.pure(Maybe<Player.Game>, Some{g})
 
 def alive(g: Player.Game) -> IO(Maybe<Player.Game>):
-  Player.G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res} = g
   +quit = Util.on(edge, 4096)
-  alive_go(quit || Util.on(edge, 256), quit, Player.G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel})
+  alive_go(quit || Util.on(edge, 256), quit, Player.G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res})
 
 def tick(evs: List<Event>, g: Player.Game) -> IO(Maybe<Player.Game>):
   alive(Player.step(Player.feed(evs, g)))

@@ -19,8 +19,16 @@ Bend 2.0.22 or later (`bend update`). On a Mac with Metal:
 
 ```sh
 make            # bend main.bend -o build/bendcraft
-make run        # ./build/bendcraft --gpu 2GB
+make run        # ./build/bendcraft --gpu 2GB            a 512 x 512 window
+./build/bendcraft --gpu 2GB 1920 1080 2                  # a 1920 x 1080 window, 960 x 540 rays
 ```
+
+The two numbers are the window, the third how many times fewer pixels a
+side the render has (a power of two; 1 when left out). The window's shader
+walks the image quadtree from the window's size and stops at the first
+pixel it meets, so a coarser render scales up by itself, nearest neighbour,
+which suits the pixel art. Give it your screen's size for a full-screen
+frame; the cost is in the table below.
 
 The page is built with the web target of Bend from
 [bendlang/bend#866](https://github.com/bendlang/bend/pull/866), a checkout
@@ -66,7 +74,9 @@ you come back.
 loop returns only what was hit and where; the look is a `match` after it:
 a second DDA toward the sun for shadows, a pixel-art tile of four shades per
 face, ambient occlusion per vertex from the eight cells around the hit, fog
-into the sky by distance. The `!` runs a 4^7 tree of 4×4 tiles, 512×512.
+into the sky by distance. The `!` runs a tree of 4×4 tiles, as many levels
+as the larger side needs; a tile past the render's edge is one pixel with
+no ray, so a wide frame costs its own pixels and nothing more.
 
 **The world is saved.** `bendcraft.save` in the working directory holds
 the corner, the position, the look and the chosen block on its first line,
@@ -116,9 +126,15 @@ changes nothing visible.
 
 | | untouched | 300 blocks placed |
 |---|---|---|
-| Metal | 3–8 ms a frame | 3–8 ms |
-| WebAssembly, 10 threads | 35–40 fps | |
-| WebAssembly, 1 thread | 8 fps | |
+| Metal, 512×512 | 3–8 ms a frame | 3–8 ms |
+| Metal, 960×540 rays in a 1920×1080 window | 13 ms | |
+| Metal, 1920×1080 rays | 50 ms | |
+| WebAssembly, 512×512, 10 threads | 35–40 fps | |
+| WebAssembly, 512×512, 1 thread | 8 fps | |
+| WebAssembly, 512×288 rays in a 1024×576 canvas, 10 threads | 53 fps | |
+
+On the page, `?size=1024x576x2` in the address gives the wide frame, and
+the fullscreen link scales whatever is rendered to the screen.
 
 ## Laws
 

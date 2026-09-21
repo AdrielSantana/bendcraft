@@ -7,8 +7,10 @@ build/bendcraft: main.bend src/*.bend
 	@mkdir -p build
 	$(BEND) main.bend -o build/bendcraft
 
+# make run SIZE="1920 1080 2" for a window of that size, 960 x 540 rays
+SIZE ?=
 run: build/bendcraft
-	./build/bendcraft --gpu 2GB
+	./build/bendcraft --gpu 2GB $(SIZE)
 
 # the checker: the modules, the tests and the laws
 check:

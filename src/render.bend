@@ -4,13 +4,11 @@ import ./world.bend as World
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
-# RESOLUTION lives here and nowhere else. The render is RES x RES pixels,
-# built by `fork!(k)` over 4x4 leaves, so RES = 4 << k: k=6 -> 256, k=7 -> 512.
-# The fork shape is the lane cube's: a `!` runs 16384 lanes, so 4^7 leaves per
-# bang keep them all busy (`bend guide shaders`). Two things must agree: the
-# `k` in `fork!` below and `halfu()` here.
-def halfu() -> U32: 256
-def half() -> F32: U32.to_f32(halfu())
+# RESOLUTION is a runtime value: the camera carries the render's width and
+# height, `frame` forks k levels over 4x4 leaves with 4 << k covering the
+# larger side, and a leaf past the edge is one Pix with no ray. The window
+# may be bigger than the render by a power of two: its shader stops at
+# the first Pix it meets, so a coarser image scales up by itself.
 
 def rgb(r: U32, g: U32, b: U32) -> U32:
   (r * 65536 + g * 256 + b : U32)
@@ -47,8 +45,8 @@ def dim(+c: U32, +k: F32) -> U32:
   +b = (c % 256 : U32)
   rgb(scale(r, k), scale(g, k), scale(b, k))
 
-def sky_at(+yq: U32) -> U32:
-  +g = (yq * 55 / (halfu() * 2) : U32)
+def sky_at(+yq: U32, +rh: U32) -> U32:
+  +g = (yq * 55 / rh : U32)
   rgb((110 + g : U32), (150 + g : U32), 235)
 
 def band(+y: U32) -> U32:
@@ -212,7 +210,7 @@ def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +fu: F32, +fw: F32, 
   +pm = vao(Util.on(m8, 1), Util.on(m8, 8), Util.on(m8, 64))
   +mm = vao(Util.on(m8, 2), Util.on(m8, 8), Util.on(m8, 128))
   +ao = ((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)
-  (w, mix(dim(col, (ao * sun : F32)), sky_at(v), (f * f : F32)))
+  (w, mix(dim(col, (ao * sun : F32)), v, (f * f : F32)))
 
 def ao7(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
         +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
@@ -285,7 +283,7 @@ def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, 
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32) -> Array<U32> & U32:
   match sky:
     case True{}:
-      (w, sky_at(v))
+      (w, v)
     case False{}:
       +axis = (c - 1 : U32)
       +px = (ox + dx * t : F32)
@@ -368,7 +366,7 @@ def shoot(go: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
           +dx: F32, +dy: F32, +dz: F32, +v: U32) -> Array<U32> & U32:
   match go:
     case False{}:
-      (w, sky_at(v))
+      (w, v)
     case True{}:
       run_dda(w, base, ox, oy, oz, dx, dy, dz, v)
 
@@ -391,8 +389,9 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # ---------- the player ----------
 
 # The camera is Data, shared down the fork; the world is the array, threaded.
+# `v` down the leaf is the row's sky colour, ready for the fog.
 type Cam is Data:
-  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32}
+  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, rw: U32, rh: U32}
 
 def look_x(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.sin(yaw) : F32)
 def look_y(+pit: F32) -> F32: F32.sin(pit)
@@ -401,13 +400,15 @@ def look_z(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.cos(yaw) : F32)
 def norm3(+x: F32, +y: F32, +z: F32) -> F32:
   F32.sqrt((x * x + y * y + z * z : F32))
 
-def p2f(+p: U32) -> F32:
-  (U32.to_f32(p) / half() - 1.0 : F32)
+# the screen in the camera's units: the height spans -1..1, the width by
+# its aspect
+def p2f(+p: U32, +size: U32, +rh: U32) -> F32:
+  ((U32.to_f32((p * 2 : U32)) - U32.to_f32(size)) / U32.to_f32(rh) : F32)
 
 def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  Cam{ox, oy, oz, yaw, pit, base, sel} = cam
-  +u = p2f(pxi)
-  +v = p2f(pyi)
+  Cam{ox, oy, oz, yaw, pit, base, sel, +rw, +rh} = cam
+  +u = p2f(pxi, rw, rh)
+  +v = p2f(pyi, rh, rh)
   +fx = look_x(yaw, pit)
   +fy = look_y(pit)
   +fz = look_z(yaw, pit)
@@ -423,41 +424,43 @@ def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32
   +dy = (fy + 0.9 * v * uy : F32)
   +dz = (fz + 0.9 * u * rz + 0.9 * v * uz : F32)
   +n = F32.max(norm3(dx, dy, dz), 0.00001)
-  clipped(w, base, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), band(pyi))
+  clipped(w, base, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), sky_at(band(pyi), rh))
 
 # a crosshair straight over the middle
-def cross_at(+pxi: U32, +pyi: U32) -> Bool:
-  +dx = Bool.pick(U32, (pxi > halfu() : U32), (pxi - halfu() : U32), (halfu() - pxi : U32))
-  +dy = Bool.pick(U32, (pyi > halfu() : U32), (pyi - halfu() : U32), (halfu() - pyi : U32))
+def cross_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> Bool:
+  +hx = (rw / 2 : U32)
+  +hy = (rh / 2 : U32)
+  +dx = Bool.pick(U32, (pxi > hx : U32), (pxi - hx : U32), (hx - pxi : U32))
+  +dy = Bool.pick(U32, (pyi > hy : U32), (pyi - hy : U32), (hy - pyi : U32))
   ((dx < 1 : U32) && (dy < 5 : U32)) || ((dy < 1 : U32) && (dx < 5 : U32))
 
 # the hotbar: the eight block types in a row along the bottom, 20 px each
 # 4 apart, the chosen one framed in white
-def slot_at(+pxi: U32, +pyi: U32) -> U32:
-  +x0 = (halfu() - 94 : U32)
-  +y0 = (halfu() * 2 - 30 : U32)
+def slot_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+  +x0 = (rw / 2 - 94 : U32)
+  +y0 = (rh - 30 : U32)
   +inx = (pxi >= x0 : U32) && (pxi < (x0 + 188 : U32) : U32)
   +iny = (pyi >= y0 : U32) && (pyi < (y0 + 20 : U32) : U32)
   +inslot = ((pxi - x0) % 24 < 20 : U32)
   Bool.pick(U32, inx && iny && inslot, ((pxi - x0) / 24 + 1 : U32), 0)
 
-def slot_col(+sel: U32, +slot: U32, +pxi: U32, +pyi: U32) -> U32:
+def slot_col(+sel: U32, +slot: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   +i = (slot - 1 : U32)
-  +lx = ((pxi - (halfu() - 94)) % 24 : U32)
-  +ly = (pyi - (halfu() * 2 - 30) : U32)
+  +lx = ((pxi - (rw / 2 - 94)) % 24 : U32)
+  +ly = (pyi - (rh - 30) : U32)
   +border = (lx < 2 : U32) || (lx >= 18 : U32) || (ly < 2 : U32) || (ly >= 18 : U32)
   Bool.pick(U32, border, Bool.pick(U32, U32.is_eq(i, sel), rgb(255, 255, 255), rgb(40, 40, 40)),
             blockcol(i, False{}, 1.0))
 
 # what lies over the scene at this pixel: 0 nothing, else 1 + the colour
-def hud(+sel: U32, +pxi: U32, +pyi: U32) -> U32:
-  +slot = slot_at(pxi, pyi)
-  Bool.pick(U32, cross_at(pxi, pyi), (1 + rgb(255, 255, 255) : U32),
-    Bool.pick(U32, (slot > 0 : U32), (1 + slot_col(sel, slot, pxi, pyi) : U32), 0))
+def hud(+sel: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+  +slot = slot_at(pxi, pyi, rw, rh)
+  Bool.pick(U32, cross_at(pxi, pyi, rw, rh), (1 + rgb(255, 255, 255) : U32),
+    Bool.pick(U32, (slot > 0 : U32), (1 + slot_col(sel, slot, pxi, pyi, rw, rh) : U32), 0))
 
-def sel_of(+cam: Cam) -> U32:
-  Cam{ox, oy, oz, yaw, pit, base, sel} = cam
-  sel
+def hud_of(+cam: Cam, +pxi: U32, +pyi: U32) -> U32:
+  Cam{ox, oy, oz, yaw, pit, base, sel, rw, rh} = cam
+  hud(sel, pxi, pyi, rw, rh)
 
 def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
   match over:
@@ -467,7 +470,7 @@ def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32
       shade_px(cam, w, pxi, pyi)
 
 def pixel(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  +code = hud(sel_of(cam), pxi, pyi)
+  +code = hud_of(cam, pxi, pyi)
   paint((code > 0 : U32), code, cam, w, pxi, pyi)
 
 # ---------- tile, straight-line ----------
@@ -538,21 +541,40 @@ def quad(l: Array<U32> & (Image & Image), m: Array<U32> & (Image & Image)) -> Ar
   (wm, rs) = m
   quad_fin(wl, wm, pq, rs)
 
+# a leaf past the render's edge is one black Pix, no ray
+def tile(vis: Bool, +cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
+  match vis:
+    case True{}:
+      t4(cam, w, x, y)
+    case False{}:
+      (w, Pix{0})
+
 # fork down to 4x4 tiles: see RESOLUTION above.
 @unsafe
-def fork(+k: Nat, +cam: Cam, +w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
+def fork(+k: Nat, +cam: Cam, +w: Array<U32>, +rw: U32, +rh: U32, +x: U32, +y: U32) -> Array<U32> & Image:
   match k:
     case 0n:
-      t4(cam, w, x, y)
+      tile((x < rw : U32) && (y < rh : U32), cam, w, x, y)
     case 1n+e:
       +h = U32.shln(4, e)
       +x1 = (x + h : U32)
       +y1 = (y + h : U32)
-      p q r s = fork(e, cam, w, x, y) fork(e, cam, w, x1, y) fork(e, cam, w, x, y1) fork(e, cam, w, x1, y1)
+      p q r s = fork(e, cam, w, rw, rh, x, y) fork(e, cam, w, rw, rh, x1, y) fork(e, cam, w, rw, rh, x, y1) fork(e, cam, w, rw, rh, x1, y1)
       quad(two(p, q), two(r, s))
+
+# the levels of fork that cover the larger side with 4x4 leaves
+def depth_at(fuel: Nat, +side: U32, +m: U32, +k: U32) -> U32:
+  match fuel:
+    case 0n:
+      k
+    case 1n+f:
+      Bool.pick(U32, (side >= m : U32), k, depth_at(f, (side * 2 : U32), m, (k + 1 : U32)))
+
+def depth(+rw: U32, +rh: U32) -> Nat:
+  U32.to_nat(depth_at(12n, 4, U32.max(rw, rh), 0))
 
 # the frame: one `!` over the lane cube, the camera shared as Data and the
 # ring as the array both sides may read
 @unsafe
-def frame(+cam: Cam, +ring: Array<U32>) -> Array<U32> & Image:
-  fork!(7n, cam, ring, 0, 0)
+def frame(+cam: Cam, +ring: Array<U32>, +rw: U32, +rh: U32) -> Array<U32> & Image:
+  fork!(depth(rw, rh), cam, ring, rw, rh, 0, 0)
