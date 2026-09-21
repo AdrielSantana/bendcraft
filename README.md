@@ -122,8 +122,10 @@ fully hidden lakes return the exact atmospheric colour. Ripples tilt the
 surface normal with smooth value noise moved by the game clock. The noise
 uses world lattice addresses, so loading columns never drags the pattern.
 Its analytic gradient takes four hashes and no extra world loads; the
-normal fades at distance and grazing angles to limit shimmer and keep
-reflected rays above the water horizon. Its 8192-ms loop divides the day,
+normal fades with distance, to limit shimmer, and in the last degrees
+before the horizon; a mirrored ray that a steep ripple would send under
+the water is lifted back over it and made a unit again, so the tilt stays
+strong where reflections are strongest. Its 8192-ms loop divides the day,
 with no jump when the saved day clock wraps. Flag 20 disables ripples.
 No second world ray is cast; terrain reflections are the next shader step.
 Placing an inventory block displaces water, and edits survive ring reloads
@@ -621,8 +623,8 @@ sky reflection. Bits 25..31 are day
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
 `Render.looks()` enables them all. Day cycle off uses the original fixed
 sun for profiling. HUD off also disables the new count labels. The default
-picture intentionally changes with animated water normals:
-bench digest `076045524d393df1570308a9683b4705`; physics stays
+picture intentionally changes with stronger ripples kept over the horizon:
+bench digest `0b9d000fe324fdac57d1dcc98658ec91`; physics stays
 `73516c0ead87f8c1151e34d25b3ac32e`.
 
 Ripples, three alternated before/after rounds at 1470×796 with no game
@@ -646,6 +648,15 @@ the dearest look, about 5 ms of the 22.6, ahead of the shadow ray's 3.6:
 the wet intervals are tracked along every ray's 60 steps. The Codex session
 that wrote the ripples ended before these rounds; they were run afterwards
 on the same tree.
+
+The first ripples were too soft to see: on against off, three lake views
+differed by 3 levels of 255 at most. The tilt was 0.04 and faded out below
+14 degrees of elevation, where the reflection is strongest, because a
+stronger one sent mirrored rays under the horizon and failed its test. The
+tilt is now 0.15, fades only in the last 4 degrees, and the mirrored ray
+is lifted over the horizon: 15 levels, about 2% of the pixels, the same
+eight ripple tests, and the same frame (21 ms at 1470×796 and 39 at
+1920×1080 before and after, four alternated rounds).
 
 In the original profile, 52% of the rays reached a block after 24 steps
 on average; the rest walked the box's 60. Primary rays took three quarters

@@ -84,14 +84,23 @@ def slope(+base: U32, +x: F32, +z: F32) -> Slope:
 type Reflection is Data:
   Reflection{x: F32, y: F32, z: F32, cosine: F32}
 
+# A steep ripple seen at a grazing angle would send the mirrored ray under
+# the water. There it would meet another wave; the cheap stand-in is to
+# lift it back over the horizon and make it a unit again, so the tilt can
+# stay strong where reflections are strongest.
+def lifted(+rx: F32, ry: F32, +rz: F32, cosine: F32) -> Reflection:
+  +y = F32.max(ry, 0.02)
+  +k = (1.0 / F32.sqrt((rx * rx + y * y + rz * rz : F32)) : F32)
+  Reflection{(rx * k : F32), (y * k : F32), (rz * k : F32), F32.max(cosine, 0.0001)}
+
 def tilted(+dx: F32, +dy: F32, +dz: F32, +strength: F32, s: Slope) -> Reflection:
   Slope{gx, gz} = s
   +nx = (0.0 - strength * gx : F32)
   +nz = (0.0 - strength * gz : F32)
   +inv = (1.0 / F32.sqrt((nx * nx + 1.0 + nz * nz : F32)) : F32)
   +cosine = ((0.0 - dx * nx - dy - dz * nz) * inv : F32)
-  Reflection{(dx + 2.0 * cosine * nx * inv : F32), (dy + 2.0 * cosine * inv : F32),
-    (dz + 2.0 * cosine * nz * inv : F32), cosine}
+  lifted((dx + 2.0 * cosine * nx * inv : F32), (dy + 2.0 * cosine * inv : F32),
+    (dz + 2.0 * cosine * nz * inv : F32), cosine)
 
 def reflected(on: Bool, +base: U32, x: F32, z: F32, distance: F32,
               dx: F32, +dy: F32, dz: F32) -> Reflection:
@@ -99,11 +108,12 @@ def reflected(on: Bool, +base: U32, x: F32, z: F32, distance: F32,
     case False{}: Reflection{dx, (0.0 - dy : F32), dz, (0.0 - dy : F32)}
     case True{}:
       +angle = (U32.to_f32(clock(base)) * (6.2831853 / 8192.0) : F32)
-      # Fade before the horizon to avoid small distant shimmer and normals
-      # facing away from a grazing ray. This changes shading, not water volume.
-      +fade = (F32.clamp((0.0 - dy * 4.0 : F32), 0.0, 1.0)
+      # Fade with distance to avoid small distant shimmer, and only in the
+      # last degrees before the horizon: `lifted` keeps a grazing ray's
+      # mirror over the water. This changes shading, not water volume.
+      +fade = (F32.clamp((0.0 - dy * 16.0 : F32), 0.0, 1.0)
         * (1.0 - F32.clamp((distance / 32.0 : F32), 0.0, 1.0)) : F32)
-      tilted(dx, dy, dz, (0.04 * fade : F32),
+      tilted(dx, dy, dz, (0.15 * fade : F32),
         slope(base, (x + 256.0 + 0.8 * F32.sin(angle) : F32),
                     (z + 256.0 + 0.8 * F32.cos(angle) : F32)))
 

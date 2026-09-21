@@ -396,7 +396,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `076045524d393df1570308a9683b4705` when
+- `make bench`: the md5 of the thirty checksums stays `0b9d000fe324fdac57d1dcc98658ec91` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work
