@@ -612,7 +612,7 @@ def amount_at(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
 # (nibble 0), and a pour leaves it, even one that empties the cell for
 # the moment: the flow refills a source to full at the end of each step
 # it took part in, and the world counts the units its sources made, and
-# the units that dried (the sink: Flow.dries).
+# the units that dried (the sink: Flow.settle).
 def source_col(c: Col, +y: U32) -> Bool:
   Col{m, a, b, cc, d, water, lv} = c
   +k = (y / 8 : U32)
@@ -629,7 +629,7 @@ def make(w: World, +k: U32) -> World:
   W{ring, m, ox, oz, q, np, made, gone} = w
   W{ring, m, ox, oz, q, np, (made + k : U32), gone}
 
-# and the units that dried (Flow.dries)
+# and the units that dried (Flow.settle)
 def dry(w: World, +k: U32) -> World:
   W{ring, m, ox, oz, q, np, made, gone} = w
   W{ring, m, ox, oz, q, np, made, (gone + k : U32)}
@@ -637,9 +637,9 @@ def dry(w: World, +k: U32) -> World:
 # ---------- an edit ----------
 # (after the reads it needs: defs come before their use)
 
-# what a cell holding b takes of a
+# what a cell holding b takes of a: its room, none where the probe says 256
 def fits(+a: U32, +b: U32) -> U32:
-  U32.min(a, (full() - b : U32))
+  U32.min(a, (full() - U32.min(b, full()) : U32))
 
 # the amount at a cell, or 256 where water cannot go: a solid cell, one
 # outside the ring, one over or under the world (the flow's probe too)
@@ -673,8 +673,8 @@ def shove_put(open: Bool, +lx: U32, +y: U32, +lz: U32, +b: U32, +give: U32, w: W
     case True{}:
       mark_around(pour(w, lx, y, lz, (b + give : U32)), lx, y, lz)
 
-def shove_next(+lx: U32, +y: U32, +lz: U32, +b: U32, +give: U32, w: World) -> World & U32:
-  probe(shove_put((b < 256 : U32), lx, y, lz, b, give, w), lx, (y + 1 : U32), lz)
+def shove_next(open: Bool, +lx: U32, +y: U32, +lz: U32, +b: U32, +give: U32, w: World) -> World & U32:
+  probe(shove_put(open, lx, y, lz, b, give, w), lx, (y + 1 : U32), lz)
 
 def shove_fin(n: Nat, done: Bool, +lx: U32, +y: U32, +lz: U32, +a: U32, r: World & U32) -> World:
   match n:
@@ -689,9 +689,9 @@ def shove_fin(n: Nat, done: Bool, +lx: U32, +y: U32, +lz: U32, +a: U32, r: World
         case False{}:
           (w, +b) = r
           +open = (b < 256 : U32)
-          +give = Bool.pick(U32, open, fits(a, b), 0)
+          +give = fits(a, b)
           +rest = (a - give : U32)
-          shove_fin(k, Bool.not(open) || U32.is_eq(rest, 0), lx, (y + 1 : U32), lz, rest, shove_next(lx, y, lz, b, give, w))
+          shove_fin(k, Bool.not(open) || U32.is_eq(rest, 0), lx, (y + 1 : U32), lz, rest, shove_next(open, lx, y, lz, b, give, w))
 
 def shove_if(some: Bool, w: World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World:
   match some:

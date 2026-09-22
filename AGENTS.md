@@ -101,7 +101,7 @@ make profile    # what each look costs, at four sizes
 - **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `cfa229e5b4c12605128807164522ad0d` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
-digest. `bend test/physics.bend | md5` is `6a91573e0b1e...`; same rule.
+digest. `bend test/physics.bend | md5` is `26eafd3e7eb6...`; same rule.
 - **The frame's time.** Compare two builds by alternated runs and their
 fastest frames, swapping the order every round (the build that runs
 second reads slower on a busy machine), never by one run: the small sizes read twice as slow on a
@@ -219,12 +219,13 @@ slots; it is absent from solid collision, picking and shadow masks. A
 source is type 9 (the spring, key `9`, `Player.receipt` spends nothing
 for it): a water cell whose type nibble is 9 (`World.source_at`, the
 nibble alone, so a source emptied by its own step is still one); the
-flow refills it at the end of its step (`Flow.refill`) and counts the
+flow refills it at the end of its step (`Flow.settle`) and counts the
 units in `World.made` (the seventh field of `World.W`, beside
 `partials`). The sink: any other cell holding under `Flow.thin()` (4)
-units at the end of its step, resting on a solid or on full water,
-dries (`Flow.dries`, `Flow.settle`), counted in `World.gone` (the
-eighth field). A closed basin holds placed + made − gone, exactly. A
+units at the end of its step dries (`Flow.settle` too), counted in
+`World.gone` (the eighth field); a cell holding water then rests on a
+solid or on full water, since the down move took all that fit, so
+falling water never dries. A closed basin holds placed + made − gone, exactly. A
 solid placed on water shoves its amount up the column (`World.shove`,
 from `World.edit`; `World.probe` is the flow's probe, moved here; the
 edit block sits at the end of world.bend since defs come before use);

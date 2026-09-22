@@ -24,10 +24,6 @@ import ./world.bend as World
 
 # ---------- one transfer ----------
 
-# what goes down: all that fits under, where under is not solid (256)
-def down_take(+a: U32, +b: U32) -> U32:
-  Bool.pick(U32, (b < 256 : U32), World.fits(a, b), 0)
-
 # what goes to a side: half the difference, floored, only where the
 # neighbour holds less; a lone unit stays, two share
 def side_take(+a: U32, +n: U32) -> U32:
@@ -46,11 +42,6 @@ def move_if(some: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32, +n
       move(w, lx, y, lz, a, nx, ny, nz, b, k)
 
 # ---------- one cell ----------
-
-# the amount at a neighbour, or 256 where the flow cannot go: a solid
-# cell, one under the world, one outside the ring (World.probe)
-def probe(w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World & U32:
-  World.probe(w, lx, y, lz)
 
 # the sides in the tick's order: +x, -x, +z, -z on an even tick, the
 # reverse on an odd one (a step of -1 wraps, and the probe says outside)
@@ -77,7 +68,7 @@ def sides(n: Nat, +lx: U32, +y: U32, +lz: U32, +a: U32, +i: U32, +odd: Bool, +nx
       +nx2 = (lx + side_x(j) : U32)
       +nz2 = (lz + side_z(j) : U32)
       sides(m, lx, y, lz, (a - k : U32), (i + 1 : U32), odd, nx2, nz2,
-        probe(move_if((k > 0 : U32), w, lx, y, lz, a, nx, y, nz, b, k), nx2, y, nz2))
+        World.probe(move_if((k > 0 : U32), w, lx, y, lz, a, nx, y, nz, b, k), nx2, y, nz2))
 
 # the sides only while something is left
 def sides_if(some: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32, +odd: Bool) -> World.World:
@@ -88,11 +79,11 @@ def sides_if(some: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32, +
       +j = side_of(0, odd)
       +nx = (lx + side_x(j) : U32)
       +nz = (lz + side_z(j) : U32)
-      sides(3n, lx, y, lz, a, 0, odd, nx, nz, probe(w, nx, y, nz))
+      sides(3n, lx, y, lz, a, 0, odd, nx, nz, World.probe(w, nx, y, nz))
 
 def down_fin(+lx: U32, +y: U32, +lz: U32, +a: U32, +odd: Bool, r: World.World & U32) -> World.World:
   (w, +b) = r
-  +k = down_take(a, b)
+  +k = World.fits(a, b)
   sides_if((k < a : U32), move_if((k > 0 : U32), w, lx, y, lz, a, lx, (y - 1 : U32), lz, b, k), lx, y, lz, (a - k : U32), odd)
 
 def cell_if(some: Bool, +lx: U32, +y: U32, +lz: U32, +a: U32, +odd: Bool, w: World.World) -> World.World:
@@ -100,36 +91,22 @@ def cell_if(some: Bool, +lx: U32, +y: U32, +lz: U32, +a: U32, +odd: Bool, w: Wor
     case False{}:
       w
     case True{}:
-      down_fin(lx, y, lz, a, odd, probe(w, lx, (y - 1 : U32), lz))
+      down_fin(lx, y, lz, a, odd, World.probe(w, lx, (y - 1 : U32), lz))
 
 def cell_fin(+lx: U32, +y: U32, +lz: U32, +odd: Bool, r: World.World & U32) -> World.World:
   (w, +a) = r
   cell_if((a > 0 : U32), lx, y, lz, a, odd, w)
 
-# ---------- a source ----------
+# ---------- the end of a cell's step ----------
 
-# what a source holding a makes when it refills
-def refilled(+a: U32) -> U32:
-  (World.full() - a : U32)
-
-# a source refills to full at the end of its step, and the world counts
-# what it made; one that gave nothing made nothing
-def refill_fin(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World:
-  (w, +a) = r
-  World.make(World.pour(w, lx, y, lz, World.full()), refilled(a))
-
-# ---------- the sink ----------
-
-# The model needs one: a spring's spill, with nothing to remove it, would
-# spread as a film over every flat reach without end. Thin water dries: a
-# cell resting on the ground (a solid under it, 256, or full water, 255)
-# that holds under `thin` units at the end of its step loses them, and
-# the world counts what went. Falling water never dries, and a lake at
-# rest holds ten units a cell and more, so it is untouched.
+# A source refills to full, and the world counts what it made. Any other
+# cell that still holds under `thin` units loses them, counted: the sink
+# the model needs, since a spring's spill with nothing to remove it would
+# spread as a film over every flat reach without end. A cell that holds
+# water at the end of its step rests on a solid or on full water (the
+# down move took all that fit), so falling water never dries, and a lake
+# at rest holds ten units a cell and more.
 def thin() -> U32: 4
-
-def dries(+a: U32, +under: U32) -> Bool:
-  (a > 0 : U32) && (a < thin() : U32) && (under >= 255 : U32)
 
 def dry_if(gone: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World.World:
   match gone:
@@ -138,33 +115,18 @@ def dry_if(gone: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> 
     case True{}:
       World.dry(World.pour(w, lx, y, lz, 0), a)
 
-def dry_go(+lx: U32, +y: U32, +lz: U32, +a: U32, r: World.World & U32) -> World.World:
-  (w, +under) = r
-  dry_if(dries(a, under), w, lx, y, lz, a)
-
-# the probe under the cell only where the cell is thin
-def dry_thin(thin_here: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World.World:
-  match thin_here:
-    case False{}:
-      w
-    case True{}:
-      dry_go(lx, y, lz, a, probe(w, lx, (y - 1 : U32), lz))
-
-def dry_fin(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World:
-  (w, +a) = r
-  dry_thin((a > 0 : U32) && (a < thin() : U32), w, lx, y, lz, a)
-
-# the end of a cell's step: a source refills, any other cell may dry
-def settle_if(src: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World:
+def settle_if(src: Bool, +lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World:
   match src:
     case True{}:
-      refill_fin(lx, y, lz, World.amount_at(w, lx, y, lz))
+      (w, +a) = r
+      World.make(World.pour(w, lx, y, lz, World.full()), (World.full() - a : U32))
     case False{}:
-      dry_fin(lx, y, lz, World.amount_at(w, lx, y, lz))
+      (w, +a) = r
+      dry_if((a > 0 : U32) && (a < thin() : U32), w, lx, y, lz, a)
 
 def settle(+lx: U32, +y: U32, +lz: U32, r: World.World & Bool) -> World.World:
   (w, src) = r
-  settle_if(src, w, lx, y, lz)
+  settle_if(src, lx, y, lz, World.amount_at(w, lx, y, lz))
 
 # the step of one cell: down, then the sides, then the refill or the drying
 def step(w: World.World, +lx: U32, +y: U32, +lz: U32, +odd: Bool) -> World.World:

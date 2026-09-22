@@ -238,15 +238,17 @@ block moves; that is the first gate of every step below.
   rule gives only to cells holding less), so under a full layer it
   rests: a spring feeds what lies beside and below it.
 - **The sink.** As built (2026-09-22, the commit after the sources):
-  thin water dries. A cell resting on the ground (a solid under it, or
-  full water) that holds under `Flow.thin()` = 4 units at the end of its
-  step loses them, and the world counts what went (`World.gone`);
-  falling water never dries; a source never dries (it refills instead).
+  thin water dries. A cell that holds under `Flow.thin()` = 4 units at
+  the end of its step loses them, and the world counts what went
+  (`World.gone`); a source refills instead. A cell holding water at the
+  end of its step rests on a solid or on full water (the down move took
+  all that fit), so falling water never dries; the first build probed
+  the cell under to say so, and the probe went with that observation.
   A lake at rest holds ten units a cell and more, so it is untouched; a
   bucket of 255 units spread over a 5×5 floor dries six at its thin edge
   and rests at 249; a spring on open ground holds at about 180 wet
-  cells, making and drying a hundred units a tick. Five laws on
-  `Flow.dries`; the tests above carry the accounting.
+  cells, making and drying a hundred units a tick. The tests carry the
+  accounting.
 - **The active set.** As built (2026-09-22): a word of marks per column
   in the ring (slot 14, bit y: the cell is due a step) and a queue of the
   marked columns' slots in the world, oldest first, each once while its
@@ -294,9 +296,14 @@ block moves; that is the first gate of every step below.
   — done 2026-09-22: in water at the waist (`World.wet_at`, under the
   cell's plane) the lift nearly balances gravity (a sink of 0.02 a tick,
   drag 0.85), space swims up to a bob at the surface with the eye 0.8
-  over it, a stroke is 0.08 against the walk's 0.16, and no jump off the
-  bed; the old physics lines are byte for byte the same and eight swim
-  lines follow them, hash 6a91573e0b1efe2a3dba840c26b83540; the digest
+  over it, a stroke is 0.08 against the walk's 0.16. A wall met swimming
+  is a bank: the player pushes off it as off the ground (the jump's 0.2,
+  `Player.step_bump`), a push the water's clamp holds to 0.06 a tick
+  until the waist is out, where it carries them over the bank: the
+  first build had no way out of a river (the user, 2026-09-22), and its
+  "no jump off the bed" rule went, since the clamp already held that
+  jump. The old physics lines are byte for byte the same and eight swim
+  lines follow them, hash 26eafd3e7eb6f0ff35d6f2063eb995df; the digest
   unchanged. Breath later.
 - **What step 2 found: the unit is too coarse.** The rule moves nothing
   between neighbours a unit apart, so a surface at rest may slope one

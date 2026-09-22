@@ -278,9 +278,9 @@ def main() -> IO(Unit):
     expect(decode_ok(1048512, 1048512, 5, 100) && decode_ok(1048512, 1048512, 0, 0) && decode_ok(1048512, 1048512, 127, 127)
       && decode_ok(1048530, 1048499, 64, 64) && decode_ok(0, 0, 3, 4) && decode_ok(1048512, 1048600, 127, 40),
       "a queued slot decodes to its local column at any origin")
-    expect(U32.is_eq(Flow.down_take(255, 0), 255) && U32.is_eq(Flow.down_take(255, 100), 155) && U32.is_eq(Flow.down_take(3, 5), 3)
-      && U32.is_eq(Flow.down_take(255, 255), 0) && U32.is_eq(Flow.down_take(255, 256), 0),
-      "down takes what fits under, nothing into a solid")
+    expect(U32.is_eq(World.fits(255, 0), 255) && U32.is_eq(World.fits(255, 100), 155) && U32.is_eq(World.fits(3, 5), 3)
+      && U32.is_eq(World.fits(255, 255), 0) && U32.is_eq(World.fits(255, 256), 0),
+      "a cell takes what fits, nothing into a solid")
     expect(U32.is_eq(Flow.side_take(255, 0), 127) && U32.is_eq(Flow.side_take(255, 1), 127) && U32.is_eq(Flow.side_take(2, 0), 1) && U32.is_eq(Flow.side_take(1, 0), 0)
       && U32.is_eq(Flow.side_take(5, 4), 0) && U32.is_eq(Flow.side_take(4, 5), 0) && U32.is_eq(Flow.side_take(255, 256), 0),
       "a side takes half the difference, floored, only from more")

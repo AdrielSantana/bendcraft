@@ -157,7 +157,7 @@ units first gives the cell below what fits, min(a, 255 - b), then each
 of its four sides that holds less takes floor((a - n) / 2) of what is
 left, in an order that reverses on odd ticks; every transfer is two
 `World.pour` at once, so the volume is kept by construction and no cell
-leaves 0..255 (thirteen laws, and the tests sum a basin over ticks). A neighbour
+leaves 0..255 (ten laws, and the tests sum a basin over ticks). A neighbour
 outside the window is solid, so a lake that reaches the edge holds. The
 marks: an edit marks its cell, the one above and the four sides; a move
 marks the cell that lost water, the one above it and its sides, and the
@@ -195,10 +195,11 @@ one), and a tick without sources makes nothing.
 The sink: a model with sources needs one, or a spring's spill spreads
 as a film of a few units over every flat reach it comes to, without end
 (400 ticks on the spawn's hill, before the sink: 18777 units made, 1212
-wet cells and growing a cell a tick). Thin water dries: a cell resting
-on the ground (a solid under it, or full water) that holds under four
-units at the end of its step loses them, and the world counts what went
-(`World.gone`); falling water never dries, and a lake at rest holds ten
+wet cells and growing a cell a tick). Thin water dries: a cell that
+holds under four units at the end of its step loses them, and the world
+counts what went (`World.gone`). A cell that holds water at the end of
+its step rests on a solid or on full water, since the down move took all
+that fit, so falling water never dries; and a lake at rest holds ten
 units a cell and more, so it is untouched. The accounting now reads:
 what a basin holds is what was placed plus what its sources made less
 what dried (a bucket of 255 units spread over a floor dries six at its
@@ -339,9 +340,13 @@ player swims (`Player.step_swim`, `World.wet_at`: the cell holds water and
 the waist is under its plane): the water's lift nearly balances gravity, so
 they sink at a fiftieth of a block a tick and drag; space swims up, to a
 bob at the surface with the eye eight tenths over it; a stroke is half a
-step, and there is no jump off the bed. Out of water nothing changed: the
-old fixture's lines are the same, and eight swim lines follow them
-(`bend test/physics.bend | md5` is `6a91573e0b1efe2a3dba840c26b83540`).
+step; and a wall met swimming is a bank: the player pushes off it as off
+the ground, a push the water's clamp holds down until the waist is out,
+where it carries them over the bank (the fixture's stroke climbs out of
+the lake, and the walk back crosses it and climbs the far shore). Out of
+water nothing changed: the old fixture's lines are the same, and eight
+swim lines follow them
+(`bend test/physics.bend | md5` is `26eafd3e7eb6f0ff35d6f2063eb995df`).
 A block is never placed on
 the player. The hotbar along the bottom shows the eight block types and
 the spring and frames the chosen one, with the available count below
@@ -958,16 +963,14 @@ its byte, a byte written reads back and leaves the others, the device's
 read agrees with the host's, water placed is a full cell, a solid placed
 holds none, a pour sets the amount and the bit, clears the bit at zero,
 caps at 255 and does nothing to a solid, and the partial mask has a bit
-for a poured cell and none for a full one. Thirteen flow laws bound one
-transfer. Ten source laws: the spring places a full water cell that is
+for a poured cell and none for a full one. Ten flow laws bound one
+transfer. Eight source laws: the spring places a full water cell that is
 a source, plain water is not one, a bank blocks it, a pour keeps it, a
-solid over it ends it, a source refills what it gave and a full one
-makes nothing, and the spring is the ninth slot. Five sink laws: a film
-on the ground or on full water dries, falling water never does, four
-units stay, nothing dries nothing. Six shove laws: what fits is the
-room, all of less, nothing in full; a solid placed on water shoves its
-amount, water placed and a break shove nothing. There are 149 laws:
-eight universal claims and 141 concrete
+solid over it ends it, and the spring is the ninth slot. Seven shove
+laws: what fits is the room, all of less, nothing in full or in a
+solid; a solid placed on water shoves its amount, water placed and a
+break shove nothing. There are 140 laws:
+eight universal claims and 132 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

@@ -375,34 +375,8 @@ law a_pour_keeps_the_source:
 law a_solid_over_a_source_ends_it:
   {World.source_col(World.edit_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9), 10, True{}, 2), 10) == False{} : Bool}
 
-law a_source_refills_what_it_gave:
-  {Flow.refilled(100) == 155 : U32}
-
-law a_full_source_makes_nothing:
-  {Flow.refilled(255) == 0 : U32}
-
 law the_spring_is_the_ninth_slot:
   {(Inventory.hud_lo(8, Inventory.empty()) % 16 : U32) == 8 : U32}
-
-# --- the sink: thin water on the ground dries ------------------------------
-# A cell resting on a solid (256 under it) or on full water (255) that
-# holds under four units at the end of its step loses them; falling water
-# never dries, four units stay, and nothing dries nothing.
-
-law a_film_on_the_ground_dries:
-  {Flow.dries(3, 256) == True{} : Bool}
-
-law a_film_on_full_water_dries:
-  {Flow.dries(3, 255) == True{} : Bool}
-
-law falling_water_never_dries:
-  {Flow.dries(3, 0) == False{} : Bool}
-
-law four_units_stay:
-  {Flow.dries(4, 256) == False{} : Bool}
-
-law nothing_dries_nothing:
-  {Flow.dries(0, 256) == False{} : Bool}
 
 # --- a solid placed in water shoves the water up ------------------------------
 # What a cell holding b takes of a is what fits, and the shove's probe says
@@ -416,6 +390,9 @@ law what_fits_is_all_of_less:
 
 law nothing_fits_in_full:
   {World.fits(10, 255) == 0 : U32}
+
+law nothing_fits_in_a_solid:
+  {World.fits(255, 256) == 0 : U32}
 
 law a_solid_placed_on_water_shoves_its_amount:
   {World.shoved(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 100), 10, True{}, 2) == (World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 100), 100) : World.Col & U32}
@@ -529,18 +506,10 @@ law mirror_look_keeps_the_readout:
   {Render.stat_fps(Render.stat_flags(1048576, 0, 8), Render.stat_items(0, 8), Water.with_looks(Water.frame_base(Render.stat_base(16383, 8), 8191), Render.looks_base())) == 8 : U32}
 
 # --- the flow: one transfer ----------------------------------------------
-# (what moves is a function of two amounts, and the move is two pours, a - k
-# and b + k, so the volume is kept by construction: pour's laws above; the
-# tests in test/flow.bend sum a basin over ticks)
-
-law down_takes_all_that_fits:
-  {Flow.down_take(255, 100) == 155 : U32}
-
-law down_takes_all_there_is:
-  {Flow.down_take(3, 5) == 3 : U32}
-
-law down_into_a_solid_is_nothing:
-  {Flow.down_take(255, 256) == 0 : U32}
+# (what moves is a function of two amounts, down what fits (World.fits
+# above), and the move is two pours, a - k and b + k, so the volume is kept
+# by construction: pour's laws above; the tests in test/flow.bend sum a
+# basin over ticks)
 
 law a_side_takes_half_the_difference:
   {Flow.side_take(255, 1) == 127 : U32}
