@@ -221,7 +221,10 @@ for it): a water cell whose type nibble is 9 (`World.source_at`, the
 nibble alone, so a source emptied by its own step is still one); the
 flow refills it at the end of its step (`Flow.refill`) and counts the
 units in `World.made` (the seventh field of `World.W`, beside
-`partials`).
+`partials`). The sink: any other cell holding under `Flow.thin()` (4)
+units at the end of its step, resting on a solid or on full water,
+dries (`Flow.dries`, `Flow.settle`), counted in `World.gone` (the
+eighth field). A closed basin holds placed + made − gone, exactly.
 - `main.bend` runs the window's loop itself (not `App.run`), with a `Stat`
 beside the `Game`; `Save.tick` is the game's tick.
 - Bend's shape rules met here: a `match` (or a record or pair open) must

@@ -17,7 +17,7 @@ def expect(ok: Bool, name: String) -> IO(Unit):
       IO.die(Unit, 1, "failed " ++ name)
 
 def empty() -> World.World:
-  World.W{[0 : U32^18n], Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}
+  World.W{[0 : U32^18n], Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0, 0}
 
 # ---------- building ----------
 
@@ -105,7 +105,7 @@ def spring_pool() -> World.World:
 # (Sum, Most: from (x, y, z), n cells a side, one less as a Nat), the
 # marks of a column (Marks), the queue's length (Queued), the count of
 # partial cells (Partials), whether a cell is a source (Source, 1 or 0),
-# the units the sources made (Made)
+# the units the sources made (Made), the units that dried (Gone)
 type Ask is Data:
   At{x: U32, y: U32, z: U32}
   Sum{x: U32, y: U32, z: U32, nx: Nat, ny: Nat, nz: Nat}
@@ -115,6 +115,7 @@ type Ask is Data:
   Partials{}
   Source{x: U32, y: U32, z: U32}
   Made{}
+  Gone{}
 
 def combine(+summing: Bool, +acc: U32, +v: U32) -> U32:
   Bool.pick(U32, summing, (acc + v : U32), U32.max(acc, v))
@@ -153,17 +154,21 @@ def box(w: World.World, +summing: Bool, +x: U32, +y: U32, +z: U32, +nx: Nat, +ny
   layers(ny, summing, x, y, z, nx, nz, 0, rows(nx, summing, x, y, z, nz, 0, row(nz, summing, x, y, z, 0, World.amount_at(w, x, y, z))))
 
 def queued(w: World.World) -> World.World & U32:
-  World.W{ring, m, ox, oz, q, np, made} = w
+  World.W{ring, m, ox, oz, q, np, made, gone} = w
   +n = U32.from_nat(List.length(&2, U32, q))
-  (World.W{ring, m, ox, oz, Nil{}, np, made}, n)
+  (World.W{ring, m, ox, oz, Nil{}, np, made, gone}, n)
 
 def partials(w: World.World) -> World.World & U32:
-  World.W{ring, m, ox, oz, q, +np, made} = w
-  (World.W{ring, m, ox, oz, q, np, made}, np)
+  World.W{ring, m, ox, oz, q, +np, made, gone} = w
+  (World.W{ring, m, ox, oz, q, np, made, gone}, np)
 
 def made(w: World.World) -> World.World & U32:
-  World.W{ring, m, ox, oz, q, np, +made} = w
-  (World.W{ring, m, ox, oz, q, np, made}, made)
+  World.W{ring, m, ox, oz, q, np, +made, gone} = w
+  (World.W{ring, m, ox, oz, q, np, made, gone}, made)
+
+def gone(w: World.World) -> World.World & U32:
+  World.W{ring, m, ox, oz, q, np, made, +gone} = w
+  (World.W{ring, m, ox, oz, q, np, made, gone}, gone)
 
 def source_of(r: World.World & Bool) -> World.World & U32:
   (w, s) = r
@@ -187,6 +192,8 @@ def measure(w: World.World, q: Ask) -> World.World & U32:
       source_of(World.source_at(w, x, y, z))
     case Made{}:
       made(w)
+    case Gone{}:
+      gone(w)
 
 # the answers in the questions' order, one measure ahead
 def answers(qs: List<&2, Ask>, acc: List<&2, U32>, r: World.World & U32) -> List<&2, U32>:
@@ -300,13 +307,13 @@ def main() -> IO(Unit):
       "a full cell on a floor spreads to its sides, in the tick's order, halving what is left")
     expect(same(query(ticks(1n, 1, Flow.budget(), pool()), At{62, 10, 61} <> At{62, 10, 63} <> At{61, 10, 62} <> At{63, 10, 62} <> Nil{}),
       127 <> 64 <> 32 <> 16 <> Nil{}), "an odd tick takes the sides in the reverse order")
-    expect(same(query(ticks(40n, 0, Flow.budget(), pool()), over(60, 10, 60) <> Queued{} <> Nil{}), 255 <> 0 <> Nil{})
+    expect(same(query(ticks(40n, 0, Flow.budget(), pool()), over(60, 10, 60) <> Gone{} <> Queued{} <> Nil{}), 249 <> 6 <> 0 <> Nil{})
       && (nth(query(ticks(40n, 0, Flow.budget(), pool()), layer(60, 10, 60) <> Nil{}), 0n) < 14 : U32),
-      "forty ticks on, the 255 units lie flat over the basin, no cell over thirteen (a level lake is 10.2 a cell), the queue empty")
-    expect(same(query(ticks(41n, 0, Flow.budget(), pool()), over(60, 10, 60) <> Nil{}), 255 <> Nil{}), "a tick more changes nothing")
+      "forty ticks on, the units lie flat over the basin, no cell over thirteen (a level lake is 10 a cell), the queue empty; six of the 255 dried at the spread's thin edge")
+    expect(same(query(ticks(41n, 0, Flow.budget(), pool()), over(60, 10, 60) <> Nil{}), 249 <> Nil{}), "a tick more changes nothing")
     expect(same(query(ticks(60n, 0, Flow.budget(), water(water(pool(), 62, 11, 62), 62, 12, 62)),
-        over(60, 10, 60) <> layer(60, 11, 60) <> Nil{}), 765 <> 0 <> Nil{}),
-      "three cells of water over the floor spread to one layer")
+        over(60, 10, 60) <> layer(60, 11, 60) <> Gone{} <> Nil{}), 764 <> 0 <> 1 <> Nil{}),
+      "three cells of water over the floor spread to one layer, a unit dried")
     # a wall holds
     expect(same(query(ticks(40n, 0, Flow.budget(), water(wall_z(5n, basin(60, 60, 5, 5n), 62, 60), 61, 10, 62)),
         over(60, 10, 60) <> Sum{63, 10, 60, 1n, 21n, 4n} <> Nil{}), 255 <> 0 <> Nil{}),
@@ -316,11 +323,11 @@ def main() -> IO(Unit):
         Sum{0, 10, 0, 2n, 21n, 2n} <> Sum{125, 0, 125, 2n, 31n, 2n} <> Nil{}), 255 <> 0 <> Nil{}),
       "water at the ring's corner spreads inward only, the edge closed, and none wraps to the far corner")
     # the budget
-    expect(same(query(ticks(200n, 0, 2n, pool()), over(60, 10, 60) <> Queued{} <> Nil{}), 255 <> 0 <> Nil{}),
-      "two columns a tick, the same pool settles, nothing lost or made")
+    expect(same(query(ticks(200n, 0, 2n, pool()), over(60, 10, 60) <> Gone{} <> Queued{} <> Nil{}), 249 <> 6 <> 0 <> Nil{}),
+      "two columns a tick, the same pool settles the same, nothing lost or made but the six that dried")
     # the load marks
     expect(same(query(World.load(World.W{[0 : U32^18n], Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
-          World.col6(1023, 0, 0, 0, 0, 3072)), 0, 0, Nil{}, 0, 0}, 50, 50),
+          World.col6(1023, 0, 0, 0, 0, 3072)), 0, 0, Nil{}, 0, 0, 0}, 50, 50),
         Marks{50, 50} <> Marks{51, 50} <> Marks{50, 49} <> Queued{} <> Nil{}), 3072 <> 4294967295 <> 4294967295 <> 5 <> Nil{}),
       "a saved column loads marked where it is wet, its sides marked whole")
     expect(same(query(water(basin(60, 60, 5, 5n), 62, 10, 62), Partials{} <> Nil{}), 0 <> Nil{})
@@ -346,7 +353,8 @@ def main() -> IO(Unit):
       255 <> 127 <> 64 <> 32 <> 16 <> 239 <> 494 <> Nil{}),
       "a tick on, the source gave its sides what a full cell gives and is full again: it made the 239 it gave")
     expect(U32.is_eq(nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), over(60, 10, 60) <> Nil{}), 0n),
-        (255 + nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), Made{} <> Nil{}), 0n) : U32))
+        (255 + nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), Made{} <> Nil{}), 0n)
+          - nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), Gone{} <> Nil{}), 0n) : U32))
       && (nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), Made{} <> Nil{}), 0n) > 5000 : U32)
       && same(query(ticks(200n, 0, Flow.budget(), spring_pool()), layer(60, 11, 60) <> Queued{} <> Nil{}), 0 <> 0 <> Nil{}),
       "a hundred ticks on, the basin holds the source and all it made, thousands of units, none lost or duplicated; the layer fills to within a unit of the source and no higher, since a source pushes nothing up, and the spring rests")
@@ -356,8 +364,24 @@ def main() -> IO(Unit):
            nth(query(ticks(10n, 0, Flow.budget(), spring_pool()), Made{} <> Nil{}), 0n)),
       "a stone placed on the source ends it: the cell holds no water and nothing more is made")
     expect(same(query(ticks(40n, 0, Flow.budget(), pool()), Made{} <> Nil{}), 0 <> Nil{}), "a tick without sources makes nothing")
+    # the sink: thin water on the ground dries
+    expect(same(query(ticks(1n, 0, Flow.budget(), World.mark_around(World.pour(basin(60, 60, 5, 5n), 62, 10, 62, 3), 62, 10, 62)),
+        At{62, 10, 62} <> At{63, 10, 62} <> Gone{} <> Nil{}), 0 <> 1 <> 1 <> Nil{})
+      && same(query(ticks(3n, 0, Flow.budget(), World.mark_around(World.pour(basin(60, 60, 5, 5n), 62, 10, 62, 3), 62, 10, 62)),
+        over(60, 10, 60) <> Gone{} <> Queued{} <> Nil{}), 0 <> 3 <> 0 <> Nil{})
+      && same(query(ticks(3n, 0, Flow.budget(), World.mark_around(World.pour(basin(60, 60, 5, 5n), 62, 10, 62, 4), 62, 10, 62)),
+        over(60, 10, 60) <> Gone{} <> Nil{}), 0 <> 4 <> Nil{}),
+      "a film of three units on the floor shares two out and dries the rest; the two dry at their turn: three gone, the floor dry; four units go the same way")
+    expect(same(query(ticks(1n, 0, Flow.budget(), World.mark_around(World.pour(basin(64, 64, 1, 1n), 64, 15, 64, 3), 64, 15, 64)),
+        At{64, 15, 64} <> At{64, 14, 64} <> Gone{} <> Nil{}), 0 <> 3 <> 0 <> Nil{})
+      && same(query(ticks(8n, 0, Flow.budget(), World.mark_around(World.pour(basin(64, 64, 1, 1n), 64, 15, 64, 3), 64, 15, 64)),
+        At{64, 10, 64} <> Gone{} <> Nil{}), 0 <> 3 <> Nil{}),
+      "three units falling down a shaft never dry; landed on the floor they do")
+    expect(same(query(ticks(1n, 0, Flow.budget(), World.mark_around(World.pour(water(basin(64, 64, 1, 1n), 64, 10, 64), 64, 11, 64, 3), 64, 11, 64)),
+        At{64, 11, 64} <> At{64, 10, 64} <> Gone{} <> Nil{}), 0 <> 255 <> 3 <> Nil{}),
+      "three units resting on full water dry too, the water under them whole")
     expect(same(query(ticks(1n, 0, Flow.budget(), World.load(World.W{[0 : U32^18n], Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
-          World.col6(0, 0, 2304, 0, 0, 1024)), 0, 0, Nil{}, 0, 0}, 50, 50)),
+          World.col6(0, 0, 2304, 0, 0, 1024)), 0, 0, Nil{}, 0, 0, 0}, 50, 50)),
         Source{50, 10, 50} <> At{50, 10, 50} <> At{50, 9, 50} <> Made{} <> Nil{}), 1 <> 255 <> 255 <> 255 <> Nil{}),
       "a saved source loads as one, and over air it makes a cell a tick")
     # the game's clock drives the ticks (Player.advance)

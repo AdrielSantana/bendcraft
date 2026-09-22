@@ -212,6 +212,11 @@ def Laws.a_solid_over_a_source_ends_it(): {==}
 def Laws.a_source_refills_what_it_gave(): {==}
 def Laws.a_full_source_makes_nothing(): {==}
 def Laws.the_spring_is_the_ninth_slot(): {==}
+def Laws.a_film_on_the_ground_dries(): {==}
+def Laws.a_film_on_full_water_dries(): {==}
+def Laws.falling_water_never_dries(): {==}
+def Laws.four_units_stay(): {==}
+def Laws.nothing_dries_nothing(): {==}
 def Laws.water_fog_has_its_own_flag(): {==}
 def Laws.water_fog_is_on_by_default(): {==}
 def Laws.readout_keeps_water_fog(): {==}

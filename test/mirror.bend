@@ -27,7 +27,7 @@ def met(r: Array<U32> & Render.Glance, +col: U32, t: F32) -> Bool:
   U32.is_eq(c, col) && ((col < 1 : U32) || near(at, t, 0.001))
 
 def walk(w: World.World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +col: U32, t: F32) -> Bool:
-  World.W{ring, m, +cx, +cz, q, np, made} = w
+  World.W{ring, m, +cx, +cz, q, np, made, gone} = w
   met(Render.run_glance(ring, (cx * 128 + cz : U32), ox, oy, oz, dx, dy, dz), col, t)
 
 def main() -> IO(Unit):

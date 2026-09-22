@@ -231,12 +231,22 @@ block moves; that is the first gate of every step below.
   made (`World.made`). The seed's lakes are not sources: dig a channel
   and they drain. Sources are the only creation of water, and an
   explicit edit (a solid placed in water, water collected) the only
-  removal; the flow itself neither creates nor removes. The accounting
-  is tested on a basin: over any ticks it holds what was placed plus
-  what its sources made, and a tick without sources makes nothing. A
-  source pushes nothing up (the rule gives only to cells holding less),
-  so under a full layer it rests: a spring feeds what lies beside and
-  below it.
+  removal; the flow itself creates nothing, and removes only by the
+  sink below. The accounting is tested on a basin: over any ticks it
+  holds what was placed plus what its sources made less what dried, and
+  a tick without sources makes nothing. A source pushes nothing up (the
+  rule gives only to cells holding less), so under a full layer it
+  rests: a spring feeds what lies beside and below it.
+- **The sink.** As built (2026-09-22, the commit after the sources):
+  thin water dries. A cell resting on the ground (a solid under it, or
+  full water) that holds under `Flow.thin()` = 4 units at the end of its
+  step loses them, and the world counts what went (`World.gone`);
+  falling water never dries; a source never dries (it refills instead).
+  A lake at rest holds ten units a cell and more, so it is untouched; a
+  bucket of 255 units spread over a 5×5 floor dries six at its thin edge
+  and rests at 249; a spring on open ground holds at about 180 wet
+  cells, making and drying a hundred units a tick. Five laws on
+  `Flow.dries`; the tests above carry the accounting.
 - **The active set.** As built (2026-09-22): a word of marks per column
   in the ring (slot 14, bit y: the cell is due a step) and a queue of the
   marked columns' slots in the world, oldest first, each once while its
@@ -338,7 +348,11 @@ block moves; that is the first gate of every step below.
   it is untouched. A spring's puddle then stops where its rim dries as
   fast as the spring feeds it, a few hundred cells on open ground, less
   on real terrain where water pools. Built as the next commit, on its
-  own, so it is one revert if the user wants the closed model back.
+  own, so it is one revert if the user wants the closed model back:
+  with it the same spring holds at 180 wet cells and 200 queued
+  columns, making 104 units a tick and drying 104, 1.4 ms a tick; the
+  bucket on the floor loses six of 255; nothing else in the tests moved
+  (five laws, 143 in all; 164 tests; both digests unchanged).
 
 ## The laws
 

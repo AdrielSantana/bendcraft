@@ -33,7 +33,7 @@ def restored(r: Player.Game & String) -> U32:
   clock(Save.parse(String.lines(text), Player.res512()))
 
 def fixture(t: U32) -> Player.Game:
-  Player.G{World.W{[0 : U32^18n], Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0},
+  Player.G{World.W{[0 : U32^18n], Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0, 0},
     64.5, 30.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, Player.res512(), t, Inventory.empty()}
 
 def main() -> IO(Unit):

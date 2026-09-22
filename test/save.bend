@@ -18,8 +18,8 @@ def one(e: Event) -> List<Event>:
   Con{e, Nil{}}
 
 def spot_fin(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, w: World.World) -> Player.Game & String:
-  World.W{ring, m, +ox, +oz, q, np, made} = w
-  (Player.G{World.W{ring, m, ox, oz, q, np, made}, px, py, pz, yaw, pit, 0.0, 0, 0, 0, 0, sel, res, clock, bag},
+  World.W{ring, m, +ox, +oz, q, np, made, gone} = w
+  (Player.G{World.W{ring, m, ox, oz, q, np, made, gone}, px, py, pz, yaw, pit, 0.0, 0, 0, 0, 0, sel, res, clock, bag},
    "p=(" ++ F32.show(px) ++ ", " ++ F32.show(py) ++ ", " ++ F32.show(pz) ++ ") yaw=" ++ F32.show(yaw) ++ " pit=" ++ F32.show(pit) ++ " sel=" ++ U32.show(sel) ++ " corner=" ++ U32.show(ox) ++ "," ++ U32.show(oz))
 
 def spot(g: Player.Game) -> Player.Game & String:

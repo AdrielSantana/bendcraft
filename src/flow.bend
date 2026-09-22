@@ -133,20 +133,57 @@ def refill_fin(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World
   (w, +a) = r
   World.make(World.pour(w, lx, y, lz, World.full()), refilled(a))
 
-def refill_if(src: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World:
-  match src:
+# ---------- the sink ----------
+
+# The model needs one: a spring's spill, with nothing to remove it, would
+# spread as a film over every flat reach without end. Thin water dries: a
+# cell resting on the ground (a solid under it, 256, or full water, 255)
+# that holds under `thin` units at the end of its step loses them, and
+# the world counts what went. Falling water never dries, and a lake at
+# rest holds ten units a cell and more, so it is untouched.
+def thin() -> U32: 4
+
+def dries(+a: U32, +under: U32) -> Bool:
+  (a > 0 : U32) && (a < thin() : U32) && (under >= 255 : U32)
+
+def dry_if(gone: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World.World:
+  match gone:
     case False{}:
       w
     case True{}:
+      World.dry(World.pour(w, lx, y, lz, 0), a)
+
+def dry_go(+lx: U32, +y: U32, +lz: U32, +a: U32, r: World.World & U32) -> World.World:
+  (w, +under) = r
+  dry_if(dries(a, under), w, lx, y, lz, a)
+
+# the probe under the cell only where the cell is thin
+def dry_thin(thin_here: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World.World:
+  match thin_here:
+    case False{}:
+      w
+    case True{}:
+      dry_go(lx, y, lz, a, probe(w, lx, (y - 1 : U32), lz))
+
+def dry_fin(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World:
+  (w, +a) = r
+  dry_thin((a > 0 : U32) && (a < thin() : U32), w, lx, y, lz, a)
+
+# the end of a cell's step: a source refills, any other cell may dry
+def settle_if(src: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World:
+  match src:
+    case True{}:
       refill_fin(lx, y, lz, World.amount_at(w, lx, y, lz))
+    case False{}:
+      dry_fin(lx, y, lz, World.amount_at(w, lx, y, lz))
 
-def refill(+lx: U32, +y: U32, +lz: U32, r: World.World & Bool) -> World.World:
+def settle(+lx: U32, +y: U32, +lz: U32, r: World.World & Bool) -> World.World:
   (w, src) = r
-  refill_if(src, w, lx, y, lz)
+  settle_if(src, w, lx, y, lz)
 
-# the step of one cell: down, then the sides, then the refill of a source
+# the step of one cell: down, then the sides, then the refill or the drying
 def step(w: World.World, +lx: U32, +y: U32, +lz: U32, +odd: Bool) -> World.World:
-  refill(lx, y, lz, World.source_at(cell_fin(lx, y, lz, odd, World.amount_at(w, lx, y, lz)), lx, y, lz))
+  settle(lx, y, lz, World.source_at(cell_fin(lx, y, lz, odd, World.amount_at(w, lx, y, lz)), lx, y, lz))
 
 # ---------- one column ----------
 
@@ -182,14 +219,14 @@ def lx_of(+slot: U32, +ox: U32, +oz: U32, +lz: U32) -> U32:
   ((slot / 2048 - (oz + lz) / 128 - ox) % 128 : U32)
 
 # the column at the slot: its marks read and cleared, its cells stepped
-def slot_fin(m: Map<&2, World.Col>, +ox: U32, +oz: U32, q: List<&2, U32>, np: U32, made: U32, +slot: U32, +odd: Bool, r: Array<U32> & U32) -> World.World:
+def slot_fin(m: Map<&2, World.Col>, +ox: U32, +oz: U32, q: List<&2, U32>, np: U32, made: U32, gone: U32, +slot: U32, +odd: Bool, r: Array<U32> & U32) -> World.World:
   (ring, +bits) = r
   +lz = lz_of(slot, oz)
-  column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 14 : U32), 0), m, ox, oz, q, np, made})
+  column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 14 : U32), 0), m, ox, oz, q, np, made, gone})
 
 def step_slot(w: World.World, +slot: U32, +odd: Bool) -> World.World:
-  World.W{ring, m, +ox, +oz, q, np, made} = w
-  slot_fin(m, ox, oz, q, np, made, slot, odd, Array.get(U32, ring, (slot + 14 : U32)))
+  World.W{ring, m, +ox, +oz, q, np, made, gone} = w
+  slot_fin(m, ox, oz, q, np, made, gone, slot, odd, Array.get(U32, ring, (slot + 14 : U32)))
 
 # ---------- one tick ----------
 
@@ -197,8 +234,8 @@ def step_slot(w: World.World, +slot: U32, +odd: Bool) -> World.World:
 # queue afresh; what the budget did not reach goes back in front of them,
 # and the tick's marks behind, oldest first.
 def rejoin(rest: List<&2, U32>, w: World.World) -> World.World:
-  World.W{ring, m, ox, oz, q, np, made} = w
-  World.W{ring, m, ox, oz, List.append(&2, U32, rest, List.reverse(&2, U32, q)), np, made}
+  World.W{ring, m, ox, oz, q, np, made, gone} = w
+  World.W{ring, m, ox, oz, List.append(&2, U32, rest, List.reverse(&2, U32, q)), np, made, gone}
 
 def tick_go(budget: Nat, q: List<&2, U32>, +odd: Bool, w: World.World) -> World.World:
   match budget:
@@ -212,8 +249,8 @@ def tick_go(budget: Nat, q: List<&2, U32>, +odd: Bool, w: World.World) -> World.
           tick_go(k, rest, odd, step_slot(w, slot, odd))
 
 def tick(w: World.World, +odd: Bool, +budget: Nat) -> World.World:
-  World.W{ring, m, ox, oz, q, np, made} = w
-  tick_go(budget, q, odd, World.W{ring, m, ox, oz, Nil{}, np, made})
+  World.W{ring, m, ox, oz, q, np, made, gone} = w
+  tick_go(budget, q, odd, World.W{ring, m, ox, oz, Nil{}, np, made, gone})
 
 # the columns a tick steps at most
 def budget() -> Nat: 256n

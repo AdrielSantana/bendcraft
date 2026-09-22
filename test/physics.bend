@@ -17,21 +17,21 @@ def ticks(n: Nat, g: Player.Game) -> Player.Game:
 
 def show_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +vy: F32, +held: U32, +edge: U32, +mx: U32, +my: U32, +sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
            w: World.World) -> Player.Game & String:
-  World.W{ring, m, +ox, +oz, q, np, made} = w
-  (Player.G{World.W{ring, m, ox, oz, q, np, made}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag},
+  World.W{ring, m, +ox, +oz, q, np, made, gone} = w
+  (Player.G{World.W{ring, m, ox, oz, q, np, made, gone}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag},
    "p=(" ++ F32.show(px) ++ ", " ++ F32.show(py) ++ ", " ++ F32.show(pz) ++ ") yaw=" ++ F32.show(yaw) ++ " pit=" ++ F32.show(pit) ++ " vy=" ++ F32.show(vy) ++ " held=" ++ U32.show(held) ++ " edge=" ++ U32.show(edge) ++ " sel=" ++ U32.show(sel) ++ " corner=" ++ U32.show(ox) ++ "," ++ U32.show(oz))
 
 def show(g: Player.Game) -> Player.Game & String:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
   show_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, w)
 
-def wcol_fin(m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, made: U32, r: Array<U32> & U32) -> World.World & U32:
+def wcol_fin(m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, made: U32, gone: U32, r: Array<U32> & U32) -> World.World & U32:
   (ring, c) = r
-  (World.W{ring, m, ox, oz, q, np, made}, c)
+  (World.W{ring, m, ox, oz, q, np, made, gone}, c)
 
 def wcol(w: World.World, +lx: U32, +lz: U32) -> World.World & U32:
-  World.W{ring, m, +ox, +oz, q, np, made} = w
-  wcol_fin(m, ox, oz, q, np, made, Array.get(U32, ring, World.col_at((ox * 128 + oz : U32), lx, lz)))
+  World.W{ring, m, +ox, +oz, q, np, made, gone} = w
+  wcol_fin(m, ox, oz, q, np, made, gone, Array.get(U32, ring, World.col_at((ox * 128 + oz : U32), lx, lz)))
 
 def target_typ(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
                +prev: U32, +got: U32, +h: U32, +c: U32, r: World.World & U32) -> Player.Game & String:

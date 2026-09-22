@@ -59,8 +59,8 @@ def counts_text(xs: List<&2, Nat>) -> String:
       " " ++ Nat.show(h) ++ counts_text(t)
 
 def text_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, clock: U32, bag: List<&2, Nat>, w: World.World) -> World.World & String:
-  World.W{ring, +m, +ox, +oz, q, np, made} = w
-  (World.W{ring, m, ox, oz, q, np, made},
+  World.W{ring, +m, +ox, +oz, q, np, made, gone} = w
+  (World.W{ring, m, ox, oz, q, np, made, gone},
    "bendcraft 1 " ++ U32.show(ox) ++ " " ++ U32.show(oz) ++ " " ++ U32.show(enc(px)) ++ " " ++ U32.show(enc(py)) ++ " " ++ U32.show(enc(pz))
    ++ " " ++ U32.show(enc(wrap(yaw))) ++ " " ++ U32.show(enc(pit)) ++ " " ++ U32.show(sel) ++ " " ++ U32.show(clock) ++ counts_text(bag)
    ++ col_lines(Map.to_list(&2, World.Col, m)))
@@ -192,7 +192,7 @@ def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Gam
     case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, +rest}}}}}}}}}}:
       +cx = num(ox)
       +cz = num(oz)
-      Player.G{World.load_all(128n, World.W{[0 : U32^18n], cols_of(ls, Map.new(&2, World.Col)), cx, cz, Nil{}, 0, 0}, cx, cz),
+      Player.G{World.load_all(128n, World.W{[0 : U32^18n], cols_of(ls, Map.new(&2, World.Col)), cx, cz, Nil{}, 0, 0, 0}, cx, cz),
                dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, (num(sel) % 8 : U32), res, clock_of(rest), inventory_of(rest)}
     case Con{tag, rest}:
       Player.start_at(res)

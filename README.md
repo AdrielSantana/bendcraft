@@ -190,12 +190,22 @@ source that gave nothing made nothing, and since the rule only gives to
 cells that hold less, a source pushes nothing up: under a full layer it
 rests. The accounting: over any run of ticks the water in a closed basin
 is what was placed plus what its sources made, exactly (the tests sum
-one), and a tick without sources makes nothing. What a spring does on
-open ground (`build/spring-*.png`): it fills the terrace it sits on and
-spills down the hill; and as the model has no sink, the spill spreads as
-a film of a few units over every flat reach it comes to, without end
-(400 ticks on the spawn's hill: 18777 units made, 1212 wet cells and
-growing a cell a tick). Distance and height fog use the full solid-hit
+one), and a tick without sources makes nothing.
+
+The sink: a model with sources needs one, or a spring's spill spreads
+as a film of a few units over every flat reach it comes to, without end
+(400 ticks on the spawn's hill, before the sink: 18777 units made, 1212
+wet cells and growing a cell a tick). Thin water dries: a cell resting
+on the ground (a solid under it, or full water) that holds under four
+units at the end of its step loses them, and the world counts what went
+(`World.gone`); falling water never dries, and a lake at rest holds ten
+units a cell and more, so it is untouched. The accounting now reads:
+what a basin holds is what was placed plus what its sources made less
+what dried (a bucket of 255 units spread over a floor dries six at its
+thin edge and rests at 249). A spring on the spawn's hill
+(`build/spring-*.png`) fills the terrace it sits on, spills down, and
+holds at about 180 wet cells, making and drying a hundred units a tick
+for as long as it runs, 1.4 ms a tick on the host. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -934,8 +944,10 @@ for a poured cell and none for a full one. Thirteen flow laws bound one
 transfer. Ten source laws: the spring places a full water cell that is
 a source, plain water is not one, a bank blocks it, a pour keeps it, a
 solid over it ends it, a source refills what it gave and a full one
-makes nothing, and the spring is the ninth slot. There are 138 laws:
-eight universal claims and 130 concrete
+makes nothing, and the spring is the ninth slot. Five sink laws: a film
+on the ground or on full water dries, falling water never does, four
+units stay, nothing dries nothing. There are 143 laws: eight universal
+claims and 135 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;
