@@ -217,6 +217,12 @@ def Laws.a_film_on_full_water_dries(): {==}
 def Laws.falling_water_never_dries(): {==}
 def Laws.four_units_stay(): {==}
 def Laws.nothing_dries_nothing(): {==}
+def Laws.what_fits_is_the_room(): {==}
+def Laws.what_fits_is_all_of_less(): {==}
+def Laws.nothing_fits_in_full(): {==}
+def Laws.a_solid_placed_on_water_shoves_its_amount(): {==}
+def Laws.water_placed_shoves_nothing(): {==}
+def Laws.a_break_shoves_nothing(): {==}
 def Laws.water_fog_has_its_own_flag(): {==}
 def Laws.water_fog_is_on_by_default(): {==}
 def Laws.readout_keeps_water_fog(): {==}

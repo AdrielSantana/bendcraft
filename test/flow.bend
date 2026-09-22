@@ -95,6 +95,10 @@ def shaft() -> World.World:
 def pool() -> World.World:
   water(basin(60, 60, 5, 5n), 62, 10, 62)
 
+# three full cells in the shaft, 10 to 12
+def three() -> World.World:
+  water(water(water(basin(64, 64, 1, 1n), 64, 10, 64), 64, 11, 64), 64, 12, 64)
+
 # the same basin with a spring at its middle
 def spring_pool() -> World.World:
   spring(basin(60, 60, 5, 5n), 62, 10, 62)
@@ -384,6 +388,20 @@ def main() -> IO(Unit):
           World.col6(0, 0, 2304, 0, 0, 1024)), 0, 0, Nil{}, 0, 0, 0}, 50, 50)),
         Source{50, 10, 50} <> At{50, 10, 50} <> At{50, 9, 50} <> Made{} <> Nil{}), 1 <> 255 <> 255 <> 255 <> Nil{}),
       "a saved source loads as one, and over air it makes a cell a tick")
+    # a solid placed in water shoves the water up
+    expect(same(query(stone(ticks(40n, 0, Flow.budget(), pool()), 62, 10, 62), At{62, 11, 62} <> At{62, 10, 62} <> over(60, 10, 60) <> Gone{} <> Queued{} <> Nil{}),
+        10 <> 0 <> 249 <> 6 <> 5 <> Nil{})
+      && same(query(ticks(40n, 0, Flow.budget(), stone(ticks(40n, 0, Flow.budget(), pool()), 62, 10, 62)), over(60, 10, 60) <> layer(60, 11, 60) <> Gone{} <> Nil{}),
+        248 <> 0 <> 7 <> Nil{}),
+      "a stone placed in the settled pool lifts its cell's ten units onto itself, the basin keeps them and the flow takes them from there, a unit drying as they spread")
+    expect(same(query(stone(three(), 64, 10, 64), At{64, 10, 64} <> At{64, 11, 64} <> At{64, 12, 64} <> At{64, 13, 64} <> Sum{64, 10, 64, 0n, 21n, 0n} <> Gone{} <> Nil{}),
+        0 <> 255 <> 255 <> 255 <> 765 <> 0 <> Nil{})
+      && same(query(stone(three(), 64, 11, 64), At{64, 12, 64} <> At{64, 13, 64} <> Sum{64, 10, 64, 0n, 21n, 0n} <> Nil{}), 255 <> 255 <> 765 <> Nil{})
+      && same(query(stone(World.pour(basin(64, 64, 1, 1n), 64, 10, 64, 100), 64, 10, 64), At{64, 11, 64} <> Gone{} <> Nil{}), 100 <> 0 <> Nil{}),
+      "a stone at the bottom of three full cells shoves a cell of water past them to the first with room; in the middle the same; a half cell's hundred go up as they are")
+    expect(same(query(stone(stone(three(), 64, 13, 64), 64, 10, 64), At{64, 13, 64} <> Sum{64, 10, 64, 0n, 21n, 0n} <> Gone{} <> Nil{}), 0 <> 510 <> 255 <> Nil{})
+      && same(query(stone(ticks(40n, 0, Flow.budget(), pool()), 62, 12, 62), over(60, 10, 60) <> Gone{} <> Nil{}), 249 <> 6 <> Nil{}),
+      "under a ceiling the shoved water has nowhere to go and is gone, counted; a stone placed in the air shoves nothing")
     # the game's clock drives the ticks (Player.advance)
     expect(same(query(advanced(100, shaft()), At{64, 15, 64} <> At{64, 14, 64} <> Nil{}), 255 <> 0 <> Nil{})
       && same(query(advanced(300, shaft()), At{64, 15, 64} <> At{64, 14, 64} <> Nil{}), 0 <> 255 <> Nil{})

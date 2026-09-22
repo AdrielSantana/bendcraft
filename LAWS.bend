@@ -404,6 +404,28 @@ law four_units_stay:
 law nothing_dries_nothing:
   {Flow.dries(0, 256) == False{} : Bool}
 
+# --- a solid placed in water shoves the water up ------------------------------
+# What a cell holding b takes of a is what fits, and the shove's probe says
+# 256 for a solid, the amount for water, so the loop stops at a ceiling.
+
+law what_fits_is_the_room:
+  {World.fits(255, 200) == 55 : U32}
+
+law what_fits_is_all_of_less:
+  {World.fits(10, 0) == 10 : U32}
+
+law nothing_fits_in_full:
+  {World.fits(10, 255) == 0 : U32}
+
+law a_solid_placed_on_water_shoves_its_amount:
+  {World.shoved(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 100), 10, True{}, 2) == (World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 100), 100) : World.Col & U32}
+
+law water_placed_shoves_nothing:
+  {World.shoved(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 100), 10, True{}, 8) == (World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 100), 0) : World.Col & U32}
+
+law a_break_shoves_nothing:
+  {World.shoved(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 100), 10, False{}, 0) == (World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 100), 0) : World.Col & U32}
+
 law water_fog_has_its_own_flag:
   {Water.fog_on(2097152) == False{} : Bool}
 

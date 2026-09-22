@@ -224,7 +224,11 @@ units in `World.made` (the seventh field of `World.W`, beside
 `partials`). The sink: any other cell holding under `Flow.thin()` (4)
 units at the end of its step, resting on a solid or on full water,
 dries (`Flow.dries`, `Flow.settle`), counted in `World.gone` (the
-eighth field). A closed basin holds placed + made − gone, exactly.
+eighth field). A closed basin holds placed + made − gone, exactly. A
+solid placed on water shoves its amount up the column (`World.shove`,
+from `World.edit`; `World.probe` is the flow's probe, moved here; the
+edit block sits at the end of world.bend since defs come before use);
+no room under a ceiling counts in `gone`.
 - `main.bend` runs the window's loop itself (not `App.run`), with a `Stat`
 beside the `Game`; `Save.tick` is the game's tick.
 - Bend's shape rules met here: a `match` (or a record or pair open) must

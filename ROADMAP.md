@@ -282,7 +282,14 @@ block moves; that is the first gate of every step below.
   did, 30.6 → 36.0 ms on the lake). (3) Sources, with their accounting —
   done 2026-09-22 (ten laws, 138 in all; 161 tests; the physics hash
   unchanged; the HUD has nine slots, so the picture digest moves to
-  cfa229e5b4c12605128807164522ad0d, the frame the same). (4) Edits: what a placed block displaces and what collecting
+  cfa229e5b4c12605128807164522ad0d, the frame the same). (4) Edits, the
+  first half — done 2026-09-22: a solid placed on water shoves its
+  amount up its column into the first cells with room, marked, and what
+  finds no room is gone, counted (six laws, 149 in all; 167 tests; the
+  physics hash unchanged). The second half, collecting, waits on the
+  bucket's design: whether the ninth slot stays a spring (infinite, as
+  built) or becomes a bucket that collects a cell and places it, and
+  what a collected partial cell is worth. (4) Edits: what a placed block displaces and what collecting
   takes, both counted. (5) The player in water: buoyancy, drag, swimming,
   breath later.
 - **What step 2 found: the unit is too coarse.** The rule moves nothing

@@ -26,7 +26,7 @@ import ./world.bend as World
 
 # what goes down: all that fits under, where under is not solid (256)
 def down_take(+a: U32, +b: U32) -> U32:
-  Bool.pick(U32, (b < 256 : U32), U32.min(a, (World.full() - b : U32)), 0)
+  Bool.pick(U32, (b < 256 : U32), World.fits(a, b), 0)
 
 # what goes to a side: half the difference, floored, only where the
 # neighbour holds less; a lone unit stays, two share
@@ -48,24 +48,9 @@ def move_if(some: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32, +n
 # ---------- one cell ----------
 
 # the amount at a neighbour, or 256 where the flow cannot go: a solid
-# cell, one under the world, one outside the ring
-def probe_fin(+y: U32, +mask: U32, r: World.World & U32) -> World.World & U32:
-  (w, a) = r
-  (w, Bool.pick(U32, Util.on(mask, U32.shln(1, U32.to_nat(y))), 256, a))
-
-def probe_mask(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World & U32:
-  (w, mask) = r
-  probe_fin(y, mask, World.amount_at(w, lx, y, lz))
-
-def probe_in(ok: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World & U32:
-  match ok:
-    case False{}:
-      (w, 256)
-    case True{}:
-      probe_mask(lx, y, lz, World.word_at(w, lx, lz, 0))
-
+# cell, one under the world, one outside the ring (World.probe)
 def probe(w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World & U32:
-  probe_in((lx < 128 : U32) && (lz < 128 : U32) && (y < 32 : U32), w, lx, y, lz)
+  World.probe(w, lx, y, lz)
 
 # the sides in the tick's order: +x, -x, +z, -z on an even tick, the
 # reverse on an odd one (a step of -1 wraps, and the probe says outside)

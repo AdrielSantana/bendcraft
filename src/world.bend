@@ -517,17 +517,6 @@ def edit_col(c: Col, +y: U32, +set: Bool, +what: U32) -> Col:
       setbit(water, bit, poured),
       Bool.pick(Levels, blocked, lv, edit_levels(lv, y, (y / 4 : U32), Bool.pick(U32, poured, full(), 0)))}
 
-def edit_fin(m: Map<&2, Col>, +ox: U32, +oz: U32, +x: U32, +z: U32, +y: U32, set: Bool, +what: U32, q: List<&2, U32>, +np: U32, made: U32, gone: U32,
-             r: Array<U32> & Col) -> World:
-  (ring, c) = r
-  +nc = edit_col(c, y, set, what)
-  mark_around(put_fin(Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, made, gone, put_col(ring, ((x * 128 + z) * 16 : U32), nc, np)), (x - ox : U32), y, (z - oz : U32))
-
-def edit(w: World, +lx: U32, +lz: U32, +y: U32, set: Bool, +what: U32) -> World:
-  W{ring, m, +ox, +oz, q, np, made, gone} = w
-  +x = (ox + lx : U32)
-  +z = (oz + lz : U32)
-  edit_fin(m, ox, oz, x, z, y, set, what, q, np, made, gone, get_col(ring, ((x * 128 + z) * 16 : U32)))
 
 # The amount at a cell, set, the mask's bit following it (set exactly
 # when the amount is over zero); a solid cell holds none, and 255 is the
@@ -644,3 +633,98 @@ def make(w: World, +k: U32) -> World:
 def dry(w: World, +k: U32) -> World:
   W{ring, m, ox, oz, q, np, made, gone} = w
   W{ring, m, ox, oz, q, np, made, (gone + k : U32)}
+
+# ---------- an edit ----------
+# (after the reads it needs: defs come before their use)
+
+# what a cell holding b takes of a
+def fits(+a: U32, +b: U32) -> U32:
+  U32.min(a, (full() - b : U32))
+
+# the amount at a cell, or 256 where water cannot go: a solid cell, one
+# outside the ring, one over or under the world (the flow's probe too)
+def probe_fin(+y: U32, +mask: U32, r: World & U32) -> World & U32:
+  (w, a) = r
+  (w, Bool.pick(U32, Util.on(mask, U32.shln(1, U32.to_nat(y))), 256, a))
+
+def probe_mask(+lx: U32, +y: U32, +lz: U32, r: World & U32) -> World & U32:
+  (w, mask) = r
+  probe_fin(y, mask, amount_at(w, lx, y, lz))
+
+def probe_in(ok: Bool, w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
+  match ok:
+    case False{}:
+      (w, 256)
+    case True{}:
+      probe_mask(lx, y, lz, word_at(w, lx, lz, 0))
+
+def probe(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
+  probe_in((lx < 128 : U32) && (lz < 128 : U32) && (y < 32 : U32), w, lx, y, lz)
+
+# A solid placed in water shoves the water up its column, into the first
+# cells with room, each marked so the flow takes it from there (a lake
+# rises by what the block took); what finds no room under a ceiling or
+# the world's top is gone, counted. One def, the fuel first: r is the
+# probe of the cell at y, and the loop ends by spending its fuel.
+def shove_put(open: Bool, +lx: U32, +y: U32, +lz: U32, +b: U32, +give: U32, w: World) -> World:
+  match open:
+    case False{}:
+      w
+    case True{}:
+      mark_around(pour(w, lx, y, lz, (b + give : U32)), lx, y, lz)
+
+def shove_next(+lx: U32, +y: U32, +lz: U32, +b: U32, +give: U32, w: World) -> World & U32:
+  probe(shove_put((b < 256 : U32), lx, y, lz, b, give, w), lx, (y + 1 : U32), lz)
+
+def shove_fin(n: Nat, done: Bool, +lx: U32, +y: U32, +lz: U32, +a: U32, r: World & U32) -> World:
+  match n:
+    case 0n:
+      (w, b) = r
+      dry(w, a)
+    case 1n+k:
+      match done:
+        case True{}:
+          (w, b) = r
+          dry(w, a)
+        case False{}:
+          (w, +b) = r
+          +open = (b < 256 : U32)
+          +give = Bool.pick(U32, open, fits(a, b), 0)
+          +rest = (a - give : U32)
+          shove_fin(k, Bool.not(open) || U32.is_eq(rest, 0), lx, (y + 1 : U32), lz, rest, shove_next(lx, y, lz, b, give, w))
+
+def shove_if(some: Bool, w: World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World:
+  match some:
+    case False{}:
+      w
+    case True{}:
+      shove_fin(32n, False{}, lx, (y + 1 : U32), lz, a, probe(w, lx, (y + 1 : U32), lz))
+
+def shove(w: World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World:
+  shove_if((a > 0 : U32), w, lx, y, lz, a)
+
+# the water a solid placed at y would shove: the cell's amount, where a
+# solid is placed on water
+def shoved(c: Col, +y: U32, set: Bool, +what: U32) -> Col & U32:
+  Col{m, a, b, cc, d, +water, +lv} = c
+  +bit = U32.shln(1, U32.to_nat(y))
+  +solid = set && (what < 8 : U32)
+  (Col{m, a, b, cc, d, water, lv}, Bool.pick(U32, solid && Util.on(water, bit), amount(lv, y), 0))
+
+def edit_put(m: Map<&2, Col>, +ox: U32, +oz: U32, +x: U32, +z: U32, +y: U32, set: Bool, +what: U32, q: List<&2, U32>, +np: U32, made: U32, gone: U32,
+             ring: Array<U32>, r: Col & U32) -> World:
+  (c, +out) = r
+  +nc = edit_col(c, y, set, what)
+  shove(mark_around(put_fin(Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, made, gone, put_col(ring, ((x * 128 + z) * 16 : U32), nc, np)), (x - ox : U32), y, (z - oz : U32)),
+    (x - ox : U32), y, (z - oz : U32), out)
+
+def edit_fin(m: Map<&2, Col>, +ox: U32, +oz: U32, +x: U32, +z: U32, +y: U32, +set: Bool, +what: U32, q: List<&2, U32>, +np: U32, made: U32, gone: U32,
+             r: Array<U32> & Col) -> World:
+  (ring, c) = r
+  edit_put(m, ox, oz, x, z, y, set, what, q, np, made, gone, ring, shoved(c, y, set, what))
+
+def edit(w: World, +lx: U32, +lz: U32, +y: U32, set: Bool, +what: U32) -> World:
+  W{ring, m, +ox, +oz, q, np, made, gone} = w
+  +x = (ox + lx : U32)
+  +z = (oz + lz : U32)
+  edit_fin(m, ox, oz, x, z, y, set, what, q, np, made, gone, get_col(ring, ((x * 128 + z) * 16 : U32)))

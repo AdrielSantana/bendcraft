@@ -205,7 +205,17 @@ what dried (a bucket of 255 units spread over a floor dries six at its
 thin edge and rests at 249). A spring on the spawn's hill
 (`build/spring-*.png`) fills the terrace it sits on, spills down, and
 holds at about 180 wet cells, making and drying a hundred units a tick
-for as long as it runs, 1.4 ms a tick on the host. Distance and height fog use the full solid-hit
+for as long as it runs, 1.4 ms a tick on the host.
+
+A solid placed in water is the fourth step's first half: it shoves the
+cell's water up its column into the first cells with room, each marked
+so the flow takes it from there, and a lake rises by what the block
+took (`World.shove`, one recursive walk up the column with the flow's
+probe); what finds no room under a ceiling is gone, counted. Placing a
+block in the settled pool lifts its ten units onto the block and the
+basin keeps them; a stone at the bottom of three full cells sends a
+cell of water past them to the fourth. Collecting water, the other half,
+waits on the bucket's design. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -946,8 +956,10 @@ a source, plain water is not one, a bank blocks it, a pour keeps it, a
 solid over it ends it, a source refills what it gave and a full one
 makes nothing, and the spring is the ninth slot. Five sink laws: a film
 on the ground or on full water dries, falling water never does, four
-units stay, nothing dries nothing. There are 143 laws: eight universal
-claims and 135 concrete
+units stay, nothing dries nothing. Six shove laws: what fits is the
+room, all of less, nothing in full; a solid placed on water shoves its
+amount, water placed and a break shove nothing. There are 149 laws:
+eight universal claims and 141 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

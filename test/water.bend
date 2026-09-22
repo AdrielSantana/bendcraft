@@ -113,7 +113,7 @@ def fixture(w: World.World) -> Player.Game:
 def placed(r: World.World & List<&2, Nat>) -> Bool:
   (w, bag) = r
   World.W{ring, m, ox, oz, q, np, made, gone} = w
-  (Nat.is_eq(Inventory.count(bag, 6n), 0n)) && same_masks(col(World.get_col(ring, World.col_at(0, 64, 64))), 1024, 0)
+  (Nat.is_eq(Inventory.count(bag, 6n), 0n)) && same_masks(col(World.get_col(ring, World.col_at(0, 64, 64))), 1024, 2048)
 
 def src(r: World.World & Bool) -> Bool:
   (w, s) = r
@@ -348,14 +348,14 @@ def main() -> IO(Unit):
     expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
     expect(U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 10, 64)), 8), "water material reads back")
     expect(placed(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 6,
-      (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n]))), "placing spends one brick and displaces water")
+      (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n]))), "placing spends one brick and shoves the water up onto it")
     expect(sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (empty(), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
       && sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
       && not_sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (World.edit(empty(), 64, 64, 10, True{}, 2), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
       && U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 9), 64, 10, 64)), 8),
       "the spring places a source into air or water, never into a solid, spends nothing, and the source reads as water")
     expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
-    expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 0), "save preserves displacement")
+    expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 2048), "save preserves displacement, the water above the brick")
     expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
     expect(U32.is_eq(Save.water_of([], "0,0", 0), World.flood(World.terrain(0, 0), 0)), "old saves restore natural water")
     expect(U32.is_eq(Save.water_of(["0"], "0,0", 0), 0), "explicit dry edits stay dry")
