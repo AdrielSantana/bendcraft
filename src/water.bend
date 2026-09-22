@@ -5,12 +5,11 @@ import ./util.bend as Util
 # Array indices wrap at 2^18 words: only 14 column-address bits matter.
 # The next 13 carry milliseconds in an 8.192-second ripple loop; bits
 # 27..30 are looks the flags word has no room for, put there by the camera
-# (27: the world in the water's mirror, 28: the caustic on its bed); bit
-# 31 belongs to the readout.
+# (27: the world in the water's mirror, 28: the caustic on its bed).
 # None of these high bits changes a world load.
 def phase(t: U32) -> U32: (t .&. 8191 : U32)
 def frame_base(+base: U32, clock: U32) -> U32:
-  ((base .&. 2147500031) .|. (phase(clock) * 16384) : U32)
+  ((base .&. 16383) .|. (phase(clock) * 16384) : U32)
 def mirror_on(base: U32) -> Bool: Util.on(base, 134217728)
 def caustic_on(base: U32) -> Bool: Util.on(base, 268435456)
 def with_looks(base: U32, more: U32) -> U32:

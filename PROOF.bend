@@ -43,17 +43,12 @@ def Laws.trees_accept_dry_grass(): {==}
 def Laws.trees_reject_snow_heights(): {==}
 def Laws.keys_off_the_mouse_bits(): {==}
 def Laws.unknown_key_is_no_bit(): {==}
-def Laws.stat_keeps_the_looks(): {==}
-def Laws.stat_ms_reads_back(): {==}
-def Laws.stat_fps_reads_back(): {==}
+def Laws.stat_reads_back(): {==}
 def Laws.stat_stops_at_its_room(): {==}
 def Laws.stat_zero_is_the_game(): {==}
+def Laws.a_frame_a_second_shows(): {==}
 
 def Laws.day_wraps_to_dawn(): {==}
-def Laws.stat_keeps_high_looks(): {==}
-def Laws.stat_high_ms_reads_back(): {==}
-def Laws.stat_high_fps_reads_back(): {==}
-def Laws.stat_high_zero_is_the_game(): {==}
 
 # A power of two has no set bit below its exponent. Adding it cannot
 # change the low bits selected by the phase mask; the upper bits vanish.
@@ -170,11 +165,6 @@ def Laws.inventory_hud_99_is_exact(): {==}
 def Laws.inventory_hud_large_is_capped(): {==}
 def Laws.save_and_quit_survive_the_step(): {==}
 
-def Laws.stat_items_keeps_counts(): {==}
-def Laws.stat_fps_crosses_the_split(): {==}
-def Laws.stat_keeps_water_room(): {==}
-def Laws.stat_water_room_is_not_a_number(): {==}
-def Laws.stat_high_fps_is_visible(): {==}
 
 def Laws.water_fills_above_ground(): {==}
 def Laws.water_stops_at_sea(): {==}
@@ -219,13 +209,11 @@ def Laws.water_placed_shoves_nothing(): {==}
 def Laws.a_break_shoves_nothing(): {==}
 def Laws.water_fog_has_its_own_flag(): {==}
 def Laws.water_fog_is_on_by_default(): {==}
-def Laws.readout_keeps_water_fog(): {==}
 def Laws.water_surface_packing_reads_back(): {==}
 def Laws.water_top_stays_marked(): {==}
 def Laws.water_reflection_has_its_own_flag(): {==}
 def Laws.water_fresnel_has_its_own_flag(): {==}
 def Laws.water_surface_looks_are_on_by_default(): {==}
-def Laws.readout_keeps_water_surface_looks(): {==}
 
 def Laws.ripple_clock_returns_after_a_turn(t):
   match t:
@@ -238,16 +226,10 @@ def Laws.ripple_clock_reads_back(): {==}
 def Laws.ripple_address_keeps_the_ring(): {==}
 def Laws.ripple_lattice_follows_recentering(): {==}
 def Laws.ripple_flag_is_independent(): {==}
-def Laws.readout_keeps_ripples(): {==}
-def Laws.ripple_clock_is_not_a_readout(): {==}
-def Laws.split_fps_eight_reads_back(): {==}
-def Laws.split_fps_eight_is_visible(): {==}
-def Laws.ripple_packing_keeps_the_readout_bit(): {==}
 def Laws.mirror_look_reads_back(): {==}
 def Laws.mirror_look_is_off_unasked(): {==}
 def Laws.mirror_look_keeps_the_ring(): {==}
 def Laws.mirror_look_keeps_the_clock(): {==}
-def Laws.mirror_look_keeps_the_readout(): {==}
 def Laws.caustic_look_reads_back(): {==}
 def Laws.caustic_look_is_off_unasked(): {==}
 def Laws.a_side_takes_half_the_difference(): {==}

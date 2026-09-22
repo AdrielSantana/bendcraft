@@ -30,19 +30,20 @@ def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
   (G{World.W{ring, meta}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, img)
 
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
-           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, +fps: U32, more: U32, w: World.World) -> Game & Image:
+           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, stat: U32, more: U32, w: World.World) -> Game & Image:
   World.W{ring, +meta} = w
   World.Meta{m, ox, oz, q, +np, made, gone} = meta
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
   view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, meta,
-           Render.frame(Render.camera(px, py, pz, yaw, pit, Render.stat_base(World.base(meta), fps), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Render.stat_items(Inventory.hud_hi(bag), fps), fl, rw, rh, clock), ring, rw, rh))
+           Render.frame(Render.camera(px, py, pz, yaw, pit, World.base(meta), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), stat, fl, rw, rh, clock), ring, rw, rh))
 
-# the frame with the render's flags (Render.Cam), all looks on for the game
-# `more` holds the looks the flags word has no room for (Render.looks_base)
-def view_more(g: Game, +fl: U32, fps: U32, more: U32) -> Game & Image:
+# the frame with the render's flags (Render.Cam), all looks on for the game;
+# `more` holds the looks the flags word has no room for (Render.looks_base),
+# `stat` the readout's numbers (Render.stat_of), zero for none
+def view_more(g: Game, +fl: U32, stat: U32, more: U32) -> Game & Image:
   G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, fl, fps, more, w)
+  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, fl, stat, more, w)
 
 def view_with(g: Game, fl: U32) -> Game & Image:
   view_more(g, fl, 0, Render.looks_base())
@@ -52,7 +53,7 @@ def view(g: Game) -> Game & Image:
 
 # the game's frame with the readout in its corner; zeros hide it
 def view_stat(g: Game, +ms10: U32, +fps: U32) -> Game & Image:
-  view_more(g, Render.stat_flags(Render.looks(), ms10, fps), fps, Render.looks_base())
+  view_more(g, Render.looks(), Render.stat_of(ms10, fps), Render.looks_base())
 
 # Time advances at the IO edge; a physics step has no wall-clock dependency.
 # The water flows on the same clock (Flow.advance).

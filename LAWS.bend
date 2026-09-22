@@ -148,42 +148,27 @@ law keys_off_the_mouse_bits:
 law unknown_key_is_no_bit:
   {Player.kmask(65) == 0 : U32}
 
-# --- the readout rides above the looks --------------------------------------
-# the flags word keeps its five looks and neither debug bit under any
-# numbers; the numbers read back; past their room they stop at 99.9 and 255
+# --- the readout: a word of its own --------------------------------------
+# the numbers read back; past their room they stop at 99.9 and 255; zeros
+# are the game's frame, and a frame a second shows
 
-law stat_keeps_the_looks:
-  {(Render.stat_flags(31, 164, 60) % 128 : U32) == 31 : U32}
-
-law stat_ms_reads_back:
-  {Render.stat_ms(Render.stat_flags(31, 164, 60)) == 164 : U32}
-
-law stat_fps_reads_back:
-  {Render.stat_fps(Render.stat_flags(31, 164, 60), Render.stat_items(0, 60), Render.stat_base(0, 60)) == 60 : U32}
+law stat_reads_back:
+  {(Render.stat_ms(Render.stat_of(164, 60)), Render.stat_fps(Render.stat_of(164, 60))) == (164, 60) : U32 & U32}
 
 law stat_stops_at_its_room:
-  {(Render.stat_ms(Render.stat_flags(31, 5000, 900)), Render.stat_fps(Render.stat_flags(31, 5000, 900), Render.stat_items(0, 900), Render.stat_base(0, 900))) == (999, 255) : U32 & U32}
+  {(Render.stat_ms(Render.stat_of(5000, 900)), Render.stat_fps(Render.stat_of(5000, 900))) == (999, 255) : U32 & U32}
 
 law stat_zero_is_the_game:
-  {Render.stat_flags(31, 0, 0) == 31 : U32}
+  {Render.stat_on(Render.stat_of(0, 0)) == False{} : Bool}
+
+law a_frame_a_second_shows:
+  {Render.stat_on(Render.stat_of(0, 1)) == True{} : Bool}
 
 # The integer phase is the sole input to the sun's trigonometry. A whole
 # turn returns it for every clock word, including U32 wrap.
 
 law day_wraps_to_dawn:
   {Day.advance(1048575, 1) == 0 : U32}
-
-law stat_keeps_high_looks:
-  {(Render.stat_flags(4261412895, 164, 60) .&. 4261412991 : U32) == 4261412895 : U32}
-
-law stat_high_ms_reads_back:
-  {Render.stat_ms(Render.stat_flags(4261412895, 164, 60)) == 164 : U32}
-
-law stat_high_fps_reads_back:
-  {Render.stat_fps(Render.stat_flags(4261412895, 164, 60), Render.stat_items(0, 60), Render.stat_base(0, 60)) == 60 : U32}
-
-law stat_high_zero_is_the_game:
-  {Render.stat_flags(4261412895, 0, 0) == 4261412895 : U32}
 
 law day_returns_after_a_full_turn:
   for t: U32
@@ -249,22 +234,6 @@ law inventory_hud_large_is_capped:
 
 law save_and_quit_survive_the_step:
   {Player.io_edges(65535) == 4352 : U32}
-
-# Splitting the FPS word leaves the inventory and four future looks intact.
-law stat_items_keeps_counts:
-  {(Render.stat_items(268435455, 255) .&. 268435455 : U32) == 268435455 : U32}
-
-law stat_fps_crosses_the_split:
-  {Render.stat_fps(Render.stat_flags(0, 0, 16), Render.stat_items(0, 16), Render.stat_base(0, 16)) == 16 : U32}
-
-law stat_keeps_water_room:
-  {(Render.stat_flags(31457280, 999, 255) .&. 31457280 : U32) == 31457280 : U32}
-
-law stat_water_room_is_not_a_number:
-  {Render.stat_on(31457280, 0, 0) == False{} : Bool}
-
-law stat_high_fps_is_visible:
-  {Render.stat_on(0, Render.stat_items(0, 16), Render.stat_base(0, 16)) == True{} : Bool}
 
 # The still-water mask never turns water into a solid. These integer laws
 # cover generation and displacement; no flow is simulated yet.
@@ -409,9 +378,6 @@ law water_fog_has_its_own_flag:
 law water_fog_is_on_by_default:
   {Water.fog_on(Render.looks()) == True{} : Bool}
 
-law readout_keeps_water_fog:
-  {Water.fog_on(Render.stat_flags(4194304, 999, 255)) == True{} : Bool}
-
 # Exhaust every legal step count and all four solid-face codes, with and
 # without the packed water-top bit. No floating-point claim is made here.
 def surface_code_checks(n: Nat, +i: U32) -> Bool:
@@ -442,9 +408,6 @@ law water_fresnel_has_its_own_flag:
 law water_surface_looks_are_on_by_default:
   {(Water.reflection_on(Render.looks()), Water.fresnel_on(Render.looks())) == (True{}, True{}) : Bool & Bool}
 
-law readout_keeps_water_surface_looks:
-  {(Render.stat_flags(25165824, 999, 255) .&. 25165824 : U32) == 25165824 : U32}
-
 law ripple_clock_returns_after_a_turn:
   for t: U32
   {Water.phase((t + 8192 : U32)) == Water.phase(t) : U32}
@@ -464,25 +427,10 @@ law ripple_lattice_follows_recentering:
 law ripple_flag_is_independent:
   {(Water.ripples_on(1048576), Water.ripples_on(25165824), Water.ripples_on(Render.looks())) == (True{}, False{}, True{}) : Bool & (Bool & Bool)}
 
-law readout_keeps_ripples:
-  {(Render.stat_flags(1048576, 999, 255) .&. 1048576 : U32) == 1048576 : U32}
-
-law ripple_clock_is_not_a_readout:
-  {Render.stat_on(1048576, 0, Water.frame_base(16383, 8191)) == False{} : Bool}
-
-law split_fps_eight_reads_back:
-  {Render.stat_fps(Render.stat_flags(1048576, 0, 8), Render.stat_items(0, 8), Water.frame_base(Render.stat_base(16383, 8), 8191)) == 8 : U32}
-
-law split_fps_eight_is_visible:
-  {Render.stat_on(0, 0, Water.frame_base(Render.stat_base(16383, 8), 8191)) == True{} : Bool}
-
-law ripple_packing_keeps_the_readout_bit:
-  {(Water.frame_base(Render.stat_base(16383, 8), 8191) / 2147483648 : U32) == 1 : U32}
-
 # --- the world in the water's mirror ------------------------------------------
 # Its look rides in bit 27 of the camera's base, put there after the ripple
 # clock: it reads back, it is off when not asked for whatever the address
-# held, and it touches neither the ring's address, the clock nor the readout.
+# held, and it touches neither the ring's address nor the clock.
 
 law mirror_look_reads_back:
   {Water.mirror_on(Water.with_looks(Water.frame_base(16383, 8191), Render.looks_base())) == True{} : Bool}
@@ -501,9 +449,6 @@ law caustic_look_reads_back:
 
 law caustic_look_is_off_unasked:
   {Water.caustic_on(Water.with_looks(Water.frame_base(4294967295, 8191), 134217728)) == False{} : Bool}
-
-law mirror_look_keeps_the_readout:
-  {Render.stat_fps(Render.stat_flags(1048576, 0, 8), Render.stat_items(0, 8), Water.with_looks(Water.frame_base(Render.stat_base(16383, 8), 8191), Render.looks_base())) == 8 : U32}
 
 # --- the flow: one transfer ----------------------------------------------
 # (what moves is a function of two amounts, down what fits (World.fits

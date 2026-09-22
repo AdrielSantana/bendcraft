@@ -531,8 +531,7 @@ The larger off-row differences follow overlapping run ranges: gradient
 15.2–16.6 → 15.8–16.4, height fog 15.6–16.6 → 16.0–17.2. Their rendering
 code is unchanged; the readout is disabled in these views. Fastest bench
 frames at the six sizes are 2/2/4/9/16/29 → 2/2/4/8/15/29 ms. The readout
-test checks every FPS value through 256, including clamping and all four
-inventory counts sharing its word.
+test checks every FPS value through 256, including clamping.
 
 Still-water delivery, four alternated pre-water/current rounds at 1470×796.
 These compare the same default view; the bench picture changes intentionally.
@@ -787,9 +786,7 @@ rendered and inspected. Normal bench minima at the six sizes are
 2/3/6/10/21/36 → 3/3/6/11/21/38 ms.
 
 `Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
-5 and 6 are debug renders; 7..16 hold milliseconds and 17..19 the low
-three FPS bits. FPS bit 3 uses `Cam.base` bit 31; the high four use
-`Cam.items` bits 28..31, above the counts. Bit 20 enables ripples;
+5 and 6 are debug renders; 7..19 are spare. Bit 20 enables ripples;
 bit 21 enables water, bit 22 water fog, bit 23 Fresnel and bit 24
 sky reflection. Bits 25..31 are day
 cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
@@ -905,10 +902,12 @@ the frames that reached the screen, which the display's rate caps, so a
 render of 5 ms still reads 60 or 120. `main.bend` runs the window's loop
 itself, in `App.run`'s shape, to read the clock on each side of the view
 and not around the wait for the screen; twice a second it publishes the
-mean since. The two numbers ride to the GPU in the flags word and spare
-bits of the inventory and ring-address words. The camera keeps its 14
-words: only 14 low address bits affect the ring's wrapping array reads;
-bits 14..26 carry the ripple clock, and bit 31 carries one FPS bit.
+mean since. The two numbers ride to the GPU in a word of their own,
+`Cam.stat` (they rode in spare bits of the flags, the inventory and the
+ring-address words while the camera was kept at 14 words; the fifteenth
+word measured free, so the splices and their 22 laws went, 2026-09-22).
+Only 14 low address bits affect the ring's wrapping array reads; bits
+14..26 carry the ripple clock.
 The HUD draws the readout with glyphs of 3 × 5 picked by divisions
 and masks (no table, no variable shift). With the readout off the frame
 is the same bit for bit: the bench's checksums and its times did not move.
@@ -924,8 +923,8 @@ select, since the GPU never shifts by a variable) agrees with the host's;
 the terrain's layers are what they should be, a trunk packs as wood with
 leaves over it and grass under it, and the packed word the loader writes
 reads back the same; no key touches the mouse's bits of the held mask;
-the readout's numbers ride above the looks without touching them, read
-back, and stop at their room even with high look flags set. The day phase
+the readout's numbers read back from their word and stop at their room.
+The day phase
 returns after a whole turn for every `U32` clock value, including overflow,
 proved by induction over the low 20 bits. This is the sun's sole integer
 input. Its last millisecond advances to dawn. The inventory uses natural
@@ -935,23 +934,23 @@ restores the count, and edits preserve the number of inventory slots.
 The HUD packing has mixed-slot and boundary laws; save/quit edges survive
 the physics step. Still-water laws cover generation above ground, the sea
 limit, banks preserved on water placement, displacement, neighboring bits
-and material packing. Water fog has its own flag, enabled by default and
-preserved by readout packing. Three tree laws check all 32 column heights:
+and material packing. Water fog has its own flag, enabled by default.
+Three tree laws check all 32 column heights:
 submerged ground and snow reject roots, dry grass accepts them. Two lake
 floor laws cover the submerged dirt heights and their material packing;
 dry shoreline grass, low sand and high snow keep their existing laws.
-Six surface laws cover independent flags, readout preservation and packing
+Five surface laws cover independent flags and packing
 the top-entry bit with all 61 step counts and four face codes. Float tests
 cover Fresnel endpoints and growth, reflected sun/moon, signed entry,
 submerged eyes, foreground banks and distant fog.
-Eleven ripple laws include the 8192-ms period for every clock word,
-boundary packing checks, flag independence, readout preservation and
+Six ripple laws include the 8192-ms period for every clock word,
+boundary packing checks, flag independence and
 integer recentering. Windowless tests exhaust all 8192 phase values,
 16384 ring addresses and 257 FPS inputs, and check unit normals,
 grazing reflection, positive/negative recentering and temporal continuity.
-Five mirror laws keep its look in bit 27 of the base word: it reads back,
-it is off unless asked for, and the ring address, the ripple clock and
-the readout's bit pass through it untouched. Windowless tests walk the
+Four mirror laws keep its look in bit 27 of the base word: it reads back,
+it is off unless asked for, and the ring address and the ripple clock
+pass through it untouched. Windowless tests walk the
 mirror's ray to a placed brick along an axis and across, past its reach,
 and to the sky, and check the fade and the byte a miss leaves alone.
 Two more keep the caustic's look in bit 28. Sixteen amount laws: a column
@@ -966,8 +965,8 @@ a source, plain water is not one, a bank blocks it, a pour keeps it, a
 solid over it ends it, and the spring is the ninth slot. Seven shove
 laws: what fits is the room, all of less, nothing in full or in a
 solid; a solid placed on water shoves its amount, water placed and a
-break shove nothing. There are 140 laws:
-eight universal claims and 132 concrete
+break shove nothing. There are 122 laws:
+eight universal claims and 114 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

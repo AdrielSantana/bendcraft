@@ -1,8 +1,6 @@
 import Base
 import ../src/player.bend as Player
 import ../src/render.bend as Render
-import ../src/inventory.bend as Inventory
-import ../src/water.bend as Water
 
 # The readout, windowless: a frame with "16.4 MS  60 FPS" asked for, and its
 # top left corner printed a character a pixel: # a lit dot, . the box, a
@@ -53,25 +51,15 @@ def shown(r: Player.Game & Image) -> IO(Unit):
 def packing_ok(ok: Bool) -> IO(Unit):
   match ok:
     case True{}: IO.pure(Unit, Unit{})
-    case False{}: IO.die(Unit, 1, "readout packing changed a number, look or count")
+    case False{}: IO.die(Unit, 1, "readout packing changed a number")
 
 def packing(n: Nat, +fps: U32) -> IO(Unit):
   match n:
     case 0n: IO.pure(Unit, Unit{})
     case 1n+m:
       do IO<Unit>:
-        +fl : U32 = Render.stat_flags(4293918847, 5000, fps)
-        +items : U32 = Render.stat_items(Inventory.pack4(0, 1, 99, 100), fps)
-        +base : U32 = Water.frame_base(Render.stat_base(16383, fps), 8191)
-        packing_ok(U32.is_eq(Render.stat_ms(fl), 999)
-          && U32.is_eq(Render.stat_fps(fl, items, base), U32.min(fps, 255))
-          && U32.is_eq((fl .&. 4293918847 : U32), 4293918847)
-          && U32.is_eq(Water.clock(base), 8191)
-          && U32.is_eq((base % 16384 : U32), 16383)
-          && U32.is_eq(Inventory.hud_count(0, items, 4), 0)
-          && U32.is_eq(Inventory.hud_count(0, items, 5), 1)
-          && U32.is_eq(Inventory.hud_count(0, items, 6), 99)
-          && U32.is_eq(Inventory.hud_count(0, items, 7), 100))
+        +stat : U32 = Render.stat_of(5000, fps)
+        packing_ok(U32.is_eq(Render.stat_ms(stat), 999) && U32.is_eq(Render.stat_fps(stat), U32.min(fps, 255)))
         packing(m, (fps + 1 : U32))
 
 def main() -> IO(Unit):

@@ -138,7 +138,7 @@ def main() -> IO(Unit):
       empty_world(), ((1 + Player.pk_u(64, 8, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
       sand(), Player.pk_u(64, 8, 64), False{}, 0), "placement at the bottom of the feet does not spend")
     Lib.expect(packing(102n), "all display counts read back in every slot")
-    Lib.expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
+    Lib.expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
     saved : Player.Game <- Save.save_to("build/inventory-test.save", fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], 6))
     loaded : Player.Game <- Save.load_from("build/inventory-test.save", Player.res512())
     Lib.expect(cell(loaded, [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], Player.pk_u(64, 10, 66), True{}, 3), "file roundtrip keeps counts and cell type")

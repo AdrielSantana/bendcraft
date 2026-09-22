@@ -168,19 +168,19 @@ this game (ROADMAP.md).
 - What every lane shares must be flat (`Cam`: scalars, copied by words) or
 the one array (`w`, read at a plain load). A `+` tree read by every lane
 costs a count a node a pixel, on every node of that type.
-- A new parameter rides in every task. Prefer a field's spare bits (the
-readout's numbers ride in `fl`) to a new argument down the fork.
+- A new parameter rides in every task. A fifteenth camera word (the
+readout's, `Cam.stat`, 2026-09-22) measured free, so a number with a
+meaning of its own gets a word, not spare bits of another; measure.
 
 ## The code's fixed points
 
-- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; bits 7..16 hold milliseconds, 17..19 the low three FPS bits.
-FPS bit 3 uses `Cam.base` bit 31; the high four use `Cam.items` bits 28..31.
+- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; bits 7..19 are spare.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
 horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
 - `Cam.base`: low 14 bits address the ring; bits 14..26 hold the ripple
-clock modulo 8192 ms; bit 31 holds FPS bit 3. The array wraps addresses,
-so clock/readout bits cannot affect world reads. Bits 27..30 are the
+clock modulo 8192 ms. The array wraps addresses, so the clock's bits
+cannot affect world reads. Bits 27..30 are the
 looks `Cam.fl` has no room for: `Render.looks_base()` holds the ones on
 by default and `Water.with_looks` puts them in; 27 is the world in the
 water's mirror, 28 the caustic on its bed, 29 says the window holds
@@ -194,6 +194,8 @@ writing it.
 seven-bit display counts in bits 4..31; `Cam.items` holds the other four in bits 0..27. A display count of 100
 means `99+`. `Game.bag` keeps eight full `Nat` counts on the host; labels
 share HUD flag 16. Old saves without counts load with an empty bag.
+- `Cam.stat`: the readout, bits 0..9 the tenths of a millisecond and
+10..17 the frames a second (`Render.stat_of`); zero hides it.
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
 512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
 - The world: a ring of 128x128 columns in one `Array<U32>` of 2^18 words,

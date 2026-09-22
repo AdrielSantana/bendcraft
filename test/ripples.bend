@@ -1,7 +1,6 @@
 import Base
 import ./lib.bend as Lib
 import ../src/water.bend as Water
-import ../src/render.bend as Render
 import ../src/world.bend as World
 import ../src/day.bend as Day
 
@@ -16,26 +15,25 @@ def same(a: Water.Reflection, b: Water.Reflection, +epsilon: F32) -> Bool:
 def sample(base: U32, clock: U32, x: F32, z: F32) -> Water.Reflection:
   Water.reflected(True{}, Water.frame_base(base, clock), x, z, 6.0, 0.8, (0.0 - 0.6 : F32), 0.0)
 
-# Exhaust the phase field while all neighbouring fields are set. Also
+# Exhaust the phase field while the address's bits are set. Also
 # check that a saved day, and the highest U32 bits, cannot affect the phase.
 def clocks(n: Nat, +i: U32) -> Bool:
   match n:
     case 0n: True{}
     case 1n+k:
-      +b = Water.frame_base(Render.stat_base(16383, 255), i)
+      +b = Water.frame_base(16383, i)
       U32.is_eq(Water.clock(b), i) && U32.is_eq((b % 16384 : U32), 16383)
-        && U32.is_eq((b / 2147483648 : U32), 1)
         && U32.is_eq(Water.clock(Water.frame_base(0, (i + 4294959104 : U32))), i)
         && U32.is_eq(Water.clock(Water.frame_base(0, Day.advance(i, Day.length()))), i)
         && clocks(k, (i + 1 : U32))
 
-# Every ring address survives the highest phase/readout fields, including
-# a column offset which wraps through the end of the array.
+# Every ring address survives the highest phase, including a column
+# offset which wraps through the end of the array.
 def addresses(n: Nat, +i: U32) -> Bool:
   match n:
     case 0n: True{}
     case 1n+k:
-      +b = Water.frame_base(Render.stat_base(i, 255), 8191)
+      +b = Water.frame_base(i, 8191)
       U32.is_eq((World.col_at(b, 127, 127) % 262144 : U32), (World.col_at(i, 127, 127) % 262144 : U32))
         && U32.is_eq((b % 16384 : U32), i) && U32.is_eq(Water.clock(b), 8191)
         && addresses(k, (i + 1 : U32))
