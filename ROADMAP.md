@@ -223,15 +223,20 @@ block moves; that is the first gate of every step below.
   sides alternates with the tick's parity, so the bias of a fixed order
   cancels over two ticks. A neighbour outside the ring is solid: the
   loaded window's edge is closed, and a lake that reaches it holds.
-- **Sources.** A source is a cell marked in its column (the type nibble
-  9 in the type words, since no word is spare) that refills to 255 at
-  the end of each tick it took part in. The
-  seed's lakes are not sources: dig a channel and they drain. Sources are
-  the only creation of water, and an explicit edit (a solid placed in
-  water, water collected) the only removal; the flow itself neither
-  creates nor removes. The accounting is a law: a tick without sources
-  keeps the world's volume; with sources, the volume grows by exactly
-  what they refilled.
+- **Sources.** As built (2026-09-22): a source is a cell whose type
+  nibble is 9, placed by the spring, the ninth hotbar slot (`9`), by the
+  water's edit path (a bank blocks it, a solid over it ends it, a pour
+  leaves the nibble), spent from nothing; the flow refills it to 255 at
+  the end of each step it took part in and the world counts what it
+  made (`World.made`). The seed's lakes are not sources: dig a channel
+  and they drain. Sources are the only creation of water, and an
+  explicit edit (a solid placed in water, water collected) the only
+  removal; the flow itself neither creates nor removes. The accounting
+  is tested on a basin: over any ticks it holds what was placed plus
+  what its sources made, and a tick without sources makes nothing. A
+  source pushes nothing up (the rule gives only to cells holding less),
+  so under a full layer it rests: a spring feeds what lies beside and
+  below it.
 - **The active set.** As built (2026-09-22): a word of marks per column
   in the ring (slot 14, bit y: the cell is due a step) and a queue of the
   marked columns' slots in the world, oldest first, each once while its
@@ -264,8 +269,10 @@ block moves; that is the first gate of every step below.
   column 16 words whole, fourteen-word saves that widen the day's
   ten-word ones — done 2026-09-22 (five more laws, 128 in all; 153 tests;
   the digest and the physics hash unchanged; the plane clip costs what it
-  did, 30.6 → 36.0 ms on the lake). (3) Sources, with their accounting
-  law. (4) Edits: what a placed block displaces and what collecting
+  did, 30.6 → 36.0 ms on the lake). (3) Sources, with their accounting —
+  done 2026-09-22 (ten laws, 138 in all; 161 tests; the physics hash
+  unchanged; the HUD has nine slots, so the picture digest moves to
+  cfa229e5b4c12605128807164522ad0d, the frame the same). (4) Edits: what a placed block displaces and what collecting
   takes, both counted. (5) The player in water: buoyancy, drag, swimming,
   breath later.
 - **What step 2 found: the unit is too coarse.** The rule moves nothing
@@ -316,6 +323,22 @@ block moves; that is the first gate of every step below.
   Also found and fixed the same night: the steps between the planes,
   above. The user's call (2026-09-22): none of this needs deciding now;
   the frame budget is comfortable, the options wait here.
+- **What the sources found: the model needs a sink.** A spring on the
+  spawn's hill fills its terrace and spills down, as it should; the spill
+  then spreads over every flat reach as a film of a few units, and never
+  stops, since nothing removes water but an edit: 400 ticks on, 18777
+  units made, 1212 wet cells, growing a cell a tick, the queue over the
+  budget for good, and every reach it wets a layer of partial cells for
+  the frame. The world floods, slowly, from any spring. The standard
+  answer (Terraria, Dwarf Fortress) is that thin water dries: a cell
+  resting on ground (solid or full water under it) that holds under a
+  few units at the end of its step loses them, counted (`World.gone`),
+  so the accounting reads volume = placed + made − gone; falling water
+  never dries, and a lake at rest holds ten units a cell and more, so
+  it is untouched. A spring's puddle then stops where its rim dries as
+  fast as the spring feeds it, a few hundred cells on open ground, less
+  on real terrain where water pools. Built as the next commit, on its
+  own, so it is one revert if the user wants the closed model back.
 
 ## The laws
 

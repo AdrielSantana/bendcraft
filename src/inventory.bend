@@ -79,8 +79,9 @@ def edited(e: Edit) -> List<&2, Nat>:
   xs
 
 # Only bounded words cross the render fork. Four seven-bit display counts
-# fit above sel's three bits; the other four need one more camera word.
-# 100 means "99+" in the HUD, without truncating the saved natural count.
+# fit above sel's four bits (eight types and the spring); the other four
+# need one more camera word. 100 means "99+" in the HUD, without
+# truncating the saved natural count.
 def display(n: Nat) -> U32:
   U32.from_nat(Nat.min(n, 100n))
 
@@ -88,7 +89,7 @@ def pack4(a: U32, b: U32, c: U32, d: U32) -> U32:
   (a % 128 + 128 * (b % 128 + 128 * (c % 128 + 128 * (d % 128))) : U32)
 
 def hud_lo(sel: U32, +bag: List<&2, Nat>) -> U32:
-  (sel % 8 + 8 * pack4(display(count(bag, 0n)), display(count(bag, 1n)), display(count(bag, 2n)), display(count(bag, 3n))) : U32)
+  (sel % 16 + 16 * pack4(display(count(bag, 0n)), display(count(bag, 1n)), display(count(bag, 2n)), display(count(bag, 3n))) : U32)
 
 def hud_hi(+bag: List<&2, Nat>) -> U32:
   pack4(display(count(bag, 4n)), display(count(bag, 5n)), display(count(bag, 6n)), display(count(bag, 7n)))
@@ -99,4 +100,4 @@ def unpack4(p: U32, +slot: U32) -> U32:
     Bool.pick(U32, U32.is_eq(slot, 2), 16384, 2097152))) % 128 : U32)
 
 def hud_count(lo: U32, hi: U32, +slot: U32) -> U32:
-  unpack4(Bool.pick(U32, (slot < 4 : U32), (lo / 8 : U32), hi), (slot % 4 : U32))
+  unpack4(Bool.pick(U32, (slot < 4 : U32), (lo / 16 : U32), hi), (slot % 4 : U32))

@@ -24,17 +24,17 @@ def res512() -> U32:
   res_of(512, 512)
 
 def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32,
+             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, made: U32,
              r: Array<U32> & Image) -> Game & Image:
   (ring, img) = r
-  (G{World.W{ring, m, ox, oz, q, np}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, img)
+  (G{World.W{ring, m, ox, oz, q, np, made}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, img)
 
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
            held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, +fps: U32, more: U32, w: World.World) -> Game & Image:
-  World.W{ring, m, +ox, +oz, q, +np} = w
+  World.W{ring, m, +ox, +oz, q, +np, made} = w
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
-  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, m, ox, oz, q, np,
+  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, m, ox, oz, q, np, made,
            Render.frame(Render.camera(px, py, pz, yaw, pit, Render.stat_base((ox * 128 + oz : U32), fps), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Render.stat_items(Inventory.hud_hi(bag), fps), fl, rw, rh, clock), ring, rw, rh))
 
 # the frame with the render's flags (Render.Cam), all looks on for the game
@@ -88,11 +88,11 @@ def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, p
     case False{}:
       G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, mx, my, sel, res, clock, bag}
 
-# the digits 1..8 choose the block to place
+# the digits 1..8 choose the block to place, 9 the spring (a source of water)
 def on_key(g: Game, +code: U32, +down: Bool) -> Game:
   G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, +sel, res, clock, bag} = g
   +lower = Bool.pick(U32, ((code >= 65) && (code <= 90) : U32), (code + 32 : U32), code)
-  +digit = down && (code >= 49 : U32) && (code <= 56 : U32)
+  +digit = down && (code >= 49 : U32) && (code <= 57 : U32)
   key_apply(down, w, px, py, pz, yaw, pit, vy, held, edge, mx, my,
             Bool.pick(U32, digit, (code - 49 : U32), sel), res, clock, bag, kmask(lower))
 
@@ -207,13 +207,13 @@ def aim(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: 
        (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
        0, 0, 0, World.solid(w, base, vx, vy, vz))
 
-def waim_fin(m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
+def waim_fin(m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, made: U32, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
   (ring, ph) = r
-  (World.W{ring, m, ox, oz, q, np}, ph)
+  (World.W{ring, m, ox, oz, q, np, made}, ph)
 
 def waim(w: World.World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> World.World & (U32 & U32):
-  World.W{ring, m, +cx, +cz, q, np} = w
-  waim_fin(m, cx, cz, q, np, aim(ring, (cx * 128 + cz : U32), ox, oy, oz, dx, dy, dz))
+  World.W{ring, m, +cx, +cz, q, np, made} = w
+  waim_fin(m, cx, cz, q, np, made, aim(ring, (cx * 128 + cz : U32), ox, oy, oz, dx, dy, dz))
 
 # unpack: word -> lx, y, lz
 def ix_x(+i: U32) -> U32: (i / 4096 : U32)
@@ -233,10 +233,19 @@ def edit_commit(w: World.World, idx: U32, set: Bool, what: U32, e: Inventory.Edi
   Inventory.Edit{bag, changed} = e
   (write_block(changed, w, idx, set, what), bag)
 
-def edit_type(+set: Bool, +what: U32, idx: U32, bag: List<&2, Nat>, solid: Bool, r: World.World & U32) -> World.World & List<&2, Nat>:
+# the spring (9) places a source of water and spends nothing: the bag is
+# the same and the write goes ahead, into air or water, never a solid
+def receipt(spring: Bool, +set: Bool, +what: U32, +actual: U32, bag: List<&2, Nat>, solid: Bool) -> Inventory.Edit:
+  match spring:
+    case True{}:
+      Inventory.Edit{bag, True{}}
+    case False{}:
+      Inventory.edit(bag, U32.to_nat(U32.min(Bool.pick(U32, set, what, actual), 8)), set, solid)
+
+def edit_type(+set: Bool, +what: U32, idx: U32, bag: List<&2, Nat>, +solid: Bool, r: World.World & U32) -> World.World & List<&2, Nat>:
   (w, actual) = r
   edit_commit(w, idx, set, Bool.pick(U32, set, what, 0),
-    Inventory.edit(bag, U32.to_nat(U32.min(Bool.pick(U32, set, what, actual), 8)), set, solid))
+    receipt(set && U32.is_eq(what, 9) && Bool.not(solid), set, what, actual, bag, solid))
 
 def edit_solid(set: Bool, what: U32, +idx: U32, bag: List<&2, Nat>, r: World.World & Bool) -> World.World & List<&2, Nat>:
   (w, solid) = r
@@ -374,7 +383,7 @@ def tick(evs: List<Event>, g: Game) -> IO(Maybe<Game>):
 
 # the world's corner starts far from zero, so walking west never wraps it
 def start_at(+res: U32) -> Game:
-  G{World.load_all(128n, World.W{[0 : U32^18n], Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0}, 1048512, 1048512),
+  G{World.load_all(128n, World.W{[0 : U32^18n], Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}, 1048512, 1048512),
     64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0, 0, res, Day.morning(), Inventory.empty()}
 
 def start() -> Game:

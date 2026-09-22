@@ -8,8 +8,9 @@ on the GPU through Metal, or on every core of your machine as WebAssembly.
 
 `W A S D` walk · `space` jumps · drag the mouse to look (or the arrows) ·
 click breaks · right click places (or `J` / `L`) · `1`–`8` choose the block
-to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `P` saves ·
-`F` shows the frame's time · `Esc` quits and saves.
+to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
+spring, a source of water · `P` saves · `F` shows the frame's time · `Esc`
+quits and saves.
 
 You start with an empty inventory. Break a block to collect its type;
 placing spends one of the selected type. The hotbar shows each count
@@ -178,7 +179,23 @@ a tick, so a lake levels by diffusion, in about as many ticks as the
 square of its length; the breached lake takes 1300 ticks, five and a
 half minutes of the clock, with 640 columns active the whole way, 2.5
 times the budget, and its whole surface a layer of partial cells after,
-so the frame pays the plane clip from then on. Distance and height fog use the full solid-hit
+so the frame pays the plane clip from then on.
+
+Sources are the third step: a cell whose type nibble is 9, placed by the
+spring (`9`, the ninth slot, spent from nothing) into air or water by the
+water's path, so a bank blocks it, a solid placed over it ends it, and a
+pour leaves it. At the end of each step a source took part in, the flow
+refills it to 255 and the world counts what it made (`World.made`); a
+source that gave nothing made nothing, and since the rule only gives to
+cells that hold less, a source pushes nothing up: under a full layer it
+rests. The accounting: over any run of ticks the water in a closed basin
+is what was placed plus what its sources made, exactly (the tests sum
+one), and a tick without sources makes nothing. What a spring does on
+open ground (`build/spring-*.png`): it fills the terrace it sits on and
+spills down the hill; and as the model has no sink, the spill spreads as
+a film of a few units over every flat reach it comes to, without end
+(400 ticks on the spawn's hill: 18777 units made, 1212 wet cells and
+growing a cell a tick). Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -299,7 +316,8 @@ old excavations stay dry, and an explicit zero water word stays zero. Both `P` a
 feet and the head per axis and stops at walls; gravity pulls, landing snaps
 the feet onto the block, space pushes off it. A block is never placed on
 the player. The hotbar along the bottom shows the eight block types and
-frames the chosen one, with the available count below each swatch.
+the spring and frames the chosen one, with the available count below
+each block's swatch; the spring has no count.
 
 ## Layout
 
@@ -913,7 +931,11 @@ read agrees with the host's, water placed is a full cell, a solid placed
 holds none, a pour sets the amount and the bit, clears the bit at zero,
 caps at 255 and does nothing to a solid, and the partial mask has a bit
 for a poured cell and none for a full one. Thirteen flow laws bound one
-transfer. There are 128 laws: eight universal claims and 120 concrete
+transfer. Ten source laws: the spring places a full water cell that is
+a source, plain water is not one, a bank blocks it, a pour keeps it, a
+solid over it ends it, a source refills what it gave and a full one
+makes nothing, and the spring is the ninth slot. There are 138 laws:
+eight universal claims and 130 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

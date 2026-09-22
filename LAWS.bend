@@ -349,6 +349,41 @@ law a_full_cell_is_not_partial:
 law pour_into_a_solid_is_nothing:
   {World.pour_col(World.col6(1024, 0, 1536, 0, 0, 0), 10, 5) == World.col6(1024, 0, 1536, 0, 0, 0) : World.Col}
 
+# --- a source: the type nibble 9 under the water's bit -------------------------
+# The spring (the ninth slot) places one by the water's path: a full cell,
+# a bank blocks it, a solid over it ends it, a pour leaves the nibble; and
+# what it makes when it refills is exactly what it gave.
+
+law a_spring_places_water:
+  {World.masks(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9)) == (0, 1024) : U32 & U32}
+
+law a_spring_is_a_full_cell:
+  {World.levels(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9)) == World.Levels{0, 0, 16711680, 0, 0, 0, 0, 0} : World.Levels}
+
+law a_spring_is_a_source:
+  {World.source_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9), 10) == True{} : Bool}
+
+law water_placed_is_no_source:
+  {World.source_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 8), 10) == False{} : Bool}
+
+law a_spring_cannot_replace_a_bank:
+  {World.edit_col(World.col6(1024, 0, 1536, 0, 0, 0), 10, True{}, 9) == World.col6(1024, 0, 1536, 0, 0, 0) : World.Col}
+
+law a_pour_keeps_the_source:
+  {World.source_col(World.pour_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9), 10, 100), 10) == True{} : Bool}
+
+law a_solid_over_a_source_ends_it:
+  {World.source_col(World.edit_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9), 10, True{}, 2), 10) == False{} : Bool}
+
+law a_source_refills_what_it_gave:
+  {Flow.refilled(100) == 155 : U32}
+
+law a_full_source_makes_nothing:
+  {Flow.refilled(255) == 0 : U32}
+
+law the_spring_is_the_ninth_slot:
+  {(Inventory.hud_lo(8, Inventory.empty()) % 16 : U32) == 8 : U32}
+
 law water_fog_has_its_own_flag:
   {Water.fog_on(2097152) == False{} : Bool}
 

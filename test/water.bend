@@ -17,7 +17,7 @@ def expect(ok: Bool, name: String) -> IO(Unit):
     case False{}: IO.die(Unit, 1, "failed " ++ name)
 
 def empty() -> World.World:
-  World.W{[0 : U32^18n], Map.new(&2, World.Col), 0, 0, Nil{}, 0}
+  World.W{[0 : U32^18n], Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}
 
 def ray_ok(+axis: U32, top: Bool, +entry: F32, +depth: F32, +distance: F32, r: Array<U32> & Render.Ray) -> Bool:
   (w, hit) = r
@@ -28,7 +28,7 @@ def ray_ok(+axis: U32, top: Bool, +entry: F32, +depth: F32, +distance: F32, r: A
 # One wet voxel, then a solid two cells beyond it. These rays test the
 # real DDA in both signs of every axis, outside and inside the water.
 def probe_w(~wet: Bool, +axis: U32, +pos: Bool, +under: Bool, +blocked: Bool, w: World.World) -> Bool:
-  World.W{ring, m, ox, oz, q, np} = w
+  World.W{ring, m, ox, oz, q, np, made} = w
   +a = Bool.pick(F32, under, 64.0, Bool.pick(F32, pos, 61.0, 67.0))
   +x = Bool.pick(F32, U32.is_eq(axis, 0), a, 64.0)
   +y = Bool.pick(F32, U32.is_eq(axis, 1), (a - 54.0 : F32), 10.0)
@@ -100,7 +100,7 @@ def same_levels(a: World.Levels, b: World.Levels) -> Bool:
 
 def saved_col(g: Player.Game) -> World.Col:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  World.W{ring, m, ox, oz, q, np} = w
+  World.W{ring, m, ox, oz, q, np, made} = w
   col(World.get_col(ring, World.col_at(0, 64, 64)))
 
 def restored(r: Player.Game & String) -> World.Col:
@@ -112,8 +112,21 @@ def fixture(w: World.World) -> Player.Game:
 
 def placed(r: World.World & List<&2, Nat>) -> Bool:
   (w, bag) = r
-  World.W{ring, m, ox, oz, q, np} = w
+  World.W{ring, m, ox, oz, q, np, made} = w
   (Nat.is_eq(Inventory.count(bag, 6n), 0n)) && same_masks(col(World.get_col(ring, World.col_at(0, 64, 64))), 1024, 0)
+
+def src(r: World.World & Bool) -> Bool:
+  (w, s) = r
+  s
+
+# the spring placed by the player: a source at (64, 10, 64), the bag as it was
+def sourced(r: World.World & List<&2, Nat>) -> Bool:
+  (w, bag) = r
+  Nat.is_eq(Inventory.count(bag, 6n), 1n) && src(World.source_at(w, 64, 10, 64))
+
+def not_sourced(r: World.World & List<&2, Nat>) -> Bool:
+  (w, bag) = r
+  Bool.not(src(World.source_at(w, 64, 10, 64)))
 
 def picked(r: World.World & (U32 & U32)) -> Bool:
   (w, pair) = r
@@ -150,7 +163,7 @@ def trace_of(r: Array<U32> & Render.Ray) -> Render.Ray:
   hit
 
 def partial_trace_w(+level: Bool, +x: F32, +y: F32, +z: F32, +axis: U32, w: World.World) -> Render.Ray:
-  World.W{ring, m, ox, oz, q, np} = w
+  World.W{ring, m, ox, oz, q, np, made} = w
   +vy = Util.floorf(y)
   +move_x = Bool.pick(Bool, level, U32.is_eq(axis, 0), True{})
   +move_y = Bool.pick(Bool, level, U32.is_eq(axis, 1), True{})
@@ -192,7 +205,7 @@ def pixel(r: Array<U32> & U32) -> U32:
   c
 
 def fog_ray_w(+fl: U32, w: World.World) -> U32:
-  World.W{ring, m, ox, oz, q, np} = w
+  World.W{ring, m, ox, oz, q, np, made} = w
   pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 1.5, 10.5, 64.5,
     1.0, 0.0, 0.0, Render.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
 
@@ -202,13 +215,13 @@ def fog_ray(fl: U32, wet_until: U32, wall: U32) -> U32:
 # The same shallow wet path sees either a wall beyond the air fog or sky.
 # It rises through the water surface before reaching either background.
 def emerged_ray_w(+fl: U32, +sun_y: F32, w: World.World) -> U32:
-  World.W{ring, m, ox, oz, q, np} = w
+  World.W{ring, m, ox, oz, q, np, made} = w
   pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 1.5, 10.5, 64.5,
     0.99277389, 0.12, 0.0, Sky.gradient(True{}, 0.12, sun_y), fl, 0.48, sun_y, 0.36))
 
 def emerged_wall(fl: U32, sun_y: F32, wall: U32, w: World.World) -> U32:
-  World.W{ring, m, ox, oz, q, np} = w
-  emerged_ray_w(fl, sun_y, World.put_fin(m, ox, oz, q, World.put_col(ring, World.col_at(0, wall, 64),
+  World.W{ring, m, ox, oz, q, np, made} = w
+  emerged_ray_w(fl, sun_y, World.put_fin(m, ox, oz, q, made, World.put_col(ring, World.col_at(0, wall, 64),
     World.col6(4294967295, 572662306, 572662306, 572662306, 572662306, 0), np)))
 
 def emerged_ray(fl: U32, sun_y: F32, wall: U32) -> U32:
@@ -223,7 +236,7 @@ def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
 # ray can enter its top, begin submerged, or hit the bank before water.
 # the base carries the window's partial-water bit, as Player.view_w sets it
 def surface_ray_w(+fl: U32, +under: Bool, w: World.World) -> U32:
-  World.W{ring, m, ox, oz, q, +np} = w
+  World.W{ring, m, ox, oz, q, +np, made} = w
   pixel(Render.run_water(Util.on(fl, 2097152), ring, Render.with_partial(0, (np > 0 : U32)), 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
     0.0, (0.0 - 1.0 : F32), 0.0, Sky.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36))
 
@@ -232,7 +245,7 @@ def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
     64, 64, 10, True{}, 8), 64, 64, 12, blocked, 2))
 
 def far_surface_w(w: World.World) -> U32:
-  World.W{ring, m, ox, oz, q, np} = w
+  World.W{ring, m, ox, oz, q, np, made} = w
   pixel(Render.run_water(True{}, ring, 0, 1.5, 15.5, 64.5,
     0.9949874, (0.0 - 0.1 : F32), 0.0, Sky.rgb(100, 140, 180), Render.looks(), 0.48, 0.8, 0.36))
 
@@ -336,6 +349,11 @@ def main() -> IO(Unit):
     expect(U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 10, 64)), 8), "water material reads back")
     expect(placed(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 6,
       (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n]))), "placing spends one brick and displaces water")
+    expect(sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (empty(), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
+      && sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
+      && not_sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (World.edit(empty(), 64, 64, 10, True{}, 2), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
+      && U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 9), 64, 10, 64)), 8),
+      "the spring places a source into air or water, never into a solid, spends nothing, and the source reads as water")
     expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
     expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 0), "save preserves displacement")
     expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")

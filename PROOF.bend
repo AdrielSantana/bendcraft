@@ -202,6 +202,16 @@ def Laws.pour_is_capped_at_255(): {==}
 def Laws.a_poured_cell_is_partial(): {==}
 def Laws.a_full_cell_is_not_partial(): {==}
 def Laws.pour_into_a_solid_is_nothing(): {==}
+def Laws.a_spring_places_water(): {==}
+def Laws.a_spring_is_a_full_cell(): {==}
+def Laws.a_spring_is_a_source(): {==}
+def Laws.water_placed_is_no_source(): {==}
+def Laws.a_spring_cannot_replace_a_bank(): {==}
+def Laws.a_pour_keeps_the_source(): {==}
+def Laws.a_solid_over_a_source_ends_it(): {==}
+def Laws.a_source_refills_what_it_gave(): {==}
+def Laws.a_full_source_makes_nothing(): {==}
+def Laws.the_spring_is_the_ninth_slot(): {==}
 def Laws.water_fog_has_its_own_flag(): {==}
 def Laws.water_fog_is_on_by_default(): {==}
 def Laws.readout_keeps_water_fog(): {==}

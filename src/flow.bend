@@ -121,9 +121,32 @@ def cell_fin(+lx: U32, +y: U32, +lz: U32, +odd: Bool, r: World.World & U32) -> W
   (w, +a) = r
   cell_if((a > 0 : U32), lx, y, lz, a, odd, w)
 
-# the step of one cell: down, then the sides
+# ---------- a source ----------
+
+# what a source holding a makes when it refills
+def refilled(+a: U32) -> U32:
+  (World.full() - a : U32)
+
+# a source refills to full at the end of its step, and the world counts
+# what it made; one that gave nothing made nothing
+def refill_fin(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World:
+  (w, +a) = r
+  World.make(World.pour(w, lx, y, lz, World.full()), refilled(a))
+
+def refill_if(src: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World:
+  match src:
+    case False{}:
+      w
+    case True{}:
+      refill_fin(lx, y, lz, World.amount_at(w, lx, y, lz))
+
+def refill(+lx: U32, +y: U32, +lz: U32, r: World.World & Bool) -> World.World:
+  (w, src) = r
+  refill_if(src, w, lx, y, lz)
+
+# the step of one cell: down, then the sides, then the refill of a source
 def step(w: World.World, +lx: U32, +y: U32, +lz: U32, +odd: Bool) -> World.World:
-  cell_fin(lx, y, lz, odd, World.amount_at(w, lx, y, lz))
+  refill(lx, y, lz, World.source_at(cell_fin(lx, y, lz, odd, World.amount_at(w, lx, y, lz)), lx, y, lz))
 
 # ---------- one column ----------
 
@@ -159,14 +182,14 @@ def lx_of(+slot: U32, +ox: U32, +oz: U32, +lz: U32) -> U32:
   ((slot / 2048 - (oz + lz) / 128 - ox) % 128 : U32)
 
 # the column at the slot: its marks read and cleared, its cells stepped
-def slot_fin(m: Map<&2, World.Col>, +ox: U32, +oz: U32, q: List<&2, U32>, np: U32, +slot: U32, +odd: Bool, r: Array<U32> & U32) -> World.World:
+def slot_fin(m: Map<&2, World.Col>, +ox: U32, +oz: U32, q: List<&2, U32>, np: U32, made: U32, +slot: U32, +odd: Bool, r: Array<U32> & U32) -> World.World:
   (ring, +bits) = r
   +lz = lz_of(slot, oz)
-  column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 14 : U32), 0), m, ox, oz, q, np})
+  column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 14 : U32), 0), m, ox, oz, q, np, made})
 
 def step_slot(w: World.World, +slot: U32, +odd: Bool) -> World.World:
-  World.W{ring, m, +ox, +oz, q, np} = w
-  slot_fin(m, ox, oz, q, np, slot, odd, Array.get(U32, ring, (slot + 14 : U32)))
+  World.W{ring, m, +ox, +oz, q, np, made} = w
+  slot_fin(m, ox, oz, q, np, made, slot, odd, Array.get(U32, ring, (slot + 14 : U32)))
 
 # ---------- one tick ----------
 
@@ -174,8 +197,8 @@ def step_slot(w: World.World, +slot: U32, +odd: Bool) -> World.World:
 # queue afresh; what the budget did not reach goes back in front of them,
 # and the tick's marks behind, oldest first.
 def rejoin(rest: List<&2, U32>, w: World.World) -> World.World:
-  World.W{ring, m, ox, oz, q, np} = w
-  World.W{ring, m, ox, oz, List.append(&2, U32, rest, List.reverse(&2, U32, q)), np}
+  World.W{ring, m, ox, oz, q, np, made} = w
+  World.W{ring, m, ox, oz, List.append(&2, U32, rest, List.reverse(&2, U32, q)), np, made}
 
 def tick_go(budget: Nat, q: List<&2, U32>, +odd: Bool, w: World.World) -> World.World:
   match budget:
@@ -189,8 +212,8 @@ def tick_go(budget: Nat, q: List<&2, U32>, +odd: Bool, w: World.World) -> World.
           tick_go(k, rest, odd, step_slot(w, slot, odd))
 
 def tick(w: World.World, +odd: Bool, +budget: Nat) -> World.World:
-  World.W{ring, m, ox, oz, q, np} = w
-  tick_go(budget, q, odd, World.W{ring, m, ox, oz, Nil{}, np})
+  World.W{ring, m, ox, oz, q, np, made} = w
+  tick_go(budget, q, odd, World.W{ring, m, ox, oz, Nil{}, np, made})
 
 # the columns a tick steps at most
 def budget() -> Nat: 256n

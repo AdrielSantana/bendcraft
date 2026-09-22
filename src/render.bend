@@ -801,12 +801,12 @@ def cross_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> Bool:
   +dy = Bool.pick(U32, (pyi > hy : U32), (pyi - hy : U32), (hy - pyi : U32))
   ((dx < 1 : U32) && (dy < 5 : U32)) || ((dy < 1 : U32) && (dx < 5 : U32))
 
-# the hotbar: the eight block types in a row along the bottom, 20 px each
-# 4 apart, the chosen one framed in white
+# the hotbar: the eight block types and the spring in a row along the
+# bottom, 20 px each 4 apart, the chosen one framed in white
 def slot_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
-  +x0 = (rw / 2 - 94 : U32)
+  +x0 = (rw / 2 - 106 : U32)
   +y0 = (rh - 30 : U32)
-  +inx = (pxi >= x0 : U32) && (pxi < (x0 + 188 : U32) : U32)
+  +inx = (pxi >= x0 : U32) && (pxi < (x0 + 212 : U32) : U32)
   +iny = (pyi >= y0 : U32) && (pyi < (y0 + 20 : U32) : U32)
   +inslot = ((pxi - x0) % 24 < 20 : U32)
   Bool.pick(U32, inx && iny && inslot, ((pxi - x0) / 24 + 1 : U32), 0)
@@ -908,14 +908,16 @@ def count_col(+n: U32, +lx: U32, +ly: U32) -> U32:
     && Util.on(row, dot_bit(((lx - 5) % 4 : U32)))
   Bool.pick(U32, lit, Bool.pick(U32, U32.is_eq(n, 0), rgb(144, 144, 152), rgb(255, 255, 255)), rgb(16, 16, 24))
 
+# the spring's swatch is the water's blue, and it has no count
 def slot_col(+sel: U32, items: U32, +slot: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   +i = (slot - 1 : U32)
-  +lx = ((pxi - (rw / 2 - 94)) % 24 : U32)
+  +lx = ((pxi - (rw / 2 - 106)) % 24 : U32)
   +ly = (pyi - (rh - 30) : U32)
   +border = (lx < 2 : U32) || (lx >= 18 : U32) || (ly < 2 : U32) || (ly >= 18 : U32)
-  +label = (lx >= 4 : U32) && (lx < 18 : U32) && (ly >= 10 : U32) && (ly < 17 : U32)
-  Bool.pick(U32, border, Bool.pick(U32, U32.is_eq(i, (sel % 8 : U32)), rgb(255, 255, 255), rgb(40, 40, 40)),
-    Bool.pick(U32, label, count_col(Inventory.hud_count(sel, items, i), lx, ly), blockcol(i, False{}, 1.0)))
+  +label = (i < 8 : U32) && (lx >= 4 : U32) && (lx < 18 : U32) && (ly >= 10 : U32) && (ly < 17 : U32)
+  Bool.pick(U32, border, Bool.pick(U32, U32.is_eq(i, (sel % 16 : U32)), rgb(255, 255, 255), rgb(40, 40, 40)),
+    Bool.pick(U32, label, count_col(Inventory.hud_count(sel, items, i), lx, ly),
+      Bool.pick(U32, U32.is_eq(i, 8), rgb(46, 110, 160), blockcol(i, False{}, 1.0))))
 
 def slot_px(inside: Bool, sel: U32, items: U32, slot: U32, pxi: U32, pyi: U32, rw: U32, rh: U32) -> U32:
   match inside:
