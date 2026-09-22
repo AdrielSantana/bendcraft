@@ -309,10 +309,13 @@ block moves; that is the first gate of every step below.
   (t - 1)/255 of a block a cell; and communicating vessels, one level
   per connected body of still water found by a flood fill each tick, level
   a lake at once and leave the rule to the streams between bodies, the
-  right model for a lake and a step of its own. The plane clip's cost on a
-  lake partial everywhere is not yet measured (`make profile`'s last view
-  has seven partial cells). Also found and fixed the same night: the
-  steps between the planes, above.
+  right model for a lake and a step of its own. The plane clip on a lake
+  partial everywhere (the breached lake settled, the profile's lake view)
+  costs 30.3 → 39.4 ms at 1470×796, three tenths more, against a sixth
+  with `make profile`'s seven partial cells; about 8 → 10 ms at scale 2.
+  Also found and fixed the same night: the steps between the planes,
+  above. The user's call (2026-09-22): none of this needs deciding now;
+  the frame budget is comfortable, the options wait here.
 
 ## The laws
 
