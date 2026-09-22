@@ -67,7 +67,7 @@ def old_tree(r: Array<U32> & World.Col) -> Bool:
 # Existing edited columns are authoritative, even if the new generator
 # would reject their submerged tree. Loading must not erase old builds.
 def saved_tree(w: World.World) -> Bool:
-  World.W{ring, edits, ox, oz, q, np, made, gone} = w
+  World.W{ring, meta} = w
   old_tree(World.get_col(ring, World.col_at(0, 1048543, 1048592)))
 
 def main() -> IO(Unit):
@@ -84,6 +84,6 @@ def main() -> IO(Unit):
       && no_tree(World.tree_here(1048543, 1048592, 2, False{}, World.Masks{0, 0})), "submerged tree contributes neither trunk nor canopy in neighbouring columns")
     Lib.expect(U32.is_eq(World.terrain(1048512, 1048515), 12) && shore_tree(World.column(1048512, 1048515)), "tree at the dry shoreline keeps its trunk and leaves")
     Lib.expect(saved_tree(World.load(World.W{[0 : U32^18n],
-      Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.col6(511, 0, 4, 0, 0, 3584)),
-      1048512, 1048512, Nil{}, 0, 0, 0}, 1048543, 1048592)), "saved submerged wood survives generation changes")
+      World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.col6(511, 0, 4, 0, 0, 3584)),
+      1048512, 1048512, Nil{}, 0, 0, 0}}, 1048543, 1048592)), "saved submerged wood survives generation changes")
     IO.pure(Unit, Unit{})

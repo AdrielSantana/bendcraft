@@ -203,7 +203,9 @@ the partial mask at 15, none spare); the water mask's bit is set
 exactly when the amount is over zero (`World.pour` keeps both), the
 partial mask's exactly when it is 1..254 (`put_col` derives it and
 keeps the window's count); edits in a `Map`; terrain from a seeded
-noise; a save line has fourteen words, and nothing else loads. `World.W` also carries the flow's
+noise; a save line has fourteen words, and nothing else loads. `World.W` is the ring and a
+`World.Meta` (Data, shared: the edits, the corner, and the rest below; `World.base` is the
+corner's word); the meta also carries the flow's
 queue of marked slots (`World.mark`; marks are on slots, so a mark on a
 column that left the window is spent harmlessly on the one at its slot).
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
@@ -219,10 +221,10 @@ source is type 9 (the spring, key `9`, `Player.receipt` spends nothing
 for it): a water cell whose type nibble is 9 (`World.source_at`, the
 nibble alone, so a source emptied by its own step is still one); the
 flow refills it at the end of its step (`Flow.settle`) and counts the
-units in `World.made` (the seventh field of `World.W`, beside
+units in `World.made` (a field of `World.Meta`, beside
 `partials`). The sink: any other cell holding under `Flow.thin()` (4)
 units at the end of its step dries (`Flow.settle` too), counted in
-`World.gone` (the eighth field); a cell holding water then rests on a
+`World.gone` (another); a cell holding water then rests on a
 solid or on full water, since the down move took all that fit, so
 falling water never dries. A closed basin holds placed + made − gone, exactly. A
 solid placed on water shoves its amount up the column (`World.shove`,

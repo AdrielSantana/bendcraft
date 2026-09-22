@@ -52,9 +52,10 @@ def shafts(n: Nat, w: World.World, +x: U32, +z: U32, +wide: Nat) -> World.World:
       shafts(k, shafts_z(wide, w, x, z), (x + 1 : U32), z, wide)
 
 def queued(w: World.World) -> World.World & Nat:
-  World.W{ring, m, ox, oz, +q, np, made, gone} = w
+  World.W{ring, +meta} = w
+  World.Meta{m, ox, oz, q, np, made, gone} = meta
   +n = List.length(&2, U32, q)
-  (World.W{ring, m, ox, oz, q, np, made, gone}, n)
+  (World.W{ring, meta}, n)
 
 def world(g: Player.Game) -> World.World:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g

@@ -166,14 +166,15 @@ def lx_of(+slot: U32, +ox: U32, +oz: U32, +lz: U32) -> U32:
   ((slot / 2048 - (oz + lz) / 128 - ox) % 128 : U32)
 
 # the column at the slot: its marks read and cleared, its cells stepped
-def slot_fin(m: Map<&2, World.Col>, +ox: U32, +oz: U32, q: List<&2, U32>, np: U32, made: U32, gone: U32, +slot: U32, +odd: Bool, r: Array<U32> & U32) -> World.World:
+def slot_fin(+meta: World.Meta, +slot: U32, +odd: Bool, r: Array<U32> & U32) -> World.World:
+  World.Meta{m, +ox, +oz, q, np, made, gone} = meta
   (ring, +bits) = r
   +lz = lz_of(slot, oz)
-  column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 14 : U32), 0), m, ox, oz, q, np, made, gone})
+  column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 14 : U32), 0), meta})
 
 def step_slot(w: World.World, +slot: U32, +odd: Bool) -> World.World:
-  World.W{ring, m, +ox, +oz, q, np, made, gone} = w
-  slot_fin(m, ox, oz, q, np, made, gone, slot, odd, Array.get(U32, ring, (slot + 14 : U32)))
+  World.W{ring, meta} = w
+  slot_fin(meta, slot, odd, Array.get(U32, ring, (slot + 14 : U32)))
 
 # ---------- one tick ----------
 
@@ -181,8 +182,9 @@ def step_slot(w: World.World, +slot: U32, +odd: Bool) -> World.World:
 # queue afresh; what the budget did not reach goes back in front of them,
 # and the tick's marks behind, oldest first.
 def rejoin(rest: List<&2, U32>, w: World.World) -> World.World:
-  World.W{ring, m, ox, oz, q, np, made, gone} = w
-  World.W{ring, m, ox, oz, List.append(&2, U32, rest, List.reverse(&2, U32, q)), np, made, gone}
+  World.W{ring, meta} = w
+  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  World.W{ring, World.Meta{m, ox, oz, List.append(&2, U32, rest, List.reverse(&2, U32, q)), np, made, gone}}
 
 def tick_go(budget: Nat, q: List<&2, U32>, +odd: Bool, w: World.World) -> World.World:
   match budget:
@@ -196,8 +198,9 @@ def tick_go(budget: Nat, q: List<&2, U32>, +odd: Bool, w: World.World) -> World.
           tick_go(k, rest, odd, step_slot(w, slot, odd))
 
 def tick(w: World.World, +odd: Bool, +budget: Nat) -> World.World:
-  World.W{ring, m, ox, oz, q, np, made, gone} = w
-  tick_go(budget, q, odd, World.W{ring, m, ox, oz, Nil{}, np, made, gone})
+  World.W{ring, meta} = w
+  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  tick_go(budget, q, odd, World.W{ring, World.Meta{m, ox, oz, Nil{}, np, made, gone}})
 
 # the columns a tick steps at most
 def budget() -> Nat: 256n

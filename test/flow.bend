@@ -11,7 +11,7 @@ import ../src/util.bend as Util
 # the answers as a list. `bend test/flow.bend`.
 
 def empty() -> World.World:
-  World.W{[0 : U32^18n], Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0, 0}
+  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0, 0}}
 
 # ---------- building ----------
 
@@ -152,21 +152,25 @@ def box(w: World.World, +summing: Bool, +x: U32, +y: U32, +z: U32, +nx: Nat, +ny
   layers(ny, summing, x, y, z, nx, nz, 0, rows(nx, summing, x, y, z, nz, 0, row(nz, summing, x, y, z, 0, World.amount_at(w, x, y, z))))
 
 def queued(w: World.World) -> World.World & U32:
-  World.W{ring, m, ox, oz, q, np, made, gone} = w
+  World.W{ring, meta} = w
+  World.Meta{m, ox, oz, q, np, made, gone} = meta
   +n = U32.from_nat(List.length(&2, U32, q))
-  (World.W{ring, m, ox, oz, Nil{}, np, made, gone}, n)
+  (World.W{ring, World.Meta{m, ox, oz, Nil{}, np, made, gone}}, n)
 
 def partials(w: World.World) -> World.World & U32:
-  World.W{ring, m, ox, oz, q, +np, made, gone} = w
-  (World.W{ring, m, ox, oz, q, np, made, gone}, np)
+  World.W{ring, +meta} = w
+  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  (World.W{ring, meta}, np)
 
 def made(w: World.World) -> World.World & U32:
-  World.W{ring, m, ox, oz, q, np, +made, gone} = w
-  (World.W{ring, m, ox, oz, q, np, made, gone}, made)
+  World.W{ring, +meta} = w
+  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  (World.W{ring, meta}, made)
 
 def gone(w: World.World) -> World.World & U32:
-  World.W{ring, m, ox, oz, q, np, made, +gone} = w
-  (World.W{ring, m, ox, oz, q, np, made, gone}, gone)
+  World.W{ring, +meta} = w
+  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  (World.W{ring, meta}, gone)
 
 def source_of(r: World.World & Bool) -> World.World & U32:
   (w, s) = r
@@ -324,8 +328,8 @@ def main() -> IO(Unit):
     Lib.expect(same(query(ticks(200n, 0, 2n, pool()), over(60, 10, 60) <> Gone{} <> Queued{} <> Nil{}), 249 <> 6 <> 0 <> Nil{}),
       "two columns a tick, the same pool settles the same, nothing lost or made but the six that dried")
     # the load marks
-    Lib.expect(same(query(World.load(World.W{[0 : U32^18n], Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
-          World.col6(1023, 0, 0, 0, 0, 3072)), 0, 0, Nil{}, 0, 0, 0}, 50, 50),
+    Lib.expect(same(query(World.load(World.W{[0 : U32^18n], World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
+          World.col6(1023, 0, 0, 0, 0, 3072)), 0, 0, Nil{}, 0, 0, 0}}, 50, 50),
         Marks{50, 50} <> Marks{51, 50} <> Marks{50, 49} <> Queued{} <> Nil{}), 3072 <> 4294967295 <> 4294967295 <> 5 <> Nil{}),
       "a saved column loads marked where it is wet, its sides marked whole")
     Lib.expect(same(query(water(basin(60, 60, 5, 5n), 62, 10, 62), Partials{} <> Nil{}), 0 <> Nil{})
@@ -378,8 +382,8 @@ def main() -> IO(Unit):
     Lib.expect(same(query(ticks(1n, 0, Flow.budget(), World.mark_around(World.pour(water(basin(64, 64, 1, 1n), 64, 10, 64), 64, 11, 64, 3), 64, 11, 64)),
         At{64, 11, 64} <> At{64, 10, 64} <> Gone{} <> Nil{}), 0 <> 255 <> 3 <> Nil{}),
       "three units resting on full water dry too, the water under them whole")
-    Lib.expect(same(query(ticks(1n, 0, Flow.budget(), World.load(World.W{[0 : U32^18n], Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
-          World.col6(0, 0, 2304, 0, 0, 1024)), 0, 0, Nil{}, 0, 0, 0}, 50, 50)),
+    Lib.expect(same(query(ticks(1n, 0, Flow.budget(), World.load(World.W{[0 : U32^18n], World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
+          World.col6(0, 0, 2304, 0, 0, 1024)), 0, 0, Nil{}, 0, 0, 0}}, 50, 50)),
         Source{50, 10, 50} <> At{50, 10, 50} <> At{50, 9, 50} <> Made{} <> Nil{}), 1 <> 255 <> 255 <> 255 <> Nil{}),
       "a saved source loads as one, and over air it makes a cell a tick")
     # a solid placed in water shoves the water up

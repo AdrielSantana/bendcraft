@@ -24,18 +24,19 @@ def res512() -> U32:
   res_of(512, 512)
 
 def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, made: U32, gone: U32,
+             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, meta: World.Meta,
              r: Array<U32> & Image) -> Game & Image:
   (ring, img) = r
-  (G{World.W{ring, m, ox, oz, q, np, made, gone}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, img)
+  (G{World.W{ring, meta}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, img)
 
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
            held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, +fps: U32, more: U32, w: World.World) -> Game & Image:
-  World.W{ring, m, +ox, +oz, q, +np, made, gone} = w
+  World.W{ring, +meta} = w
+  World.Meta{m, ox, oz, q, +np, made, gone} = meta
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
-  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, m, ox, oz, q, np, made, gone,
-           Render.frame(Render.camera(px, py, pz, yaw, pit, Render.stat_base((ox * 128 + oz : U32), fps), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Render.stat_items(Inventory.hud_hi(bag), fps), fl, rw, rh, clock), ring, rw, rh))
+  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, meta,
+           Render.frame(Render.camera(px, py, pz, yaw, pit, Render.stat_base(World.base(meta), fps), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Render.stat_items(Inventory.hud_hi(bag), fps), fl, rw, rh, clock), ring, rw, rh))
 
 # the frame with the render's flags (Render.Cam), all looks on for the game
 # `more` holds the looks the flags word has no room for (Render.looks_base)
@@ -175,13 +176,13 @@ def aim_fin(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, r: Array
 def aim(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> Array<U32> & (U32 & U32):
   aim_fin(ox, oy, oz, dx, dy, dz, Render.run_glance(40n, w, base, ox, oy, oz, dx, dy, dz))
 
-def waim_fin(m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, made: U32, gone: U32, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
+def waim_fin(meta: World.Meta, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
   (ring, ph) = r
-  (World.W{ring, m, ox, oz, q, np, made, gone}, ph)
+  (World.W{ring, meta}, ph)
 
 def waim(w: World.World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> World.World & (U32 & U32):
-  World.W{ring, m, +cx, +cz, q, np, made, gone} = w
-  waim_fin(m, cx, cz, q, np, made, gone, aim(ring, (cx * 128 + cz : U32), ox, oy, oz, dx, dy, dz))
+  World.W{ring, +meta} = w
+  waim_fin(meta, aim(ring, World.base(meta), ox, oy, oz, dx, dy, dz))
 
 # unpack: word -> lx, y, lz
 def ix_x(+i: U32) -> U32: (i / 4096 : U32)
@@ -355,7 +356,7 @@ def step(g: Game) -> Game:
 
 # the world's corner starts far from zero, so walking west never wraps it
 def start_at(+res: U32) -> Game:
-  G{World.load_all(128n, World.W{[0 : U32^18n], Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0, 0}, 1048512, 1048512),
+  G{World.load_all(128n, World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0, 0}}, 1048512, 1048512),
     64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0, 0, res, Day.morning(), Inventory.empty()}
 
 def start() -> Game:
