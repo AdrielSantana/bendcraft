@@ -36,10 +36,10 @@ def trace(actions: List<Bool>, m: Transfer) -> Transfer:
     case Con{put, rest}:
       trace(rest, again(put, m))
 
-# The game creates eight slots; an edit preserves their number. An invalid
-# slot is rejected, which also makes malformed selected types harmless.
+# The game creates nine counts, the eight block types' and the bucket's
+# units; an edit preserves their number, and an invalid slot is rejected.
 def empty() -> List<&2, Nat>:
-  [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n]
+  [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n]
 
 def count(xs: List<&2, Nat>, i: Nat) -> Nat:
   match xs:
@@ -79,9 +79,9 @@ def edited(e: Edit) -> List<&2, Nat>:
   xs
 
 # Only bounded words cross the render fork. Four seven-bit display counts
-# fit above sel's four bits (eight types and the spring); the other four
-# need one more camera word. 100 means "99+" in the HUD, without
-# truncating the saved natural count.
+# fit above sel's four bits, the other four fill a second word, and the
+# bucket's full cells ride above the readout's numbers (Render.with_pail).
+# 100 means "99+" in the HUD, without truncating the saved natural count.
 def display(n: Nat) -> U32:
   U32.from_nat(Nat.min(n, 100n))
 
@@ -101,3 +101,7 @@ def unpack4(p: U32, +slot: U32) -> U32:
 
 def hud_count(lo: U32, hi: U32, +slot: U32) -> U32:
   unpack4(Bool.pick(U32, (slot < 4 : U32), (lo / 16 : U32), hi), (slot % 4 : U32))
+
+# the bucket's full cells, the pours it holds
+def hud_pail(bag: List<&2, Nat>) -> U32:
+  U32.min((U32.from_nat(count(bag, 8n)) / 255 : U32), 100)

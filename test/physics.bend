@@ -12,7 +12,7 @@ import ../src/player.bend as Player
 def show_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +vy: F32, +held: U32, +edge: U32, +mx: U32, +my: U32, +sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
            w: World.World) -> Player.Game & String:
   World.W{ring, +meta} = w
-  World.Meta{m, +ox, +oz, q, np, made, gone} = meta
+  World.Meta{m, +ox, +oz, q, np, gone} = meta
   (Player.G{World.W{ring, meta}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag},
    "p=(" ++ F32.show(px) ++ ", " ++ F32.show(py) ++ ", " ++ F32.show(pz) ++ ") yaw=" ++ F32.show(yaw) ++ " pit=" ++ F32.show(pit) ++ " vy=" ++ F32.show(vy) ++ " held=" ++ U32.show(held) ++ " edge=" ++ U32.show(edge) ++ " sel=" ++ U32.show(sel) ++ " corner=" ++ U32.show(ox) ++ "," ++ U32.show(oz))
 
@@ -74,7 +74,7 @@ def persist(g: Player.Game) -> String:
 # inventory tests exercise the real empty start and rejected placements.
 def supplied(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n]}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n, 0n]}
 
 # the player set down in the lake west of the spawn (local 45.5, 66.5 at
 # the start's corner: full water at heights 8 to 11, the surface at 12),

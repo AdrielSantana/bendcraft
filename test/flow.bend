@@ -3,6 +3,7 @@ import ./lib.bend as Lib
 import ../src/world.bend as World
 import ../src/flow.bend as Flow
 import ../src/player.bend as Player
+import ../src/inventory.bend as Inventory
 import ../src/util.bend as Util
 
 # The flow without a window: cells of a void world (no terrain) built
@@ -11,7 +12,7 @@ import ../src/util.bend as Util
 # the answers as a list. `bend test/flow.bend`.
 
 def empty() -> World.World:
-  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0, 0}}
+  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
 
 # ---------- building ----------
 
@@ -21,10 +22,6 @@ def stone(w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World:
 
 def water(w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World:
   World.edit(w, lx, lz, y, True{}, 8)
-
-# a spring: a source of water, the type 9
-def spring(w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World:
-  World.edit(w, lx, lz, y, True{}, 9)
 
 # n ticks from tick number `at`, with a budget
 def ticks(n: Nat, +at: U32, +budget: Nat, w: World.World) -> World.World:
@@ -93,17 +90,12 @@ def pool() -> World.World:
 def three() -> World.World:
   water(water(water(basin(64, 64, 1, 1n), 64, 10, 64), 64, 11, 64), 64, 12, 64)
 
-# the same basin with a spring at its middle
-def spring_pool() -> World.World:
-  spring(basin(60, 60, 5, 5n), 62, 10, 62)
-
 # ---------- asking ----------
 
 # a question: the amount at a cell (At), the sum or the most over a box
 # (Sum, Most: from (x, y, z), n cells a side, one less as a Nat), the
 # marks of a column (Marks), the queue's length (Queued), the count of
-# partial cells (Partials), whether a cell is a source (Source, 1 or 0),
-# the units the sources made (Made), the units that dried (Gone)
+# partial cells (Partials), the units that dried (Gone)
 type Ask is Data:
   At{x: U32, y: U32, z: U32}
   Sum{x: U32, y: U32, z: U32, nx: Nat, ny: Nat, nz: Nat}
@@ -111,8 +103,6 @@ type Ask is Data:
   Marks{x: U32, z: U32}
   Queued{}
   Partials{}
-  Source{x: U32, y: U32, z: U32}
-  Made{}
   Gone{}
 
 def combine(+summing: Bool, +acc: U32, +v: U32) -> U32:
@@ -153,28 +143,19 @@ def box(w: World.World, +summing: Bool, +x: U32, +y: U32, +z: U32, +nx: Nat, +ny
 
 def queued(w: World.World) -> World.World & U32:
   World.W{ring, meta} = w
-  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  World.Meta{m, ox, oz, q, np, gone} = meta
   +n = U32.from_nat(List.length(&2, U32, q))
-  (World.W{ring, World.Meta{m, ox, oz, Nil{}, np, made, gone}}, n)
+  (World.W{ring, World.Meta{m, ox, oz, Nil{}, np, gone}}, n)
 
 def partials(w: World.World) -> World.World & U32:
   World.W{ring, +meta} = w
-  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  World.Meta{m, ox, oz, q, np, gone} = meta
   (World.W{ring, meta}, np)
-
-def made(w: World.World) -> World.World & U32:
-  World.W{ring, +meta} = w
-  World.Meta{m, ox, oz, q, np, made, gone} = meta
-  (World.W{ring, meta}, made)
 
 def gone(w: World.World) -> World.World & U32:
   World.W{ring, +meta} = w
-  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  World.Meta{m, ox, oz, q, np, gone} = meta
   (World.W{ring, meta}, gone)
-
-def source_of(r: World.World & Bool) -> World.World & U32:
-  (w, s) = r
-  (w, Bool.pick(U32, s, 1, 0))
 
 def measure(w: World.World, q: Ask) -> World.World & U32:
   match q:
@@ -190,10 +171,6 @@ def measure(w: World.World, q: Ask) -> World.World & U32:
       queued(w)
     case Partials{}:
       partials(w)
-    case Source{x, y, z}:
-      source_of(World.source_at(w, x, y, z))
-    case Made{}:
-      made(w)
     case Gone{}:
       gone(w)
 
@@ -242,6 +219,23 @@ def show_all(xs: List<&2, U32>) -> String:
       ""
     case Con{h, t}:
       " " ++ U32.show(h) ++ show_all(t)
+
+# the bucket used at a cell with `units` in it: the world after, and the
+# units it holds then; `told` puts those units before the world's answers
+def pailed(r: World.World & List<&2, Nat>) -> World.World & U32:
+  (w, bag) = r
+  (w, U32.from_nat(Inventory.count(bag, 8n)))
+
+def bucket(put: Bool, +x: U32, +y: U32, +z: U32, units: Nat, w: World.World) -> World.World & U32:
+  pailed(Player.pail(True{}, put, Player.pk_u(x, y, z), (w, List.set(&2, Nat, Inventory.empty(), 8n, units))))
+
+def told(qs: List<&2, Ask>, r: World.World & U32) -> List<&2, U32>:
+  (w, u) = r
+  u <> query(w, qs)
+
+def fst(r: World.World & U32) -> World.World:
+  (w, u) = r
+  w
 
 # a whole basin of side 5 at (60, 60): its floor's layer, all its layers
 def over(+x: U32, +y: U32, +z: U32) -> Ask:
@@ -329,7 +323,7 @@ def main() -> IO(Unit):
       "two columns a tick, the same pool settles the same, nothing lost or made but the six that dried")
     # the load marks
     Lib.expect(same(query(World.load(World.W{[0 : U32^18n], World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
-          World.col6(1023, 0, 0, 0, 0, 3072)), 0, 0, Nil{}, 0, 0, 0}}, 50, 50),
+          World.col6(1023, 0, 0, 0, 0, 3072)), 0, 0, Nil{}, 0, 0}}, 50, 50),
         Marks{50, 50} <> Marks{51, 50} <> Marks{50, 49} <> Queued{} <> Nil{}), 3072 <> 4294967295 <> 4294967295 <> 5 <> Nil{}),
       "a saved column loads marked where it is wet, its sides marked whole")
     Lib.expect(same(query(water(basin(60, 60, 5, 5n), 62, 10, 62), Partials{} <> Nil{}), 0 <> Nil{})
@@ -347,25 +341,27 @@ def main() -> IO(Unit):
       && U32.is_eq(World.partial_mask(World.Levels{0, 0, 0, 0, 0, 0, 0, 4261412864}), 2147483648)
       && U32.is_eq(World.partial_mask(World.full_levels(1056)), 0),
       "the partial mask has a bit where a byte holds one to 254")
-    # a source
-    Lib.expect(same(query(spring_pool(), At{62, 10, 62} <> Source{62, 10, 62} <> Made{} <> Queued{} <> Nil{}), 255 <> 1 <> 0 <> 5 <> Nil{}),
-      "a spring placed is a full cell and a source, has made nothing yet, and is queued like any edit")
-    Lib.expect(same(query(ticks(1n, 0, Flow.budget(), spring_pool()),
-        At{62, 10, 62} <> At{63, 10, 62} <> At{61, 10, 62} <> At{62, 10, 63} <> At{62, 10, 61} <> Made{} <> over(60, 10, 60) <> Nil{}),
-      255 <> 127 <> 64 <> 32 <> 16 <> 239 <> 494 <> Nil{}),
-      "a tick on, the source gave its sides what a full cell gives and is full again: it made the 239 it gave")
-    Lib.expect(U32.is_eq(nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), over(60, 10, 60) <> Nil{}), 0n),
-        (255 + nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), Made{} <> Nil{}), 0n)
-          - nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), Gone{} <> Nil{}), 0n) : U32))
-      && (nth(query(ticks(100n, 0, Flow.budget(), spring_pool()), Made{} <> Nil{}), 0n) > 5000 : U32)
-      && same(query(ticks(200n, 0, Flow.budget(), spring_pool()), layer(60, 11, 60) <> Queued{} <> Nil{}), 0 <> 0 <> Nil{}),
-      "a hundred ticks on, the basin holds the source and all it made, thousands of units, none lost or duplicated; the layer fills to within a unit of the source and no higher, since a source pushes nothing up, and the spring rests")
-    Lib.expect(same(query(ticks(10n, 0, Flow.budget(), stone(ticks(10n, 0, Flow.budget(), spring_pool()), 62, 10, 62)),
-        Source{62, 10, 62} <> At{62, 10, 62} <> Nil{}), 0 <> 0 <> Nil{})
-      && U32.is_eq(nth(query(ticks(10n, 0, Flow.budget(), stone(ticks(10n, 0, Flow.budget(), spring_pool()), 62, 10, 62)), Made{} <> Nil{}), 0n),
-           nth(query(ticks(10n, 0, Flow.budget(), spring_pool()), Made{} <> Nil{}), 0n)),
-      "a stone placed on the source ends it: the cell holds no water and nothing more is made")
-    Lib.expect(same(query(ticks(40n, 0, Flow.budget(), pool()), Made{} <> Nil{}), 0 <> Nil{}), "a tick without sources makes nothing")
+    # the bucket: units move between a cell and the bucket, none made or lost
+    Lib.expect(same(told(At{62, 10, 62} <> over(60, 10, 60) <> Gone{} <> Queued{} <> Nil{}, bucket(False{}, 62, 10, 62, 0n, ticks(40n, 0, Flow.budget(), pool()))),
+        10 <> 0 <> 239 <> 6 <> 5 <> Nil{})
+      && same(told(At{62, 10, 62} <> over(60, 10, 60) <> Gone{} <> Nil{}, bucket(False{}, 62, 10, 62, 10n, ticks(80n, 0, Flow.budget(), fst(bucket(False{}, 62, 10, 62, 0n, ticks(40n, 0, Flow.budget(), pool())))))),
+        19 <> 0 <> 230 <> 6 <> Nil{}),
+      "the bucket takes the settled pool's middle cell whole: ten units in the bucket, the cell empty and its neighbourhood queued, 239 + 10 + 6 the 255 placed; eighty ticks on the pool has filled the gap to nine and dried nothing more, and taken again with the ten still held: 19 in the bucket, 230 in the basin, 6 gone, the ledger holds")
+    Lib.expect(same(told(At{62, 10, 62} <> Nil{}, bucket(True{}, 62, 10, 62, 255n, basin(60, 60, 5, 5n))), 0 <> 255 <> Nil{})
+      && same(told(At{62, 10, 62} <> Nil{}, bucket(True{}, 62, 10, 62, 254n, basin(60, 60, 5, 5n))), 254 <> 0 <> Nil{})
+      && same(told(At{62, 10, 62} <> Nil{}, bucket(True{}, 62, 10, 62, 55n, World.pour(basin(60, 60, 5, 5n), 62, 10, 62, 200))), 0 <> 255 <> Nil{})
+      && same(told(At{62, 10, 62} <> Nil{}, bucket(True{}, 62, 10, 62, 54n, World.pour(basin(60, 60, 5, 5n), 62, 10, 62, 200))), 54 <> 200 <> Nil{})
+      && same(told(At{59, 10, 62} <> Nil{}, bucket(True{}, 59, 10, 62, 255n, basin(60, 60, 5, 5n))), 255 <> 0 <> Nil{})
+      && same(told(Nil{}, bucket(False{}, 59, 10, 62, 7n, basin(60, 60, 5, 5n))), 7 <> Nil{})
+      && same(told(Nil{}, bucket(False{}, 200, 10, 62, 7n, basin(60, 60, 5, 5n))), 7 <> Nil{}),
+      "a pour is a full cell: 255 from the bucket into air, nothing from 254; into a cell holding 200 it pours the 55 the cell lacks, nothing from 54; nothing into a wall, nothing out of one or from outside the window")
+    Lib.expect(same(query(ticks(40n, 0, Flow.budget(), fst(bucket(True{}, 62, 10, 62, 255n, basin(60, 60, 5, 5n)))), over(60, 10, 60) <> Gone{} <> Nil{}), 249 <> 6 <> Nil{}),
+      "a cell poured from the bucket is the pool: forty ticks on, the basin holds 249 and dried 6, as the placed cell did")
+    Lib.expect(same(told(Sum{64, 10, 64, 0n, 21n, 0n} <> At{64, 12, 64} <> Nil{}, bucket(False{}, 64, 12, 64, 0n, three())), 255 <> 510 <> 0 <> Nil{})
+      && same(told(Sum{64, 10, 64, 0n, 21n, 0n} <> Gone{} <> Nil{}, bucket(True{}, 64, 13, 64, 300n, fst(bucket(False{}, 64, 12, 64, 0n, three())))), 45 <> 765 <> 0 <> Nil{})
+      && same(query(ticks(10n, 0, Flow.budget(), fst(bucket(True{}, 64, 13, 64, 300n, fst(bucket(False{}, 64, 12, 64, 0n, three()))))),
+          At{64, 12, 64} <> At{64, 13, 64} <> Sum{64, 10, 64, 0n, 21n, 0n} <> Gone{} <> Nil{}), 255 <> 0 <> 765 <> 0 <> Nil{}),
+      "the shaft's top cell into the bucket and a cell of it poured back above the gap: the shaft, the bucket and the dried sum to 765 throughout, and the poured cell falls into the gap")
     # the sink: thin water on the ground dries
     Lib.expect(same(query(ticks(1n, 0, Flow.budget(), World.mark_around(World.pour(basin(60, 60, 5, 5n), 62, 10, 62, 3), 62, 10, 62)),
         At{62, 10, 62} <> At{63, 10, 62} <> Gone{} <> Nil{}), 0 <> 1 <> 1 <> Nil{})
@@ -382,10 +378,6 @@ def main() -> IO(Unit):
     Lib.expect(same(query(ticks(1n, 0, Flow.budget(), World.mark_around(World.pour(water(basin(64, 64, 1, 1n), 64, 10, 64), 64, 11, 64, 3), 64, 11, 64)),
         At{64, 11, 64} <> At{64, 10, 64} <> Gone{} <> Nil{}), 0 <> 255 <> 3 <> Nil{}),
       "three units resting on full water dry too, the water under them whole")
-    Lib.expect(same(query(ticks(1n, 0, Flow.budget(), World.load(World.W{[0 : U32^18n], World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
-          World.col6(0, 0, 2304, 0, 0, 1024)), 0, 0, Nil{}, 0, 0, 0}}, 50, 50)),
-        Source{50, 10, 50} <> At{50, 10, 50} <> At{50, 9, 50} <> Made{} <> Nil{}), 1 <> 255 <> 255 <> 255 <> Nil{}),
-      "a saved source loads as one, and over air it makes a cell a tick")
     # a solid placed in water shoves the water up
     Lib.expect(same(query(stone(ticks(40n, 0, Flow.budget(), pool()), 62, 10, 62), At{62, 11, 62} <> At{62, 10, 62} <> over(60, 10, 60) <> Gone{} <> Queued{} <> Nil{}),
         10 <> 0 <> 249 <> 6 <> 5 <> Nil{})

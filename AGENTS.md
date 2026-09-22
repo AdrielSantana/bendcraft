@@ -98,7 +98,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `cfa229e5b4c12605128807164522ad0d` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `ea93527f7e15be4e76a3051151159054` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `26eafd3e7eb6...`; same rule.
@@ -190,12 +190,15 @@ specialized on it, `~partial`), 30 remains spare.
 1470×796 wherever it happens (primary 60, shadow 24, mirror 32), because
 the frame is its slowest lane. Count the steps a new look adds before
 writing it.
-- `Cam.sel`: selection in bits 0..3 (eight types and the spring, 8), four
+- `Cam.sel`: selection in bits 0..3 (eight types and the bucket, 8), four
 seven-bit display counts in bits 4..31; `Cam.items` holds the other four in bits 0..27. A display count of 100
-means `99+`. `Game.bag` keeps eight full `Nat` counts on the host; labels
-share HUD flag 16. Old saves without counts load with an empty bag.
+means `99+`. `Game.bag` keeps nine full `Nat` counts on the host, the
+bucket's units the ninth; labels share HUD flag 16. Old saves without
+counts load with an empty bag.
 - `Cam.stat`: the readout, bits 0..9 the tenths of a millisecond and
-10..17 the frames a second (`Render.stat_of`); zero hides it.
+10..17 the frames a second (`Render.stat_of`; zero hides it), and bits
+18..24 the bucket's full cells (`Render.with_pail`, the hotbar's ninth
+count).
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
 512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
 - The world: a ring of 128x128 columns in one `Array<U32>` of 2^18 words,
@@ -218,17 +221,17 @@ grid holds across the wrap), at most twice a frame. Its writes are
 edits and ask them a list of questions in one pass (`test/flow.bend`'s
 `query`), since a World is linear. Solid types 0..7: grass dirt stone
 sand wood leaves brick snow. Water is type 8, outside the eight inventory
-slots; it is absent from solid collision, picking and shadow masks. A
-source is type 9 (the spring, key `9`, `Player.receipt` spends nothing
-for it): a water cell whose type nibble is 9 (`World.source_at`, the
-nibble alone, so a source emptied by its own step is still one); the
-flow refills it at the end of its step (`Flow.settle`) and counts the
-units in `World.made` (a field of `World.Meta`, beside
-`partials`). The sink: any other cell holding under `Flow.thin()` (4)
-units at the end of its step dries (`Flow.settle` too), counted in
-`World.gone` (another); a cell holding water then rests on a
-solid or on full water, since the down move took all that fit, so
-falling water never dries. A closed basin holds placed + made − gone, exactly. A
+slots; it is absent from solid collision, picking and shadow masks. The
+bucket (key `9`, sel 8, `Player.pail`): a click takes the water of the
+cell before the face aimed at into the bag's ninth count, a right click
+fills that cell from it if the bucket holds what the cell lacks, and
+with it chosen nothing is broken or placed. The sink: a cell holding
+under `Flow.thin()` (4) units at the end of its step dries
+(`Flow.settle`), counted in `World.gone` (a field of `World.Meta`,
+beside `partials`); a cell holding water then rests on a solid or on
+full water, since the down move took all that fit, so falling water
+never dries. Water is only moved: a closed basin, the bucket and `gone`
+sum to what was placed, exactly. A
 solid placed on water shoves its amount up the column (`World.shove`,
 from `World.edit`; `World.probe` is the flow's probe, moved here; the
 edit block sits at the end of world.bend since defs come before use);

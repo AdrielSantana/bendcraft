@@ -53,7 +53,7 @@ def shafts(n: Nat, w: World.World, +x: U32, +z: U32, +wide: Nat) -> World.World:
 
 def queued(w: World.World) -> World.World & Nat:
   World.W{ring, +meta} = w
-  World.Meta{m, ox, oz, q, np, made, gone} = meta
+  World.Meta{m, ox, oz, q, np, gone} = meta
   +n = List.length(&2, U32, q)
   (World.W{ring, meta}, n)
 

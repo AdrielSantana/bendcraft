@@ -150,7 +150,8 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
    physics, a cellular rule over the edits' Map: down first, sideways,
    sources stay. Swimming and collection are not implemented yet.
    The water model was chosen on 2026-09-21: **finite volume with explicit
-   river sources**. Ordinary flow conserves volume; lakes can drain, and
+   river sources** (the sources went on 2026-09-22 with the bucket: water
+   is only moved, see below). Ordinary flow conserves volume; lakes can drain, and
    adjacent water does not create a new source. Use bounded integer amounts
    per cell and fixed simulation ticks independent of rendered frames:
    transfer down first, then sideways into remaining capacity. Read the old
@@ -223,32 +224,35 @@ block moves; that is the first gate of every step below.
   sides alternates with the tick's parity, so the bias of a fixed order
   cancels over two ticks. A neighbour outside the ring is solid: the
   loaded window's edge is closed, and a lake that reaches it holds.
-- **Sources.** As built (2026-09-22): a source is a cell whose type
-  nibble is 9, placed by the spring, the ninth hotbar slot (`9`), by the
-  water's edit path (a bank blocks it, a solid over it ends it, a pour
-  leaves the nibble), spent from nothing; the flow refills it to 255 at
-  the end of each step it took part in and the world counts what it
-  made (`World.made`). The seed's lakes are not sources: dig a channel
-  and they drain. Sources are the only creation of water, and an
-  explicit edit (a solid placed in water, water collected) the only
-  removal; the flow itself creates nothing, and removes only by the
-  sink below. The accounting is tested on a basin: over any ticks it
-  holds what was placed plus what its sources made less what dried, and
-  a tick without sources makes nothing. A source pushes nothing up (the
-  rule gives only to cells holding less), so under a full layer it
-  rests: a spring feeds what lies beside and below it.
+- **The bucket.** As built (2026-09-22), in place of the springs: the
+  ninth hotbar slot (`9`) is a bucket. A click takes all the water of
+  the cell before the face aimed at into it, a partial cell for what it
+  holds, and the units add up (the bag's ninth count, a natural, saved
+  with the others); a right click fills that cell from the bucket if it
+  holds what the cell lacks, 255 for air; with the bucket chosen nothing
+  is broken or placed. Water is only moved, never made: the world, the
+  bucket and what dried sum to what was placed, and the tests carry the
+  ledger through the flow (a cell taken from the settled pool, a cell
+  poured back, the shaft's top cell out and in). The hotbar shows the
+  full cells it holds. The springs built the same day (a cell whose
+  type nibble was 9, refilled by the flow at the end of each step, its
+  making counted in `World.made`) went whole: the nibble, `World.made`,
+  `Flow.settle`'s refill, `Player.receipt`, nine laws and their tests;
+  the record of what they found stays below. The seed's lakes are what
+  the world has: dig a channel and they drain, and a bucket carries
+  water where it is wanted.
 - **The sink.** As built (2026-09-22, the commit after the sources):
   thin water dries. A cell that holds under `Flow.thin()` = 4 units at
   the end of its step loses them, and the world counts what went
-  (`World.gone`); a source refills instead. A cell holding water at the
+  (`World.gone`). A cell holding water at the
   end of its step rests on a solid or on full water (the down move took
   all that fit), so falling water never dries; the first build probed
   the cell under to say so, and the probe went with that observation.
   A lake at rest holds ten units a cell and more, so it is untouched; a
-  bucket of 255 units spread over a 5×5 floor dries six at its thin edge
-  and rests at 249; a spring on open ground holds at about 180 wet
-  cells, making and drying a hundred units a tick. The tests carry the
-  accounting.
+  cell of 255 units spread over a 5×5 floor dries six at its thin edge
+  and rests at 249. The tests carry the accounting. Kept with the
+  bucket: without it a poured cell's spill would stay as a film of
+  partial cells over every flat reach it wets.
 - **The active set.** As built (2026-09-22): a word of marks per column
   in the ring (slot 14, bit y: the cell is due a step) and a queue of the
   marked columns' slots in the world, oldest first, each once while its
@@ -288,11 +292,12 @@ block moves; that is the first gate of every step below.
   first half — done 2026-09-22: a solid placed on water shoves its
   amount up its column into the first cells with room, marked, and what
   finds no room is gone, counted (six laws, 149 in all; 167 tests; the
-  physics hash unchanged). The second half, collecting, waits on the
-  bucket's design: whether the ninth slot stays a spring (infinite, as
-  built) or becomes a bucket that collects a cell and places it, and
-  what a collected partial cell is worth. (4) Edits: what a placed block displaces and what collecting
-  takes, both counted. (5) The player in water: buoyancy, drag, swimming
+  physics hash unchanged). The second half, collecting — done
+  2026-09-22, the bucket in place of the spring, the user's design: a
+  partial cell is worth its amount, the bucket sums what it takes, a
+  pour gives back one full cell (eight laws for the nine that went, 122
+  in all; 162 tests; the physics hash unchanged; the hotbar's ninth
+  count moves the picture digest to ea93527f7e15be4e76a3051151159054). (5) The player in water: buoyancy, drag, swimming
   — done 2026-09-22: in water at the waist (`World.wet_at`, under the
   cell's plane) the lift nearly balances gravity (a sink of 0.02 a tick,
   drag 0.85), space swims up to a bob at the surface with the eye 0.8
@@ -387,8 +392,8 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
   transfer model, not a blanket proof of the floating-point game loop.
 - *Crafting:* a recipe changes the counts by exactly its vector, and does
   nothing when an input is short.
-- *Water:* a tick never raises the amount of water, sources aside; water
-  never moves up.
+- *Water:* a tick never raises the amount of water; water never moves
+  up.
 - *Day and night (done):* the sun a full day later is the same sun phase,
   for every clock word, including overflow.
 - *Survival:* health stays within its bounds; the dead do not act.

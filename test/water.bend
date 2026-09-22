@@ -13,7 +13,7 @@ def near(a: F32, b: F32, epsilon: F32) -> Bool:
   (F32.abs((a - b : F32)) <= epsilon : F32)
 
 def empty() -> World.World:
-  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0, 0}}
+  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
 
 def ray_ok(+axis: U32, top: Bool, +entry: F32, +depth: F32, +distance: F32, r: Array<U32> & Render.Ray) -> Bool:
   (w, hit) = r
@@ -111,19 +111,6 @@ def placed(r: World.World & List<&2, Nat>) -> Bool:
   World.W{ring, meta} = w
   (Nat.is_eq(Inventory.count(bag, 6n), 0n)) && same_masks(col(World.get_col(ring, World.col_at(0, 64, 64))), 1024, 2048)
 
-def src(r: World.World & Bool) -> Bool:
-  (w, s) = r
-  s
-
-# the spring placed by the player: a source at (64, 10, 64), the bag as it was
-def sourced(r: World.World & List<&2, Nat>) -> Bool:
-  (w, bag) = r
-  Nat.is_eq(Inventory.count(bag, 6n), 1n) && src(World.source_at(w, 64, 10, 64))
-
-def not_sourced(r: World.World & List<&2, Nat>) -> Bool:
-  (w, bag) = r
-  Bool.not(src(World.source_at(w, 64, 10, 64)))
-
 def picked(r: World.World & (U32 & U32)) -> Bool:
   (w, pair) = r
   (prev, hit) = pair
@@ -217,7 +204,7 @@ def emerged_ray_w(+fl: U32, +sun_y: F32, w: World.World) -> U32:
 
 def emerged_wall(fl: U32, sun_y: F32, wall: U32, w: World.World) -> U32:
   World.W{ring, +meta} = w
-  World.Meta{m, ox, oz, q, +np, made, gone} = meta
+  World.Meta{m, ox, oz, q, +np, gone} = meta
   emerged_ray_w(fl, sun_y, World.put_fin(meta, World.put_col(ring, World.col_at(0, wall, 64),
     World.col6(4294967295, 572662306, 572662306, 572662306, 572662306, 0), np)))
 
@@ -234,7 +221,7 @@ def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
 # the base carries the window's partial-water bit, as Player.view_w sets it
 def surface_ray_w(+fl: U32, +under: Bool, w: World.World) -> U32:
   World.W{ring, meta} = w
-  World.Meta{m, ox, oz, q, +np, made, gone} = meta
+  World.Meta{m, ox, oz, q, +np, gone} = meta
   pixel(Render.run_water(Util.on(fl, 2097152), ring, Render.with_partial(0, (np > 0 : U32)), 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
     0.0, (0.0 - 1.0 : F32), 0.0, Util.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36))
 
@@ -342,12 +329,7 @@ def main() -> IO(Unit):
     Lib.expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
     Lib.expect(U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 10, 64)), 8), "water material reads back")
     Lib.expect(placed(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 6,
-      (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n]))), "placing spends one brick and shoves the water up onto it")
-    Lib.expect(sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (empty(), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
-      && sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
-      && not_sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (World.edit(empty(), 64, 64, 10, True{}, 2), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
-      && U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 9), 64, 10, 64)), 8),
-      "the spring places a source into air or water, never into a solid, spends nothing, and the source reads as water")
+      (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n, 0n]))), "placing spends one brick and shoves the water up onto it")
     Lib.expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
     Lib.expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 2048), "save preserves displacement, the water above the brick")
     Lib.expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")

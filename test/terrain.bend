@@ -85,5 +85,5 @@ def main() -> IO(Unit):
     Lib.expect(U32.is_eq(World.terrain(1048512, 1048515), 12) && shore_tree(World.column(1048512, 1048515)), "tree at the dry shoreline keeps its trunk and leaves")
     Lib.expect(saved_tree(World.load(World.W{[0 : U32^18n],
       World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.col6(511, 0, 4, 0, 0, 3584)),
-      1048512, 1048512, Nil{}, 0, 0, 0}}, 1048543, 1048592)), "saved submerged wood survives generation changes")
+      1048512, 1048512, Nil{}, 0, 0}}, 1048543, 1048592)), "saved submerged wood survives generation changes")
     IO.pure(Unit, Unit{})

@@ -23,7 +23,7 @@ def bag(g: Player.Game) -> List<&2, Nat>:
   xs
 
 def empty_world() -> World.World:
-  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0, 0}}
+  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}}
 
 # A sand cell, followed by a brick, is straight ahead. The selected type
 # need not agree with either; a break must read the cell before clearing it.
@@ -31,7 +31,28 @@ def fixture(xs: List<&2, Nat>, sel: U32) -> Player.Game:
   Player.G{World.edit(World.edit(empty_world(), 64, 66, 10, True{}, 3), 64, 67, 10, True{}, 6),
     64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, sel, Player.res512(), 786432, xs}
 
-def sand() -> List<&2, Nat>: [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n]
+def sand() -> List<&2, Nat>: [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n, 0n]
+
+# the bucket's fixture: `a` units of water in the cell before the sand,
+# `units` in the bucket, and the bucket chosen
+def wet(+a: U32, units: Nat) -> Player.Game:
+  Player.G{World.pour(World.edit(World.edit(empty_world(), 64, 66, 10, True{}, 3), 64, 67, 10, True{}, 6), 64, 10, 65, a),
+    64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 8, Player.res512(), 786432, List.set(&2, Nat, Inventory.empty(), 8n, units)}
+
+def pail_of(g: Player.Game) -> Nat:
+  Inventory.count(bag(g), 8n)
+
+def snd(r: World.World & U32) -> U32:
+  (w, v) = r
+  v
+
+def amount(g: Player.Game, +x: U32, +y: U32, +z: U32) -> U32:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, xs} = g
+  snd(World.amount_at(w, x, y, z))
+
+def selected(g: Player.Game) -> U32:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, xs} = g
+  sel
 
 def press(code: U32, g: Player.Game) -> Player.Game:
   Player.step(Player.feed([Key{code, True{}}], g))
@@ -86,7 +107,7 @@ def packing(n: Nat) -> Bool:
     case 0n: True{}
     case 1n+ +p:
       +v = Inventory.display(p)
-      +xs : List<&2, Nat> = [p, p, p, p, p, p, p, p]
+      +xs : List<&2, Nat> = [p, p, p, p, p, p, p, p, p]
       +lo = Inventory.hud_lo(7, xs)
       +hi = Inventory.hud_hi(xs)
       U32.is_eq((lo % 8 : U32), 7)
@@ -126,8 +147,8 @@ def main() -> IO(Unit):
     Lib.expect(cell(both(), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "same tick break can fund one placement")
     Lib.expect(cell(both(), Inventory.empty(), Player.pk_u(64, 10, 66), False{}, 0), "same tick funded placement removes source")
     Lib.expect(cell(restored(Save.text(both())), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "save keeps world and depleted inventory together")
-    Lib.expect(same(bag(restored(Save.text(fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], 6)))),
-      [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n]), "save preserves all eight full counts")
+    Lib.expect(same(bag(restored(Save.text(fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], 6)))),
+      [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n]), "save preserves all nine full counts, the bucket's units the ninth")
     Lib.expect(types(8n), "each block type is collected into its own slot")
     Lib.expect(cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), True{}, 3,
       world_of(press(106, fixture(Inventory.empty(), 0))))), Inventory.empty(), Player.pk_u(64, 10, 66), True{}, 3), "break then replace restores cell type and count")
@@ -138,10 +159,32 @@ def main() -> IO(Unit):
       empty_world(), ((1 + Player.pk_u(64, 8, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
       sand(), Player.pk_u(64, 8, 64), False{}, 0), "placement at the bottom of the feet does not spend")
     Lib.expect(packing(102n), "all display counts read back in every slot")
+    Lib.expect(U32.is_eq(Inventory.hud_pail(Inventory.empty()), 0) && U32.is_eq(Inventory.hud_pail(List.set(&2, Nat, Inventory.empty(), 8n, 254n)), 0)
+      && U32.is_eq(Inventory.hud_pail(List.set(&2, Nat, Inventory.empty(), 8n, 255n)), 1) && U32.is_eq(Inventory.hud_pail(List.set(&2, Nat, Inventory.empty(), 8n, 25500n)), 100)
+      && U32.is_eq(Render.stat_pail(Render.with_pail(Render.stat_of(999, 255), 100)), 100) && U32.is_eq(Render.stat_fps(Render.with_pail(Render.stat_of(999, 255), 100)), 255)
+      && U32.is_eq(Render.stat_ms(Render.with_pail(Render.stat_of(999, 255), 100)), 999),
+      "the HUD shows the bucket's full cells, 99+ at a hundred, above the readout's numbers")
+    # the bucket, the ninth slot
+    Lib.expect(U32.is_eq(selected(press(57, fixture(Inventory.empty(), 0))), 8), "9 chooses the bucket")
+    Lib.expect(U32.is_eq(amount(press(106, wet(255, 0n)), 64, 10, 65), 0) && Nat.is_eq(pail_of(press(106, wet(255, 0n))), 255n)
+      && cell(press(106, wet(255, 0n)), List.set(&2, Nat, Inventory.empty(), 8n, 255n), Player.pk_u(64, 10, 66), True{}, 3),
+      "a click with the bucket takes the water cell before the sand whole, 255 units, and breaks no sand")
+    Lib.expect(U32.is_eq(amount(press(106, wet(100, 20n)), 64, 10, 65), 0) && Nat.is_eq(pail_of(press(106, wet(100, 20n))), 120n),
+      "a partial cell is worth its amount: a hundred units join the twenty")
+    Lib.expect(U32.is_eq(amount(press(108, wet(0, 255n)), 64, 10, 65), 255) && Nat.is_eq(pail_of(press(108, wet(0, 255n))), 0n)
+      && cell(press(108, wet(0, 255n)), Inventory.empty(), Player.pk_u(64, 10, 65), False{}, 8),
+      "a right click with the bucket pours a full cell into the air before the sand, 255 units out, and places no block")
+    Lib.expect(U32.is_eq(amount(press(108, wet(0, 254n)), 64, 10, 65), 0) && Nat.is_eq(pail_of(press(108, wet(0, 254n))), 254n)
+      && U32.is_eq(amount(press(108, wet(200, 55n)), 64, 10, 65), 255) && Nat.is_eq(pail_of(press(108, wet(200, 55n))), 0n)
+      && U32.is_eq(amount(press(108, wet(200, 54n)), 64, 10, 65), 200) && Nat.is_eq(pail_of(press(108, wet(200, 54n))), 54n),
+      "a pour needs what the cell lacks: nothing from 254 into air; 55 fill a cell holding 200, 54 do not")
+    Lib.expect(cell(press(106, fixture(sand(), 8)), sand(), Player.pk_u(64, 10, 66), True{}, 3)
+      && cell(press(108, fixture(sand(), 8)), sand(), Player.pk_u(64, 10, 65), False{}, 0),
+      "the bucket over dry ground breaks nothing and places nothing, and the sand count stays")
     Lib.expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
-    saved : Player.Game <- Save.save_to("build/inventory-test.save", fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], 6))
+    saved : Player.Game <- Save.save_to("build/inventory-test.save", fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], 6))
     loaded : Player.Game <- Save.load_from("build/inventory-test.save", Player.res512())
-    Lib.expect(cell(loaded, [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], Player.pk_u(64, 10, 66), True{}, 3), "file roundtrip keeps counts and cell type")
+    Lib.expect(cell(loaded, [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], Player.pk_u(64, 10, 66), True{}, 3), "file roundtrip keeps counts and cell type")
     stale : Player.Game <- Save.save_to("build/inventory-key.save", fixture(Inventory.empty(), 0))
     playing : Maybe<Player.Game> <- Save.tick_to("build/inventory-key.save", [Key{106, True{}}, Key{112, True{}}], fixture(Inventory.empty(), 0))
     Lib.expect(still_playing(playing), "P saves without quitting")

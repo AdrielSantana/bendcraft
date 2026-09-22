@@ -9,8 +9,8 @@ on the GPU through Metal, or on every core of your machine as WebAssembly.
 `W A S D` walk · `space` jumps, and swims up in water · drag the mouse to look (or the arrows) ·
 click breaks · right click places (or `J` / `L`) · `1`–`8` choose the block
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
-spring, a source of water · `P` saves · `F` shows the frame's time · `Esc`
-quits and saves.
+bucket: a click takes a cell of water, a right click pours one · `P`
+saves · `F` shows the frame's time · `Esc` quits and saves.
 
 You start with an empty inventory. Break a block to collect its type;
 placing spends one of the selected type. The hotbar shows each count
@@ -180,32 +180,32 @@ half minutes of the clock, with 640 columns active the whole way, 2.5
 times the budget, and its whole surface a layer of partial cells after,
 so the frame pays the plane clip from then on.
 
-Sources are the third step: a cell whose type nibble is 9, placed by the
-spring (`9`, the ninth slot, spent from nothing) into air or water by the
-water's path, so a bank blocks it, a solid placed over it ends it, and a
-pour leaves it. At the end of each step a source took part in, the flow
-refills it to 255 and the world counts what it made (`World.made`); a
-source that gave nothing made nothing, and since the rule only gives to
-cells that hold less, a source pushes nothing up: under a full layer it
-rests. The accounting: over any run of ticks the water in a closed basin
-is what was placed plus what its sources made, exactly (the tests sum
-one), and a tick without sources makes nothing.
+The bucket is the third step, in place of the springs built first (a
+cell whose type nibble was 9, refilled by the flow at the end of each
+step: water from nothing; they went on 2026-09-22, with `World.made`,
+their laws and their tests). The ninth slot is a bucket: a click takes
+all the water of the cell before the face aimed at into it, a partial
+cell for what it holds, and the units add up (the bag's ninth count, a
+natural, saved with the others); a right click fills that cell from the
+bucket, if the bucket holds what the cell lacks, 255 for air. Water is
+only moved, never made: the world, the bucket and what dried sum to the
+same, and the tests carry that ledger through the flow. The hotbar's
+ninth count is the full cells the bucket holds, the pours it has. The
+pick ignores water, so the cell taken is the one before the solid the
+crosshair meets, the bed's under a lake: a scoop from the bottom, and
+the water above falls into the gap.
 
-The sink: a model with sources needs one, or a spring's spill spreads
-as a film of a few units over every flat reach it comes to, without end
-(400 ticks on the spawn's hill, before the sink: 18777 units made, 1212
-wet cells and growing a cell a tick). Thin water dries: a cell that
-holds under four units at the end of its step loses them, and the world
-counts what went (`World.gone`). A cell that holds water at the end of
-its step rests on a solid or on full water, since the down move took all
-that fit, so falling water never dries; and a lake at rest holds ten
-units a cell and more, so it is untouched. The accounting now reads:
-what a basin holds is what was placed plus what its sources made less
-what dried (a bucket of 255 units spread over a floor dries six at its
-thin edge and rests at 249). A spring on the spawn's hill
-(`build/spring-*.png`) fills the terrace it sits on, spills down, and
-holds at about 180 wet cells, making and drying a hundred units a tick
-for as long as it runs, 1.4 ms a tick on the host.
+The sink: thin water dries. A cell that holds under four units at the
+end of its step loses them, and the world counts what went
+(`World.gone`). A cell that holds water at the end of its step rests on
+a solid or on full water, since the down move took all that fit, so
+falling water never dries; and a lake at rest holds ten units a cell and
+more, so it is untouched. Without the sink a poured cell's spill spreads
+as a film of a unit or two over every flat reach it comes to and stays,
+each cell a partial one for the frame; the springs showed it without a
+bound (400 ticks on the spawn's hill, before the sink: 18777 units made,
+1212 wet cells and growing a cell a tick). A cell of 255 units spread
+over a floor dries six at its thin edge and rests at 249.
 
 A solid placed in water is the fourth step's first half: it shoves the
 cell's water up its column into the first cells with room, each marked
@@ -215,7 +215,7 @@ probe); what finds no room under a ceiling is gone, counted. Placing a
 block in the settled pool lifts its ten units onto the block and the
 basin keeps them; a stone at the bottom of three full cells sends a
 cell of water past them to the fourth. Collecting water, the other half,
-waits on the bucket's design. Distance and height fog use the full solid-hit
+is the bucket above. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -321,7 +321,7 @@ capped at 100, meaning `99+`. The full inventory is never shared down the
 render fork. Labels belong to HUD flag 16 and its existing profile row.
 
 **The world is saved.** `bendcraft.save` in the working directory holds
-the corner, position, look, chosen block, day clock and eight counts on its
+the corner, position, look, chosen block, day clock and nine counts on its
 first line, then one line per edited column: its key and its fourteen
 words. The game loads it at start, if it is there, and writes it on `P`
 and on quit; the untouched columns are never stored, they come back from
@@ -345,8 +345,8 @@ swim lines follow them
 (`bend test/physics.bend | md5` is `26eafd3e7eb6f0ff35d6f2063eb995df`).
 A block is never placed on
 the player. The hotbar along the bottom shows the eight block types and
-the spring and frames the chosen one, with the available count below
-each block's swatch; the spring has no count.
+the bucket and frames the chosen one, with the available count below
+each block's swatch and the full cells it holds below the bucket's.
 
 ## Layout
 
@@ -960,9 +960,10 @@ read agrees with the host's, water placed is a full cell, a solid placed
 holds none, a pour sets the amount and the bit, clears the bit at zero,
 caps at 255 and does nothing to a solid, and the partial mask has a bit
 for a poured cell and none for a full one. Ten flow laws bound one
-transfer. Eight source laws: the spring places a full water cell that is
-a source, plain water is not one, a bank blocks it, a pour keeps it, a
-solid over it ends it, and the spring is the ninth slot. Seven shove
+transfer. Eight bucket laws: it takes a cell whole and nothing from a
+solid, a pour is what the cell lacks, 255 into air and nothing into a
+full cell or a solid, the bucket is the ninth slot and the HUD shows its
+full cells above the readout's numbers. Seven shove
 laws: what fits is the room, all of less, nothing in full or in a
 solid; a solid placed on water shoves its amount, water placed and a
 break shove nothing. There are 122 laws:

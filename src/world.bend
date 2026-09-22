@@ -302,29 +302,29 @@ def put_col(ring: Array<U32>, +slot: U32, +c: Col, +np: U32) -> Array<U32> & U32
 
 # The world is its ring and the rest beside it: the edited columns, the
 # corner, the flow's queue of marked slots, the window's count of partial
-# cells, and the units its sources made and its films dried. The rest is
-# Data, shared and read where a reader needs a field; a writer takes it
-# apart and puts it together.
+# cells, and the units its films dried. The rest is Data, shared and read
+# where a reader needs a field; a writer takes it apart and puts it
+# together.
 type Meta is Data:
-  Meta{edits: Map<&2, Col>, ox: U32, oz: U32, queue: List<&2, U32>, partials: U32, made: U32, gone: U32}
+  Meta{edits: Map<&2, Col>, ox: U32, oz: U32, queue: List<&2, U32>, partials: U32, gone: U32}
 
 type World is Type:
   W{ring: Array<U32>, meta: Meta}
 
 # the ring's base word: the corner's column
 def base(meta: Meta) -> U32:
-  Meta{m, +ox, +oz, q, np, made, gone} = meta
+  Meta{m, +ox, +oz, q, np, gone} = meta
   (ox * 128 + oz : U32)
 
 def edits(meta: Meta) -> Map<&2, Col>:
-  Meta{m, ox, oz, q, np, made, gone} = meta
+  Meta{m, ox, oz, q, np, gone} = meta
   m
 
 # a world from a written column: its count of partial cells follows
 def put_fin(meta: Meta, r: Array<U32> & U32) -> World:
-  Meta{m, ox, oz, q, old, made, gone} = meta
+  Meta{m, ox, oz, q, old, gone} = meta
   (ring, np) = r
-  W{ring, Meta{m, ox, oz, q, np, made, gone}}
+  W{ring, Meta{m, ox, oz, q, np, gone}}
 
 def key(+x: U32, +z: U32) -> String:
   U32.show(x) ++ "," ++ U32.show(z)
@@ -343,9 +343,9 @@ def queue_if(first: Bool, +slot: U32, q: List<&2, U32>) -> List<&2, U32>:
       Con{slot, q}
 
 def mark_fin(meta: Meta, +slot: U32, +bits: U32, r: Array<U32> & U32) -> World:
-  Meta{m, ox, oz, q, np, made, gone} = meta
+  Meta{m, ox, oz, q, np, gone} = meta
   (ring, +had) = r
-  W{Array.set(U32, ring, (slot + 14 : U32), (had .|. bits : U32)), Meta{m, ox, oz, queue_if(U32.is_eq(had, 0), slot, q), np, made, gone}}
+  W{Array.set(U32, ring, (slot + 14 : U32), (had .|. bits : U32)), Meta{m, ox, oz, queue_if(U32.is_eq(had, 0), slot, q), np, gone}}
 
 def mark_in(ok: Bool, w: World, +lx: U32, +lz: U32, +bits: U32) -> World:
   match ok:
@@ -373,12 +373,12 @@ def mark_around(w: World, +lx: U32, +y: U32, +lz: U32) -> World:
 # from the terrain; one from the edits is stepped once, wherever it holds
 # water, and so are its four sides, whatever they hold
 def load_put(ring: Array<U32>, meta: Meta, +x: U32, +z: U32, r: Map<&2, Col> & Col) -> World:
-  Meta{old, +ox, +oz, q, +np, made, gone} = meta
+  Meta{old, +ox, +oz, q, +np, gone} = meta
   (m, c) = r
   Col{sm, ta, tb, tc, td, +water, lv} = c
   +lx = (x - ox : U32)
   +lz = (z - oz : U32)
-  mark(mark(mark(mark(mark(put_fin(Meta{m, ox, oz, q, np, made, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), Col{sm, ta, tb, tc, td, water, lv}, np)),
+  mark(mark(mark(mark(mark(put_fin(Meta{m, ox, oz, q, np, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), Col{sm, ta, tb, tc, td, water, lv}, np)),
     lx, lz, water), (lx + 1 : U32), lz, 4294967295), (lx - 1 : U32), lz, 4294967295),
     lx, (lz + 1 : U32), 4294967295), lx, (lz - 1 : U32), 4294967295)
 
@@ -387,8 +387,8 @@ def load_had(had: Bool, ring: Array<U32>, m: Map<&2, Col>, meta: Meta, +x: U32, 
     case True{}:
       load_put(ring, meta, x, z, Map.get(Col, col6(0, 0, 0, 0, 0, 0), m, key(x, z)))
     case False{}:
-      Meta{old, ox, oz, q, +np, made, gone} = meta
-      put_fin(Meta{m, ox, oz, q, np, made, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), column(x, z), np))
+      Meta{old, ox, oz, q, +np, gone} = meta
+      put_fin(Meta{m, ox, oz, q, np, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), column(x, z), np))
 
 def load_go(ring: Array<U32>, meta: Meta, +x: U32, +z: U32, r: Map<&2, Col> & Bool) -> World:
   (m, had) = r
@@ -417,15 +417,15 @@ def load_all(n: Nat, w: World, +x: U32, +z: U32) -> World:
 # row that came into view loads
 def shift_x(+pos: Bool, w: World) -> World:
   W{ring, meta} = w
-  Meta{m, +ox, +oz, q, np, made, gone} = meta
+  Meta{m, +ox, +oz, q, np, gone} = meta
   +nox = Bool.pick(U32, pos, (ox + 1 : U32), (ox - 1 : U32))
-  load_line(128n, W{ring, Meta{m, nox, oz, q, np, made, gone}}, Bool.pick(U32, pos, (ox + 128 : U32), nox), oz, 0, 1)
+  load_line(128n, W{ring, Meta{m, nox, oz, q, np, gone}}, Bool.pick(U32, pos, (ox + 128 : U32), nox), oz, 0, 1)
 
 def shift_z(+pos: Bool, w: World) -> World:
   W{ring, meta} = w
-  Meta{m, +ox, +oz, q, np, made, gone} = meta
+  Meta{m, +ox, +oz, q, np, gone} = meta
   +noz = Bool.pick(U32, pos, (oz + 1 : U32), (oz - 1 : U32))
-  load_line(128n, W{ring, Meta{m, ox, noz, q, np, made, gone}}, ox, Bool.pick(U32, pos, (oz + 128 : U32), noz), 1, 0)
+  load_line(128n, W{ring, Meta{m, ox, noz, q, np, gone}}, ox, Bool.pick(U32, pos, (oz + 128 : U32), noz), 1, 0)
 
 def shift(along_x: Bool, pos: Bool, w: World) -> World:
   match along_x:
@@ -463,7 +463,7 @@ def edit_col(c: Col, +y: U32, +set: Bool, +what: U32) -> Col:
   Col{+m, +a, +b, +cc, +d, +water, +lv} = c
   +k = (y / 8 : U32)
   +bit = U32.shln(1, U32.to_nat(y))
-  +wet = U32.is_eq(what, 8) || U32.is_eq(what, 9)
+  +wet = U32.is_eq(what, 8)
   +blocked = set && wet && Util.on(m, bit)
   +poured = set && wet && Bool.not(blocked)
   # Water cannot erase a bank; a solid placement can displace water.
@@ -486,14 +486,14 @@ def pour_col(c: Col, +y: U32, +a: U32) -> Col:
   Col{m, ta, tb, tc, td, setbit(water, bit, (amt > 0 : U32)), edit_levels(lv, y, (y / 4 : U32), amt)}
 
 def pour_fin(meta: Meta, +x: U32, +z: U32, +y: U32, +a: U32, r: Array<U32> & Col) -> World:
-  Meta{m, ox, oz, q, +np, made, gone} = meta
+  Meta{m, ox, oz, q, +np, gone} = meta
   (ring, c) = r
   +nc = pour_col(c, y, a)
-  put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, made, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), nc, np))
+  put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), nc, np))
 
 def pour(w: World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World:
   W{ring, +meta} = w
-  Meta{m, +ox, +oz, q, np, made, gone} = meta
+  Meta{m, +ox, +oz, q, np, gone} = meta
   +x = (ox + lx : U32)
   +z = (oz + lz : U32)
   pour_fin(meta, x, z, y, a, get_col(ring, ((x * 128 + z) * 16 : U32)))
@@ -566,35 +566,11 @@ def amount_fin(+y: U32, r: World & U32) -> World & U32:
 def amount_at(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
   amount_fin(y, word_at(w, lx, lz, (6 + y / 4 : U32)))
 
-# A source is a cell whose type nibble is 9: only an edit with 9 (the
-# spring) writes it, by the water's path, so a bank blocks it, a solid
-# placed over it ends it (its nibble is the solid's), breaking it ends it
-# (nibble 0), and a pour leaves it, even one that empties the cell for
-# the moment: the flow refills a source to full at the end of each step
-# it took part in, and the world counts the units its sources made, and
-# the units that dried (the sink: Flow.settle).
-def source_col(c: Col, +y: U32) -> Bool:
-  Col{m, a, b, cc, d, water, lv} = c
-  +k = (y / 8 : U32)
-  U32.is_eq(nib_get(Bool.pick(U32, U32.is_eq(k, 0), a, Bool.pick(U32, U32.is_eq(k, 1), b, Bool.pick(U32, U32.is_eq(k, 2), cc, d))), y), 9)
-
-def source_fin(+y: U32, r: World & U32) -> World & Bool:
-  (w, word) = r
-  (w, U32.is_eq(nib_get(word, y), 9))
-
-def source_at(w: World, +lx: U32, +y: U32, +lz: U32) -> World & Bool:
-  source_fin(y, word_at(w, lx, lz, (1 + y / 8 : U32)))
-
-def make(w: World, +k: U32) -> World:
-  W{ring, meta} = w
-  Meta{m, ox, oz, q, np, made, gone} = meta
-  W{ring, Meta{m, ox, oz, q, np, (made + k : U32), gone}}
-
-# and the units that dried (Flow.settle)
+# the units that dried (Flow.settle) or found no room (shove), counted
 def dry(w: World, +k: U32) -> World:
   W{ring, meta} = w
-  Meta{m, ox, oz, q, np, made, gone} = meta
-  W{ring, Meta{m, ox, oz, q, np, made, (gone + k : U32)}}
+  Meta{m, ox, oz, q, np, gone} = meta
+  W{ring, Meta{m, ox, oz, q, np, (gone + k : U32)}}
 
 # ---------- an edit ----------
 # (after the reads it needs: defs come before their use)
@@ -674,10 +650,10 @@ def shoved(c: Col, +y: U32, set: Bool, +what: U32) -> Col & U32:
   (Col{m, a, b, cc, d, water, lv}, Bool.pick(U32, solid && Util.on(water, bit), amount(lv, y), 0))
 
 def edit_put(meta: Meta, +x: U32, +z: U32, +y: U32, set: Bool, +what: U32, ring: Array<U32>, r: Col & U32) -> World:
-  Meta{m, +ox, +oz, q, +np, made, gone} = meta
+  Meta{m, +ox, +oz, q, +np, gone} = meta
   (c, +out) = r
   +nc = edit_col(c, y, set, what)
-  shove(mark_around(put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, made, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), nc, np)), (x - ox : U32), y, (z - oz : U32)),
+  shove(mark_around(put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), nc, np)), (x - ox : U32), y, (z - oz : U32)),
     (x - ox : U32), y, (z - oz : U32), out)
 
 def edit_fin(meta: Meta, +x: U32, +z: U32, +y: U32, +set: Bool, +what: U32, r: Array<U32> & Col) -> World:
@@ -686,7 +662,7 @@ def edit_fin(meta: Meta, +x: U32, +z: U32, +y: U32, +set: Bool, +what: U32, r: A
 
 def edit(w: World, +lx: U32, +lz: U32, +y: U32, set: Bool, +what: U32) -> World:
   W{ring, +meta} = w
-  Meta{m, +ox, +oz, q, np, made, gone} = meta
+  Meta{m, +ox, +oz, q, np, gone} = meta
   +x = (ox + lx : U32)
   +z = (oz + lz : U32)
   edit_fin(meta, x, z, y, set, what, get_col(ring, ((x * 128 + z) * 16 : U32)))

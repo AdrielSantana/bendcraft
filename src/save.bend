@@ -8,7 +8,8 @@ import ./inventory.bend as Inventory
 # SAVE AND LOAD: the edited columns and where the player stands, as text.
 #
 # The file is `bendcraft.save` in the working directory: a first line with
-# the corner, position, look, chosen block, day clock and eight counts,
+# the corner, position, look, chosen block, day clock and nine counts
+# (the eight block types' and the bucket's units),
 # then a line per edited column: its key "x,z" and its fourteen words. The
 # game loads it at start and writes it on P and on quit; a line that does
 # not fit is skipped. Floats travel as thousandths, offset by a thousand so
@@ -60,7 +61,7 @@ def counts_text(xs: List<&2, Nat>) -> String:
 
 def text_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, clock: U32, bag: List<&2, Nat>, w: World.World) -> World.World & String:
   World.W{ring, +meta} = w
-  World.Meta{m, +ox, +oz, q, np, made, gone} = meta
+  World.Meta{m, +ox, +oz, q, np, gone} = meta
   (World.W{ring, meta},
    "bendcraft 1 " ++ U32.show(ox) ++ " " ++ U32.show(oz) ++ " " ++ U32.show(enc(px)) ++ " " ++ U32.show(enc(py)) ++ " " ++ U32.show(enc(pz))
    ++ " " ++ U32.show(enc(wrap(yaw))) ++ " " ++ U32.show(enc(pit)) ++ " " ++ U32.show(sel) ++ " " ++ U32.show(clock) ++ counts_text(bag)
@@ -123,7 +124,7 @@ def natural(m: Maybe<&2, Nat>) -> Nat:
     case None{}: 0n
     case Some{n}: n
 
-# the eight counts, zero where the header is short
+# the nine counts, zero where the header is short
 def counts_of(n: Nat, fs: List<&2, String>) -> List<&2, Nat>:
   match n:
     case 0n:
@@ -140,8 +141,8 @@ def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Gam
     case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, Con{clock, counts}}}}}}}}}}}:
       +cx = num(ox)
       +cz = num(oz)
-      Player.G{World.load_all(128n, World.W{[0 : U32^18n], World.Meta{cols_of(ls, Map.new(&2, World.Col)), cx, cz, Nil{}, 0, 0, 0}}, cx, cz),
-               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, (num(sel) % 8 : U32), res, Day.phase(num(clock)), counts_of(8n, counts)}
+      Player.G{World.load_all(128n, World.W{[0 : U32^18n], World.Meta{cols_of(ls, Map.new(&2, World.Col)), cx, cz, Nil{}, 0, 0}}, cx, cz),
+               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, (num(sel) % 9 : U32), res, Day.phase(num(clock)), counts_of(9n, counts)}
     case Con{tag, rest}:
       Player.start_at(res)
     case Nil{}:

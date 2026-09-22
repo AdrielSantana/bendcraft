@@ -318,34 +318,35 @@ law a_full_cell_is_not_partial:
 law pour_into_a_solid_is_nothing:
   {World.pour_col(World.col6(1024, 0, 1536, 0, 0, 0), 10, 5) == World.col6(1024, 0, 1536, 0, 0, 0) : World.Col}
 
-# --- a source: the type nibble 9 under the water's bit -------------------------
-# The spring (the ninth slot) places one by the water's path: a full cell,
-# a bank blocks it, a solid over it ends it, a pour leaves the nibble; and
-# what it makes when it refills is exactly what it gave.
+# --- the bucket: the ninth slot moves water, never makes it ------------------
+# What it takes from a cell is all the cell holds, nothing from a solid or
+# from outside the window (the probe's 256); what it pours is what the
+# cell lacks, 255 into air, nothing into a full cell or a solid; and the
+# HUD shows the full cells it holds, above the readout's numbers.
 
-law a_spring_places_water:
-  {World.masks(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9)) == (0, 1024) : U32 & U32}
+law the_bucket_takes_the_cell_whole:
+  {Player.pail_take(False{}, 100) == 100 : U32}
 
-law a_spring_is_a_full_cell:
-  {World.levels(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9)) == World.Levels{0, 0, 16711680, 0, 0, 0, 0, 0} : World.Levels}
+law the_bucket_takes_nothing_from_a_solid:
+  {Player.pail_take(False{}, 256) == 0 : U32}
 
-law a_spring_is_a_source:
-  {World.source_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9), 10) == True{} : Bool}
+law a_pour_is_what_the_cell_lacks:
+  {Player.pail_take(True{}, 100) == 155 : U32}
 
-law water_placed_is_no_source:
-  {World.source_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 8), 10) == False{} : Bool}
+law a_pour_into_air_is_a_full_cell:
+  {Player.pail_take(True{}, 0) == 255 : U32}
 
-law a_spring_cannot_replace_a_bank:
-  {World.edit_col(World.col6(1024, 0, 1536, 0, 0, 0), 10, True{}, 9) == World.col6(1024, 0, 1536, 0, 0, 0) : World.Col}
+law a_pour_into_a_full_cell_is_nothing:
+  {Player.pail_take(True{}, 255) == 0 : U32}
 
-law a_pour_keeps_the_source:
-  {World.source_col(World.pour_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9), 10, 100), 10) == True{} : Bool}
+law a_pour_into_a_solid_is_nothing:
+  {Player.pail_take(True{}, 256) == 0 : U32}
 
-law a_solid_over_a_source_ends_it:
-  {World.source_col(World.edit_col(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 9), 10, True{}, 2), 10) == False{} : Bool}
-
-law the_spring_is_the_ninth_slot:
+law the_bucket_is_the_ninth_slot:
   {(Inventory.hud_lo(8, Inventory.empty()) % 16 : U32) == 8 : U32}
+
+law the_bucket_shows_its_full_cells:
+  {(Inventory.hud_pail(List.set(&2, Nat, Inventory.empty(), 8n, 765n)), Render.stat_pail(Render.with_pail(Render.stat_of(164, 60), 99)), Render.stat_fps(Render.with_pail(Render.stat_of(164, 60), 99))) == (3, 99, 60) : U32 & (U32 & U32)}
 
 # --- a solid placed in water shoves the water up ------------------------------
 # What a cell holding b takes of a is what fits, and the shove's probe says

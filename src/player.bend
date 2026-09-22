@@ -8,7 +8,7 @@ import ./inventory.bend as Inventory
 
 # THE PLAYER: the game state, the events, the tick, the edits.
 #
-#   W A S D  move   space  jump   arrows  look   1-8  choose a block
+#   W A S D  move   space  jump   arrows  look   1-8  choose a block   9  the bucket
 #   P  save   Esc  quit (and save)
 #   mouse: drag to look, left click breaks, right click places (or J / L)
 
@@ -32,11 +32,11 @@ def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
            held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, stat: U32, more: U32, w: World.World) -> Game & Image:
   World.W{ring, +meta} = w
-  World.Meta{m, ox, oz, q, +np, made, gone} = meta
+  World.Meta{m, ox, oz, q, +np, gone} = meta
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
   view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, meta,
-           Render.frame(Render.camera(px, py, pz, yaw, pit, World.base(meta), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), stat, fl, rw, rh, clock), ring, rw, rh))
+           Render.frame(Render.camera(px, py, pz, yaw, pit, World.base(meta), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), Render.with_pail(stat, Inventory.hud_pail(bag)), fl, rw, rh, clock), ring, rw, rh))
 
 # the frame with the render's flags (Render.Cam), all looks on for the game;
 # `more` holds the looks the flags word has no room for (Render.looks_base),
@@ -87,7 +87,7 @@ def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, p
     case False{}:
       G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, mx, my, sel, res, clock, bag}
 
-# the digits 1..8 choose the block to place, 9 the spring (a source of water)
+# the digits 1..8 choose the block to place, 9 the bucket
 def on_key(g: Game, +code: U32, +down: Bool) -> Game:
   G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, +sel, res, clock, bag} = g
   +lower = Bool.pick(U32, ((code >= 65) && (code <= 90) : U32), (code + 32 : U32), code)
@@ -203,19 +203,9 @@ def edit_commit(w: World.World, idx: U32, set: Bool, what: U32, e: Inventory.Edi
   Inventory.Edit{bag, changed} = e
   (write_block(changed, w, idx, set, what), bag)
 
-# the spring (9) places a source of water and spends nothing: the bag is
-# the same and the write goes ahead, into air or water, never a solid
-def receipt(spring: Bool, +set: Bool, +what: U32, +actual: U32, bag: List<&2, Nat>, solid: Bool) -> Inventory.Edit:
-  match spring:
-    case True{}:
-      Inventory.Edit{bag, True{}}
-    case False{}:
-      Inventory.edit(bag, U32.to_nat(U32.min(Bool.pick(U32, set, what, actual), 8)), set, solid)
-
-def edit_type(+set: Bool, +what: U32, idx: U32, bag: List<&2, Nat>, +solid: Bool, r: World.World & U32) -> World.World & List<&2, Nat>:
+def edit_type(+set: Bool, +what: U32, idx: U32, bag: List<&2, Nat>, solid: Bool, r: World.World & U32) -> World.World & List<&2, Nat>:
   (w, actual) = r
-  edit_commit(w, idx, set, Bool.pick(U32, set, what, 0),
-    receipt(set && U32.is_eq(what, 9) && Bool.not(solid), set, what, actual, bag, solid))
+  edit_commit(w, idx, set, Bool.pick(U32, set, what, 0), Inventory.edit(bag, U32.to_nat(Bool.pick(U32, set, what, actual)), set, solid))
 
 def edit_solid(set: Bool, what: U32, +idx: U32, bag: List<&2, Nat>, r: World.World & Bool) -> World.World & List<&2, Nat>:
   (w, solid) = r
@@ -231,6 +221,41 @@ def edit_if(act: Bool, +idx: U32, set: Bool, what: U32, r: World.World & List<&2
 
 def edit_world(act: Bool, +idx: U32, set: Bool, what: U32, r: World.World & List<&2, Nat>) -> World.World & List<&2, Nat>:
   edit_if(act && (idx < 524288 : U32), idx, set, what, r)
+
+# ---------- the bucket ----------
+# The ninth slot moves water instead of a block. A left click takes all
+# the water of the cell before the face aimed at into the bucket, a
+# partial cell for what it holds; a right click fills that cell from the
+# bucket, if the bucket holds what the cell lacks (255 for air). The
+# units only move: the world, the bucket and what dried sum to the same.
+# The bucket's units are the bag's ninth count.
+
+# what moves: the cell's amount out, or the room the cell has in; nothing
+# where the probe says 256 (a solid, or outside the window)
+def pail_take(put: Bool, +a: U32) -> U32:
+  Bool.pick(U32, put, World.fits(World.full(), a), Bool.pick(U32, (a < 256 : U32), a, 0))
+
+def pail_move(ok: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +amt: U32, bag: List<&2, Nat>, left: Nat) -> World.World & List<&2, Nat>:
+  match ok:
+    case False{}:
+      (w, bag)
+    case True{}:
+      (World.mark_around(World.pour(w, lx, y, lz, amt), lx, y, lz), List.set(&2, Nat, bag, 8n, left))
+
+def pail_fin(+put: Bool, +lx: U32, +y: U32, +lz: U32, +bag: List<&2, Nat>, r: World.World & U32) -> World.World & List<&2, Nat>:
+  (w, a) = r
+  +k = U32.to_nat(pail_take(put, a))
+  +had = Inventory.count(bag, 8n)
+  pail_move(Nat.is_gt(k, 0n) && (Bool.not(put) || Nat.is_le(k, had)), w, lx, y, lz, Bool.pick(U32, put, World.full(), 0), bag,
+    Bool.pick(Nat, put, Nat.sub(had, k), Nat.add(had, k)))
+
+def pail(act: Bool, put: Bool, +idx: U32, r: World.World & List<&2, Nat>) -> World.World & List<&2, Nat>:
+  match act:
+    case False{}:
+      r
+    case True{}:
+      (w, bag) = r
+      pail_fin(put, ix_x(idx), ix_y(idx), ix_z(idx), bag, World.probe(w, ix_x(idx), ix_y(idx), ix_z(idx)))
 
 # ---------- one tick ----------
 # The player is 1.8 blocks tall with the eye at 1.6, so they stand in the
@@ -276,10 +301,13 @@ def step_edit(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
   +tgt = (prev - 1 : U32)
   +onme = U32.is_eq(ix_x(tgt), Util.f2u(npx)) && U32.is_eq(ix_z(tgt), Util.f2u(npz))
     && (ix_y(tgt) >= Util.f2u((npy - eye() : F32)) : U32) && (ix_y(tgt) <= Util.f2u((npy + 0.2 : F32)) : U32)
+  +pail_on = U32.is_eq(sel, 8)
   +brk = got && Util.on(edge, 1024)
   +put = got && (prev > 0 : U32) && Util.on(edge, 2048) && Bool.not(onme)
   step_done(npx, npy, npz, nvy, nyaw, npit, held, edge, mx, my, sel, res, clock,
-    edit_world(put, tgt, True{}, sel, edit_world(brk, (hit - 1 : U32), False{}, 0, (w, bag))))
+    edit_world(put && Bool.not(pail_on), tgt, True{}, sel,
+      edit_world(brk && Bool.not(pail_on), (hit - 1 : U32), False{}, 0,
+        pail(pail_on && (brk || put), put, tgt, (w, bag)))))
 
 def step_aim(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
              held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, r: World.World & (U32 & U32)) -> Game:
@@ -357,7 +385,7 @@ def step(g: Game) -> Game:
 
 # the world's corner starts far from zero, so walking west never wraps it
 def start_at(+res: U32) -> Game:
-  G{World.load_all(128n, World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0, 0}}, 1048512, 1048512),
+  G{World.load_all(128n, World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}}, 1048512, 1048512),
     64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0, 0, res, Day.morning(), Inventory.empty()}
 
 def start() -> Game:

@@ -70,7 +70,7 @@ def colour(sun_y: F32) -> U32:
 # at four), so the bed does not compete with what the surface mirrors. An
 # eye under the water keeps the clear one, or a diver would see two blocks.
 # A point's depth under the surface is the sea's level less its height:
-# the lakes lie at the sea level, and a spring's pool is shallow.
+# the lakes lie at the sea level, and a poured pool is shallow.
 def level() -> F32: 12.0
 def drop(y: F32) -> F32: F32.max((level() - y : F32), 0.0)
 

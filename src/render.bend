@@ -661,8 +661,8 @@ def clipped(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low four bits, then four seven-bit counts;
 # items holds the other four. Counts are capped for the HUD. stat holds
-# the readout's numbers (stat_of). base keeps the ring's low 14 bits and a
-# 13-bit ripple clock.
+# the readout's numbers and the bucket's full cells (stat_of, with_pail).
+# base keeps the ring's low 14 bits and a 13-bit ripple clock.
 type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
 
@@ -727,7 +727,7 @@ def cross_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> Bool:
   +dy = Bool.pick(U32, (pyi > hy : U32), (pyi - hy : U32), (hy - pyi : U32))
   ((dx < 1 : U32) && (dy < 5 : U32)) || ((dy < 1 : U32) && (dx < 5 : U32))
 
-# the hotbar: the eight block types and the spring in a row along the
+# the hotbar: the eight block types and the bucket in a row along the
 # bottom, 20 px each 4 apart, the chosen one framed in white
 def slot_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   +x0 = (rw / 2 - 106 : U32)
@@ -740,7 +740,8 @@ def slot_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
 # ---------- the readout: the `!`'s milliseconds and the frames a second ----------
 # The two numbers ride in the camera's stat word (main.bend measures
 # them): bits 0..9 the tenths of a millisecond, to 99.9, bits 10..17 the
-# frames a second, to 255. Zeros hide the readout. "16.4 MS  60 FPS" in
+# frames a second, to 255; bits 18..24 hold the bucket's full cells, the
+# hotbar's ninth count. Zeros hide the readout. "16.4 MS  60 FPS" in
 # the top left corner, glyphs of 3 x 5 drawn 2 px a dot, a bit a dot from
 # the top left: 0-9, then . blank M F P and + (S is the 5). The GPU never
 # shifts by a variable, so a row and a dot are picked by a division and a
@@ -754,6 +755,9 @@ def stat_fps(+stat: U32) -> U32: (stat / 1024 % 256 : U32)
 
 # the numbers' eighteen bits
 def stat_on(+stat: U32) -> Bool: (stat % 262144 > 0 : U32)
+
+def with_pail(+stat: U32, +cells: U32) -> U32: (stat + 262144 * cells : U32)
+def stat_pail(+stat: U32) -> U32: (stat / 262144 % 128 : U32)
 
 def glyph(+i: U32) -> U32:
   Bool.pick(U32, U32.is_eq(i, 0), 31599,
@@ -826,21 +830,21 @@ def count_col(+n: U32, +lx: U32, +ly: U32) -> U32:
     && Util.on(row, dot_bit(((lx - 5) % 4 : U32)))
   Bool.pick(U32, lit, Bool.pick(U32, U32.is_eq(n, 0), Util.rgb(144, 144, 152), Util.rgb(255, 255, 255)), Util.rgb(16, 16, 24))
 
-# the spring's swatch is the water's blue, and it has no count
-def slot_col(+sel: U32, items: U32, +slot: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
+# the bucket's swatch is the water's blue, its count the full cells it holds
+def slot_col(+sel: U32, items: U32, +stat: U32, +slot: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   +i = (slot - 1 : U32)
   +lx = ((pxi - (rw / 2 - 106)) % 24 : U32)
   +ly = (pyi - (rh - 30) : U32)
   +border = (lx < 2 : U32) || (lx >= 18 : U32) || (ly < 2 : U32) || (ly >= 18 : U32)
-  +label = (i < 8 : U32) && (lx >= 4 : U32) && (lx < 18 : U32) && (ly >= 10 : U32) && (ly < 17 : U32)
+  +label = (lx >= 4 : U32) && (lx < 18 : U32) && (ly >= 10 : U32) && (ly < 17 : U32)
   Bool.pick(U32, border, Bool.pick(U32, U32.is_eq(i, (sel % 16 : U32)), Util.rgb(255, 255, 255), Util.rgb(40, 40, 40)),
-    Bool.pick(U32, label, count_col(Inventory.hud_count(sel, items, i), lx, ly),
+    Bool.pick(U32, label, count_col(Bool.pick(U32, U32.is_eq(i, 8), stat_pail(stat), Inventory.hud_count(sel, items, i)), lx, ly),
       Bool.pick(U32, U32.is_eq(i, 8), Util.rgb(46, 110, 160), blockcol(i, False{}, 1.0))))
 
-def slot_px(inside: Bool, sel: U32, items: U32, slot: U32, pxi: U32, pyi: U32, rw: U32, rh: U32) -> U32:
+def slot_px(inside: Bool, sel: U32, items: U32, stat: U32, slot: U32, pxi: U32, pyi: U32, rw: U32, rh: U32) -> U32:
   match inside:
     case False{}: 0
-    case True{}: (1 + slot_col(sel, items, slot, pxi, pyi, rw, rh) : U32)
+    case True{}: (1 + slot_col(sel, items, stat, slot, pxi, pyi, rw, rh) : U32)
 
 # what lies over the scene at this pixel: 0 nothing, else 1 + the colour
 def hud(+sel: U32, +items: U32, +stat: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
@@ -848,7 +852,7 @@ def hud(+sel: U32, +items: U32, +stat: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh:
   +text = stat_px(stat_on(stat) && (pxi < 128 : U32) && (pyi < 18 : U32), stat, pxi, pyi)
   Bool.pick(U32, (text > 0 : U32), text,
     Bool.pick(U32, cross_at(pxi, pyi, rw, rh), (1 + Util.rgb(255, 255, 255) : U32),
-      slot_px((slot > 0 : U32), sel, items, slot, pxi, pyi, rw, rh)))
+      slot_px((slot > 0 : U32), sel, items, stat, slot, pxi, pyi, rw, rh)))
 
 def hud_if(on: Bool, +sel: U32, items: U32, +stat: U32, +pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> U32:
   match on:

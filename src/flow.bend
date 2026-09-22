@@ -99,13 +99,13 @@ def cell_fin(+lx: U32, +y: U32, +lz: U32, +odd: Bool, r: World.World & U32) -> W
 
 # ---------- the end of a cell's step ----------
 
-# A source refills to full, and the world counts what it made. Any other
-# cell that still holds under `thin` units loses them, counted: the sink
-# the model needs, since a spring's spill with nothing to remove it would
-# spread as a film over every flat reach without end. A cell that holds
-# water at the end of its step rests on a solid or on full water (the
-# down move took all that fit), so falling water never dries, and a lake
-# at rest holds ten units a cell and more.
+# A cell that still holds under `thin` units loses them, counted: the
+# sink, without which a pour's spill would spread as a film of a unit or
+# two over every flat reach it comes to and stay there, each cell a
+# partial one for the frame. A cell that holds water at the end of its
+# step rests on a solid or on full water (the down move took all that
+# fit), so falling water never dries, and a lake at rest holds ten units
+# a cell and more.
 def thin() -> U32: 4
 
 def dry_if(gone: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World.World:
@@ -115,22 +115,13 @@ def dry_if(gone: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> 
     case True{}:
       World.dry(World.pour(w, lx, y, lz, 0), a)
 
-def settle_if(src: Bool, +lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World:
-  match src:
-    case True{}:
-      (w, +a) = r
-      World.make(World.pour(w, lx, y, lz, World.full()), (World.full() - a : U32))
-    case False{}:
-      (w, +a) = r
-      dry_if((a > 0 : U32) && (a < thin() : U32), w, lx, y, lz, a)
+def settle(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World:
+  (w, +a) = r
+  dry_if((a > 0 : U32) && (a < thin() : U32), w, lx, y, lz, a)
 
-def settle(+lx: U32, +y: U32, +lz: U32, r: World.World & Bool) -> World.World:
-  (w, src) = r
-  settle_if(src, lx, y, lz, World.amount_at(w, lx, y, lz))
-
-# the step of one cell: down, then the sides, then the refill or the drying
+# the step of one cell: down, then the sides, then the drying
 def step(w: World.World, +lx: U32, +y: U32, +lz: U32, +odd: Bool) -> World.World:
-  settle(lx, y, lz, World.source_at(cell_fin(lx, y, lz, odd, World.amount_at(w, lx, y, lz)), lx, y, lz))
+  settle(lx, y, lz, World.amount_at(cell_fin(lx, y, lz, odd, World.amount_at(w, lx, y, lz)), lx, y, lz))
 
 # ---------- one column ----------
 
@@ -167,7 +158,7 @@ def lx_of(+slot: U32, +ox: U32, +oz: U32, +lz: U32) -> U32:
 
 # the column at the slot: its marks read and cleared, its cells stepped
 def slot_fin(+meta: World.Meta, +slot: U32, +odd: Bool, r: Array<U32> & U32) -> World.World:
-  World.Meta{m, +ox, +oz, q, np, made, gone} = meta
+  World.Meta{m, +ox, +oz, q, np, gone} = meta
   (ring, +bits) = r
   +lz = lz_of(slot, oz)
   column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 14 : U32), 0), meta})
@@ -183,8 +174,8 @@ def step_slot(w: World.World, +slot: U32, +odd: Bool) -> World.World:
 # and the tick's marks behind, oldest first.
 def rejoin(rest: List<&2, U32>, w: World.World) -> World.World:
   World.W{ring, meta} = w
-  World.Meta{m, ox, oz, q, np, made, gone} = meta
-  World.W{ring, World.Meta{m, ox, oz, List.append(&2, U32, rest, List.reverse(&2, U32, q)), np, made, gone}}
+  World.Meta{m, ox, oz, q, np, gone} = meta
+  World.W{ring, World.Meta{m, ox, oz, List.append(&2, U32, rest, List.reverse(&2, U32, q)), np, gone}}
 
 def tick_go(budget: Nat, q: List<&2, U32>, +odd: Bool, w: World.World) -> World.World:
   match budget:
@@ -199,8 +190,8 @@ def tick_go(budget: Nat, q: List<&2, U32>, +odd: Bool, w: World.World) -> World.
 
 def tick(w: World.World, +odd: Bool, +budget: Nat) -> World.World:
   World.W{ring, meta} = w
-  World.Meta{m, ox, oz, q, np, made, gone} = meta
-  tick_go(budget, q, odd, World.W{ring, World.Meta{m, ox, oz, Nil{}, np, made, gone}})
+  World.Meta{m, ox, oz, q, np, gone} = meta
+  tick_go(budget, q, odd, World.W{ring, World.Meta{m, ox, oz, Nil{}, np, gone}})
 
 # the columns a tick steps at most
 def budget() -> Nat: 256n
