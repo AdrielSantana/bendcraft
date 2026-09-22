@@ -170,6 +170,12 @@ def partial_trace_w(+level: Bool, +x: F32, +y: F32, +z: F32, +axis: U32, w: Worl
 def partial_trace(+level: Bool, +a: U32, +x: F32, +y: F32, +z: F32, +axis: U32) -> Render.Ray:
   partial_trace_w(level, x, y, z, axis, World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, a))
 
+# two cells side by side at (63, 10, 64) and (64, 10, 64), holding a and
+# b, and a level ray along x at y = 10.5 from x = 62.5: the step between
+# their planes
+def step_trace(+a: U32, +b: U32) -> Render.Ray:
+  partial_trace_w(True{}, 62.5, 10.5, 64.5, 0, World.pour(World.pour(pool(2n, empty(), 63, 128), 63, 10, 64, a), 64, 10, 64, b))
+
 def ray_matches(+entry: F32, +depth: F32, top: Bool, ray: Render.Ray) -> Bool:
   Render.Ray{code, t, Water.Trace{e, d}} = ray
   near(e, entry, 0.0001) && near(d, depth, 0.0001) && Bool.not(Bool.xor(Water.top(code), top))
@@ -275,6 +281,10 @@ def main() -> IO(Unit):
       && partial_ok(False{}, 255, 63.5, 10.95, 64.5, 0, True{}, 0.5, 1.0, False{})
       && partial_ok(False{}, 204, 63.5, 10.95, 64.5, 0, True{}, 0.6, 0.9, True{}),
       "a ray sloping down over a cell four tenths full leaves it before its plane and stays dry; one eight tenths full it meets at its plane, a top entry")
+    expect(ray_matches(1.5, 1.0, True{}, step_trace(102, 153))
+      && ray_matches(0.5, 1.0, False{}, step_trace(153, 102))
+      && ray_matches(1.5, 1.0, True{}, step_trace(102, 255)),
+      "a ray over a cell's plane that enters its higher neighbour by the step between them enters the surface, a top entry; one that enters water from the air by a side is at a wall")
     expect(U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 5), 64, 10, 64), 5)
       && U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 300), 64, 10, 64), 255)
       && U32.is_ne(voxel_of(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 0), 64, 10, 64), 8)

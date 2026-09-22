@@ -133,7 +133,15 @@ y + amount / 255, and the ray's DDA clips its wet segment to that plane
 (`Render.dda`, `Column.lo` and `hi`): a descending ray's entry moves down
 to the plane, a ray over the water passes, a ray under it meets the side
 face whole, and the reflection, the ripples, Fresnel, the mirror and the
-caustic happen on the plane. A full cell's plane is its top face, so the
+caustic happen on the plane. Between two neighbours' planes there is a
+step, a unit tall on a lake at rest, and a ray that crosses it enters
+the surface, not a wall: a side entry into water from a cell whose
+water the ray passed over is a top entry too (the last cell's water bit
+rides in the step count, `Render.keep_wet`; without it every cell
+boundary of a settled lake drew a dark dashed line, the rays that met
+the step in the band between the planes losing their sky). A side entry
+from the air stays a wall, the wedge of a stream. A full cell's plane is
+its top face, so the
 picture of a still lake is the same bit for bit; and the loop is
 specialized on bit 29 of the camera's base, set by `Player.view_w` when
 the world counts a partial cell in the window (`World.partials`), so a

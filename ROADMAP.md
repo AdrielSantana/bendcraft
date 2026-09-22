@@ -206,7 +206,12 @@ block moves; that is the first gate of every step below.
   face, so every picture of today stays bit for bit. A partial cell seen
   from the side shows its side face whole and its top lowered: the wedge
   of a stream is its top. The plane is a function of the ray and one
-  read; nothing else changes in the DDA.
+  read; nothing else changes in the DDA. (Found with the byte: the step
+  between two neighbours' planes, a unit tall, is a side face too, and
+  a settled lake drew every cell boundary as a dark dashed line where
+  grazing rays met it; a side entry from over a neighbour's water is now
+  a top entry, `Render.keep_wet`/`Water.crossed_top`, the still lake
+  unchanged.)
 - **The rule.** A simulation tick every 200 ms, whatever the frame rate.
   For each active cell holding a > 0 units: first down, the cell below,
   if not solid, takes min(a, 255 - b); then sideways, each of the four
@@ -306,7 +311,8 @@ block moves; that is the first gate of every step below.
   a lake at once and leave the rule to the streams between bodies, the
   right model for a lake and a step of its own. The plane clip's cost on a
   lake partial everywhere is not yet measured (`make profile`'s last view
-  has seven partial cells).
+  has seven partial cells). Also found and fixed the same night: the
+  steps between the planes, above.
 
 ## The laws
 

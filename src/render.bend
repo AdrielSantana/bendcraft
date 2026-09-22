@@ -153,6 +153,20 @@ def step_in(~water: Bool, ~partial: Bool, need: Bool, w: Array<U32>, +slot: U32,
     case False{}: cell_on(partial, w, bits, wetbits, partialbits, slot, ymask, y, sy, my, ey)
 
 # the wet segment's ends: the cell's, clipped to its plane with partial water
+# The water bit of the cell the ray just left rides in bit 7 of the step
+# count, over the count's six bits and the top's, only while the window
+# holds partial water (Water.crossed_top's from_water); the count and the
+# top read past it (Water.steps, Water.top).
+def came_wet(partial: Bool, +n: U32) -> Bool:
+  match partial:
+    case False{}: False{}
+    case True{}: Util.on(n, 128)
+
+def keep_wet(partial: Bool, +n: U32, +wet_here: Bool) -> U32:
+  match partial:
+    case False{}: n
+    case True{}: ((n .&. 4294967167) .|. Bool.pick(U32, wet_here, 128, 0) : U32)
+
 def seg_start(partial: Bool, +t: F32, +lo: F32) -> F32:
   match partial:
     case False{}: t
@@ -211,8 +225,8 @@ def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
       +ws = seg_start(partial, t, lo)
       +we = seg_end(partial, nt, hi)
       +wet = inside && (ncol < 1 : U32) && Util.on(wetbits, ymask) && (ws < we : F32)
-      nn = Water.crossed_top(water, wet, t, ws, we, axis, sy, tr,
-        Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n))
+      nn = Water.crossed_top(water, wet, t, ws, we, axis, sy, tr, came_wet(partial, n),
+        keep_wet(partial, Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n), inside && Util.on(wetbits, ymask)))
       dda(~water, ~partial, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nn, nymask,
           Water.crossed(water, wet, ws, we, tr),
           step_in(~water, ~partial, Bool.not(uy) && (ncol < 1 : U32), w, World.col_at(base, Util.f2u(nvx), Util.f2u(nvz)), nymask, Util.f2u(nvy), sy, nmy, ey,

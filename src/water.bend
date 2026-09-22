@@ -48,14 +48,18 @@ def top(code: U32) -> Bool: Util.on(code, 256)
 def steps(code: U32) -> U32: (code / 4 % 64 : U32)
 
 # the first wet segment's start is a top entry through the cell's top face,
-# or through a partial cell's plane, where the segment starts past the face
-def crossed_top(on: Bool, wet: Bool, +t: F32, +ws: F32, next: F32, axis: F32, sy: F32, tr: Trace, n: U32) -> U32:
+# through a partial cell's plane, where the segment starts past the face,
+# or through the side of a cell the ray reaches over a neighbour's water
+# (`from_water`): between two planes a unit apart there is a step of a
+# unit, and a ray that crosses it enters the surface, not a wall; a side
+# entry from the air is a wall, the wedge of a stream.
+def crossed_top(on: Bool, wet: Bool, +t: F32, +ws: F32, next: F32, axis: F32, sy: F32, tr: Trace, from_water: Bool, n: U32) -> U32:
   match on:
     case False{}: n
     case True{}:
       Trace{entry, depth} = tr
       mark_top(n, wet && (depth <= 0.0 : F32) && (ws > 0.0 : F32) && (next > ws : F32)
-        && ((F32.is_eq(axis, 1.0) && (sy < 0.0 : F32)) || (ws > t : F32)))
+        && ((F32.is_eq(axis, 1.0) && (sy < 0.0 : F32)) || (ws > t : F32) || from_water))
 
 def crossed(on: Bool, +wet: Bool, +t: F32, +next: F32, tr: Trace) -> Trace:
   match on:
