@@ -28,6 +28,9 @@ check:
 	$(BEND) test/day.bend --check-only
 	$(BEND) test/inventory.bend --check-only
 	$(BEND) test/water.bend --check-only
+	$(BEND) test/flow.bend --check-only
+	$(BEND) test/flow_view.bend --check-only
+	$(BEND) test/flow_bench.bend --check-only
 	$(BEND) test/ripples.bend --check-only
 	$(BEND) test/water_view.bend --check-only
 	$(BEND) test/mirror.bend --check-only
@@ -46,6 +49,7 @@ test:
 	$(BEND) test/day.bend
 	$(BEND) test/inventory.bend
 	$(BEND) test/water.bend
+	$(BEND) test/flow.bend
 	$(BEND) test/ripples.bend
 	$(BEND) test/mirror.bend
 	$(BEND) test/terrain.bend
@@ -84,6 +88,20 @@ water: test/water_view.bend test/profile.bend test/sky.bend src/*.bend
 	$(BEND) test/water_view.bend -o build/water-view
 	./build/water-view
 	$(PYTHON) test/water.py
+
+# the flow: the lake breached into a pit, filling and settled, and a
+# partial cell from the side (Pillow)
+flow: test/flow_view.bend test/sky.bend src/*.bend
+	@mkdir -p build
+	$(BEND) test/flow_view.bend -o build/flow-view
+	./build/flow-view
+	$(PYTHON) test/flow.py
+
+# the flow's cost on the host: a lake draining through shafts, ms a tick
+flow-bench: test/flow_bench.bend src/*.bend
+	@mkdir -p build
+	$(BEND) test/flow_bench.bend -o build/flow_bench
+	./build/flow_bench
 
 # the page: WebAssembly, a worker a core, the service worker for the headers
 page: main.bend src/*.bend

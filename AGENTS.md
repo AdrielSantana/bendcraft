@@ -168,7 +168,9 @@ nothing", and the README):
   so clock/readout bits cannot affect world reads. Bits 27..30 are the
   looks `Cam.fl` has no room for: `Render.looks_base()` holds the ones on
   by default and `Water.with_looks` puts them in; 27 is the world in the
-  water's mirror, 28 the caustic on its bed, 29 and 30 remain spare.
+  water's mirror, 28 the caustic on its bed, 29 says the window holds
+  partial water (`Render.with_partial`, from `World.partials`; the DDA is
+  specialized on it, `~partial`), 30 remains spare.
 - A walk is the unit of cost: a DDA step is about 0.16 ms a frame at
   1470×796 wherever it happens (primary 60, shadow 24, mirror 32), because
   the frame is its slowest lane. Count the steps a new look adds before
@@ -181,14 +183,34 @@ nothing", and the README):
   512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
 - The world: a ring of 128x128 columns in one `Array<U32>` of 2^18 words,
   sixteen words a column (solid mask, four type words, water mask, four
-  words of water amounts 0..8 in nibbles, six spare); the water mask's bit
-  is set exactly when the amount is over zero (`World.pour` keeps both);
-  edits in a `Map`; terrain from a seeded noise; a save line has ten words
-  and loads six-word lines full where wet. Solid types 0..7: grass dirt stone
+  words of water amounts 0..8 in nibbles, the flow's marks, the partial
+  mask, four spare); the water mask's bit is set exactly when the amount
+  is over zero (`World.pour` keeps both), the partial mask's exactly when
+  it is 1..7 (`put_col` derives it and keeps the window's count); edits in
+  a `Map`; terrain from a seeded noise; a save line has ten words and
+  loads six-word lines full where wet. `World.W` also carries the flow's
+  queue of marked slots (`World.mark`; marks are on slots, so a mark on a
+  column that left the window is spent harmlessly on the one at its slot).
+- The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
+  queued columns' marked cells, bottom up; `Flow.advance` runs it from
+  `Player.advance` every 256 ms of the day's clock (4096 a turn, so the
+  grid holds across the wrap), at most twice a frame. Its writes are
+  `World.pour`; its marks `World.mark_around`. Tests build worlds with
+  edits and ask them a list of questions in one pass (`test/flow.bend`'s
+  `query`), since a World is linear. Solid types 0..7: grass dirt stone
   sand wood leaves brick snow. Water is type 8, outside the eight inventory
   slots; it is absent from solid collision, picking and shadow masks.
 - `main.bend` runs the window's loop itself (not `App.run`), with a `Stat`
   beside the `Game`; `Save.tick` is the game's tick.
+- Bend's shape rules met here: a `match` (or a record or pair open) must
+  be the first thing in a def's body, on a parameter; a value computed in
+  the body gets its own def to be matched. A recursive def descends on
+  its first matched parameter (a Bool matched before the fuel is refused).
+  Defs come before their uses in a file, and a `law` forward declaration
+  is for `@unsafe` code only, so a loop that needs a read's result takes
+  it as its last parameter and opens it in each branch (the DDA's `r`),
+  and a loop with a state that a read changes probes one ahead
+  (`Flow.sides`).
 - The save file's first line and its per-column lines are a format: a
   change to it keeps old saves loading, or says it does not.
 

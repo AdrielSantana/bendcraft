@@ -181,6 +181,18 @@ def night_lake(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
   Player.G{w, 36.5, 14.0, 60.5, 0.9272952, (0.0 - 0.215 : F32), vy, held, edge, mx, my, sel, res, 560000, bag}
 
+# The lake again with a stair of partial cells poured into it (the water
+# view's levels): the frame then walks every ray with the plane clip.
+def stair(n: Nat, w: World.World, +i: U32) -> World.World:
+  match n:
+    case 0n: w
+    case 1n+k:
+      stair(k, World.pour(w, (38 + i * 2 : U32), 11, 66, (i + 1 : U32)), (i + 1 : U32))
+
+def partial_lake(g: Player.Game) -> Player.Game:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{stair(7n, w, 0), 51.5, 16.0, 66.5, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32), vy, held, edge, mx, my, sel, res, clock, bag}
+
 def main() -> IO(Unit):
   do IO<Unit>:
     profile_size("512 x 512", 512, 512)
@@ -195,3 +207,5 @@ def main() -> IO(Unit):
     runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), submerged(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Night lake at 1470 x 796, looking at the reflected moon")
     runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night_lake(Player.start_at(Player.res_of(1470, 796))))
+    IO.print("Lake at 1470 x 796 with partial water in the window (the plane clip on)")
+    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), partial_lake(Player.start_at(Player.res_of(1470, 796))))

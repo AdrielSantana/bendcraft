@@ -58,11 +58,13 @@ column, the first a mask whose bit `y` says "there is a block at height
 `y`", the next four the types of its 32 solid blocks, four bits each. Word
 six is a separate water mask; words seven to ten hold the amount of water
 in each cell, 0 to 8 units in a nibble, the mask's bit set exactly when
-the amount is over zero; six words remain spare. A primary ray with water
-on reads both masks once per column it crosses, the solid type once, at
-the hit, and the amount once, where it first enters water from above; an
-edit is a few `Array.set` on the host; a built world costs what an
-untouched one does. Thirty-two heights in one word is what makes it cheap:
+the amount is over zero; word eleven marks the cells the flow steps next,
+word twelve the cells holding less than eight units; four words remain
+spare. A primary ray with water on reads both masks once per column it
+crosses and the solid type once, at the hit; only while the window holds
+partial water does it read the partial mask with them, and a partial
+cell's amount as it enters one. An edit is a few `Array.set` on the host;
+a built world costs what an untouched one does. Thirty-two heights in one word is what makes it cheap:
 the ray sees a column as a machine word, and break or place is one bit.
 
 **The world is endless.** The terrain is seeded value noise, three octaves,
@@ -124,17 +126,43 @@ level. The tint follows daylight.
 The amounts are the first step of the water's physics (the design is in
 ROADMAP.md): a cell holds 0 to 8 units, `World.pour` sets one (the mask's
 bit follows, a solid cell holds none), a save writes the four amount
-words after its six and loads a six-word column full wherever it is wet,
-and where a ray first enters water from above the render reads the
-cell's amount once and lowers the surface to y + amount / 8: the entry
-moves to that plane, the wet path loses the air over it, and the
-reflection, the ripples, Fresnel, the mirror and the caustic happen on
-it. A full cell's plane is its top face, so the picture of a still lake
-is the same bit for bit, and the frame costs the same. What a partial
-cell does not show yet is its side: the step between a full cell and a
-lower one, and a ray entering a partial cell through a side face, are
-the flow step's rendering work. `make water` renders a stair of amounts
-1 to 7 in the lake's top row (`build/water-levels.png`). Distance and height fog use the full solid-hit
+words after its six and loads a six-word column full wherever it is wet.
+A cell holding less than eight units is water only under its plane at
+y + amount / 8, and the ray's DDA clips its wet segment to that plane
+(`Render.dda`, `Column.lo` and `hi`): a descending ray's entry moves down
+to the plane, a ray over the water passes, a ray under it meets the side
+face whole, and the reflection, the ripples, Fresnel, the mirror and the
+caustic happen on the plane. A full cell's plane is its top face, so the
+picture of a still lake is the same bit for bit; and the loop is
+specialized on bit 29 of the camera's base, set by `Player.view_w` when
+the world counts a partial cell in the window (`World.partials`), so a
+frame without one costs what it did, while a frame with one pays about
+a sixth more at 1470×796 (34 → 41 ms on the lake, `make profile`'s last
+view). `make water` renders a stair of amounts 1 to 7 in the lake's top
+row (`build/water-levels.png`); `make flow` renders the flow itself.
+
+The flow is the second step (`src/flow.bend`): a tick every 256 ms of the
+day's clock steps the cells the world has marked. A cell holding a > 0
+units first gives the cell below what fits, min(a, 8 - b), then each of
+its four sides that holds less takes floor((a - n) / 2) of what is left,
+in an order that reverses on odd ticks; every transfer is two `World.pour`
+at once, so the volume is kept by construction and no cell leaves 0..8
+(thirteen laws, and the tests sum a basin over ticks). A neighbour
+outside the window is solid, so a lake that reaches the edge holds. The
+marks: an edit marks its cell, the one above and the four sides; a move
+marks the cell that lost water, the one above it and its sides, and the
+one that gained; a marked column's slot is queued once, oldest first,
+and a tick steps at most 256 columns (`Flow.budget`), the rest waiting
+their turn, so a tick costs under a millisecond on the host whatever the
+lake (`make flow-bench`: a lake draining through shafts, 0.3 to 1 ms a
+tick at 100 to 190 columns queued). A cell that moved nothing drops out.
+A column back in the window from the edits is stepped once where it is
+wet, its sides whole. After a stall the flow catches up at two ticks a
+frame. What the rule leaves: a difference of one unit between neighbours
+does not move, so a surface at rest may slope one unit a cell toward
+where it drained (the lake breached in `make flow` stops at `8 8 7 6 5 4
+3 2 1 0` along its top row, 424 ticks on, the pit under it a film); a
+unit is an eighth of a block, so the slope shows. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -294,9 +322,11 @@ site/              the page: notes.mjs post-processes the built index.html
 make check      # the modules, the tests, the laws
 make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
-make profile    # each look off, by size; also night, lake, submerged and night lake
+make profile    # each look off, by size; also night, lake, submerged, night lake, partial water
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
 make water      # sixteen PNGs and a ripple animation; Python with Pillow
+make flow       # the lake breached into a pit, filling and settled; Pillow
+make flow-bench # a lake draining through shafts: ms a tick on the host
 make mirror     # build/mirror-sheet.png: four views, mirror on and off; Pillow
 make page-test  # the page in headless Chrome, hashes and fps
 ```

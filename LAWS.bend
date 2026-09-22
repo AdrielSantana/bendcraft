@@ -13,6 +13,7 @@ import ./src/render.bend as Render
 import ./src/day.bend as Day
 import ./src/inventory.bend as Inventory
 import ./src/water.bend as Water
+import ./src/flow.bend as Flow
 
 # --- the pick word: (lx * 32 + y) * 128 + lz, and back --------------------
 # (the checker computes integers, not floats: the laws are on the integer
@@ -433,3 +434,46 @@ law caustic_look_is_off_unasked:
 law mirror_look_keeps_the_readout:
   {Render.stat_fps(Render.stat_flags(1048576, 0, 8), Render.stat_items(0, 8), Water.with_looks(Water.frame_base(Render.stat_base(16383, 8), 8191), Render.looks_base())) == 8 : U32}
 
+# --- the flow: one transfer ----------------------------------------------
+# (what moves is a function of two amounts, and the move is two pours, a - k
+# and b + k, so the volume is kept by construction: pour's laws above; the
+# tests in test/flow.bend sum a basin over ticks)
+
+law down_takes_all_that_fits:
+  {Flow.down_take(8, 5) == 3 : U32}
+
+law down_takes_all_there_is:
+  {Flow.down_take(3, 5) == 3 : U32}
+
+law down_into_a_solid_is_nothing:
+  {Flow.down_take(8, 9) == 0 : U32}
+
+law a_side_takes_half_the_difference:
+  {Flow.side_take(8, 2) == 3 : U32}
+
+law a_side_never_takes_past_the_giver:
+  {Flow.side_take(7, 0) == 3 : U32}
+
+law a_side_takes_nothing_from_less:
+  {Flow.side_take(3, 5) == 0 : U32}
+
+law a_lone_unit_stays:
+  {Flow.side_take(1, 0) == 0 : U32}
+
+law a_side_of_a_solid_takes_nothing:
+  {Flow.side_take(8, 9) == 0 : U32}
+
+law the_sides_reverse_on_an_odd_tick:
+  {Flow.side_of(0, True{}) == 3 : U32}
+
+law a_tick_every_256_ms:
+  {Flow.due(255, 1) == 1 : U32}
+
+law the_tick_grid_survives_the_wrap:
+  {Flow.due(1048575, 1) == 1 : U32}
+
+law a_queued_slot_decodes_to_its_column:
+  {Flow.lz_of(World.col_at(135258048, 5, 100), 1048512) == 100 : U32}
+
+law a_queued_slot_decodes_to_its_column_x:
+  {Flow.lx_of(World.col_at(135258048, 5, 100), 1048512, 1048512, 100) == 5 : U32}

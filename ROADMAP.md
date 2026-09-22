@@ -223,13 +223,20 @@ block moves; that is the first gate of every step below.
   creates nor removes. The accounting is a law: a tick without sources
   keeps the world's volume; with sources, the volume grows by exactly
   what they refilled.
-- **The active set.** A `Map` from a column's key to a mask of the cells
-  to step next tick. A transfer marks both cells' columns; an edit marks
-  the cell and its neighbours; a cell that could not move anything drops
-  out. A tick steps at most a fixed number of columns, the rest wait
-  their turn, so the host's work a tick is bounded whatever the lake; the
-  budget is chosen with a bench of a draining lake, and a test asserts the
-  bound.
+- **The active set.** As built (2026-09-22): a word of marks per column
+  in the ring (slot 10, bit y: the cell is due a step) and a queue of the
+  marked columns' slots in the world, oldest first, each once while its
+  word is set; a `Map` keyed by column would have cost a string key per
+  mark. Marks are on slots, so a mark on a column that has left the
+  window is spent, harmlessly, on the column at its slot, and no mark is
+  lost. A transfer marks the cell that lost water, the one above it and
+  its four sides (they may fill it now) and the one that gained; an edit
+  marks its cell, the one above and the four sides; a cell that could not
+  move anything drops out; a column back from the edits is marked where
+  it is wet, its sides whole. A tick steps at most 256 columns, the rest
+  wait their turn, so the host's work a tick is bounded whatever the
+  lake: `make flow-bench` drains the spawn's lake through shafts at 0.3 to
+  1 ms a tick with 100 to 190 columns queued.
 - **The steps.** (1) The levels: the wider column, the save, the surface
   plane; the digest and the physics hash unchanged; laws on the nibble
   packing — done 2026-09-21 (eleven laws, 110 in all; the frame costs the
@@ -237,9 +244,33 @@ block moves; that is the first gate of every step below.
   and side entries render, which go with (2)). (2) The rule, windowless: laws of one transfer (bounds and
   conservation), tests of a tick (a column drains, a pool spreads and
   settles, a wall holds, the ring's edge holds), then the tick in the
-  game. (3) Sources, with their accounting law. (4) Edits: what a placed
-  block displaces and what collecting takes, both counted. (5) The
-  player in water: buoyancy, drag, swimming, breath later.
+  game — done 2026-09-22 (thirteen laws, 123 in all; 152 tests; the
+  digest and the physics hash unchanged; the tick every 256 ms of the
+  day's clock, 4096 a turn; the DDA clips a partial cell's wet segment
+  to its plane, specialized on a bit of the base so a frame without
+  partial water costs what it did and one with it about a sixth more,
+  34 → 41 ms on the lake at 1470×796). (3) Sources, with their accounting
+  law. (4) Edits: what a placed block displaces and what collecting
+  takes, both counted. (5) The player in water: buoyancy, drag, swimming,
+  breath later.
+- **What step 2 found: the unit is too coarse.** The rule moves nothing
+  between neighbours a unit apart, so a surface at rest may slope one
+  unit a cell toward wherever it drained: the spawn's lake breached into
+  a pit (`make flow`) stops 424 ticks on with `8 8 8 7 6 5 4 3 2 1 0`
+  along its top row, the pit under it holding a film of 214 units of the
+  1152 it has room for, the queue empty. A unit is an eighth of a block,
+  so a lake drained from one end tilts by an eighth a block, visibly,
+  and a lake stops draining long before it is level. The rule is right
+  (a unit of one that moved would slosh back for ever); the unit is the
+  problem. The fix on the table: a byte a cell, 0..255, eight words of
+  amounts at slots 6..13, the marks and the partial mask at 14 and 15,
+  the column full, a source then a nibble type (9) in the type words
+  rather than a spare bit; a slope of a unit a cell becomes 1/256 of a
+  block, invisible, a stream's steps smooth, and a film of one unit
+  effectively nothing to the eye while still counted. It changes step
+  1's format (ten-word saves are only local so far; a loader can widen
+  them) and the eleven nibble laws. The decision is the user's, since the
+  design above said eight; nothing else in the flow changes.
 
 ## The laws
 

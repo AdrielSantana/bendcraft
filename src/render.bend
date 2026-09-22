@@ -72,31 +72,100 @@ def hit(here: Bool, +axis: F32, +col: U32) -> U32:
       col
 
 # The dry specialization keeps water loads out of the profile's off row.
-# Both specializations use this same loop and the same fixed fuel.
+# All specializations use this same loop and the same fixed fuel. With
+# partial water in the window (~partial, bit 29 of the base), the column
+# brings its partial mask too (slot + 11, the same cache line): bit y
+# says the cell holds less than eight units, so it is water only under
+# its plane, and the loop clips the wet segment to it. Only such a cell,
+# rare, reads its amount, as the ray enters it; the column then carries
+# the clip as two distances, lo and hi, the wet segment being
+# [max(t, lo), min(next, hi)). Without partial water the loop is the
+# full-cell one, its segment [t, next), and the frame costs what it did.
 type Column is Data:
-  Column{solid: U32, water: U32}
+  Column{solid: U32, water: U32, partial: U32, lo: F32, hi: F32}
 
-def water_word_fin(bits: U32, r: Array<U32> & U32) -> Array<U32> & Column:
-  (w, water) = r
-  (w, Column{bits, water})
+def far() -> F32: 1000000000.0
 
-def water_word(on: Bool, +slot: U32, r: Array<U32> & U32) -> Array<U32> & Column:
+# The plane of a partial cell is `frac` above the cell's floor, which a
+# descending ray meets at my, and 1 - frac under its top, which a rising
+# one meets at my; ey is the distance a unit of height costs. A level
+# ray descends by the DDA's sign, its my huge, and the sign of my -
+# frac * ey says which side of the plane it runs on. A descending ray
+# is wet from the plane on (lo), a rising one up to it (hi). The plane
+# entry of a descending ray is a top entry, as a top face's is
+# (Water.crossed_top).
+def plane_fin(bits: U32, wetbits: U32, partial: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
+  (w, word) = r
+  +frac = (Util.u2f(World.nib_at(word, y)) / 8.0 : F32)
+  +down = (sy < 0.0 : F32)
+  +sp = (my - Bool.pick(F32, down, frac, (1.0 - frac : F32)) * ey : F32)
+  (w, Column{bits, wetbits, partial, Bool.pick(F32, down, sp, (0.0 - far() : F32)), Bool.pick(F32, down, far(), sp)})
+
+# the octet of a height's bit: which levels word holds its nibble
+def octet(+ymask: U32) -> U32:
+  (Bool.pick(U32, (ymask > 255 : U32), 1, 0) + Bool.pick(U32, (ymask > 65535 : U32), 1, 0) + Bool.pick(U32, (ymask > 16777215 : U32), 1, 0) : U32)
+
+def plane_if(part: Bool, w: Array<U32>, bits: U32, wetbits: U32, partial: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
+  match part:
+    case False{}:
+      (w, Column{bits, wetbits, partial, (0.0 - far() : F32), far()})
+    case True{}:
+      plane_fin(bits, wetbits, partial, y, sy, my, ey, Array.get(U32, w, (slot + 6 + octet(ymask) : U32)))
+
+def with_plane(bits: U32, +wetbits: U32, +partial: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, w: Array<U32>) -> Array<U32> & Column:
+  plane_if(Util.on(partial, ymask) && Util.on(wetbits, ymask), w, bits, wetbits, partial, slot, ymask, y, sy, my, ey)
+
+def partial_word_fin(bits: U32, water: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
+  (w, partial) = r
+  with_plane(bits, water, partial, slot, ymask, y, sy, my, ey, w)
+
+def water_word_fin(partial: Bool, bits: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
+  match partial:
+    case False{}:
+      (w, water) = r
+      (w, Column{bits, water, 0, (0.0 - far() : F32), far()})
+    case True{}:
+      (w, water) = r
+      partial_word_fin(bits, water, slot, ymask, y, sy, my, ey, Array.get(U32, w, (slot + 11 : U32)))
+
+def water_word(on: Bool, partial: Bool, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
   match on:
     case False{}:
       (w, bits) = r
-      (w, Column{bits, 0})
+      (w, Column{bits, 0, 0, (0.0 - far() : F32), far()})
     case True{}:
       (w, bits) = r
-      water_word_fin(bits, Array.get(U32, w, (slot + 5 : U32)))
+      water_word_fin(partial, bits, slot, ymask, y, sy, my, ey, Array.get(U32, w, (slot + 5 : U32)))
 
-def column_words(~water: Bool, w: Array<U32>, +slot: U32) -> Array<U32> & Column:
-  water_word(water, slot, Array.get(U32, w, slot))
+# the column's words as the ray enters a cell of it
+def column_words(~water: Bool, ~partial: Bool, w: Array<U32>, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
+  water_word(water, partial, slot, ymask, y, sy, my, ey, Array.get(U32, w, slot))
 
-def refetch_water(~water: Bool, need: Bool, w: Array<U32>, +base: U32, +x: U32, +z: U32,
-                  old: Column) -> Array<U32> & Column:
+# the same column, a cell on: with partial water, its plane if it is partial
+def cell_on(partial: Bool, w: Array<U32>, bits: U32, +wetbits: U32, +partialbits: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
+  match partial:
+    case False{}:
+      (w, Column{bits, wetbits, partialbits, (0.0 - far() : F32), far()})
+    case True{}:
+      with_plane(bits, wetbits, partialbits, slot, ymask, y, sy, my, ey, w)
+
+# the step into the next cell: the words again only on a step in x or z
+def step_in(~water: Bool, ~partial: Bool, need: Bool, w: Array<U32>, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32,
+            bits: U32, +wetbits: U32, +partialbits: U32) -> Array<U32> & Column:
   match need:
-    case True{}: column_words(~water, w, World.col_at(base, x, z))
-    case False{}: (w, old)
+    case True{}: column_words(~water, ~partial, w, slot, ymask, y, sy, my, ey)
+    case False{}: cell_on(partial, w, bits, wetbits, partialbits, slot, ymask, y, sy, my, ey)
+
+# the wet segment's ends: the cell's, clipped to its plane with partial water
+def seg_start(partial: Bool, +t: F32, +lo: F32) -> F32:
+  match partial:
+    case False{}: t
+    case True{}: F32.max(t, lo)
+
+def seg_end(partial: Bool, +next: F32, +hi: F32) -> F32:
+  match partial:
+    case False{}: next
+    case True{}: F32.min(next, hi)
 
 type Ray is Data:
   Ray{hit: U32, t: F32, water: Water.Trace}
@@ -113,7 +182,7 @@ def dda_end(+col: U32, +n: U32, t: F32, tr: Water.Trace, r: Array<U32> & Column)
 # at 1920 x 1080 (2026-09-21, the same checksums), since the lanes of a
 # SIMD group then leave the loop at different steps and the runtime's
 # switch over segments runs them one case at a time. Uniform beats less.
-def dda(~water: Bool, fuel: Nat, +base: U32,
+def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
         +vx: F32, +vy: F32, +vz: F32,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
@@ -124,31 +193,34 @@ def dda(~water: Bool, fuel: Nat, +base: U32,
       dda_end(col, n, t, tr, r)
     case 1n+f:
       (w, words) = r
-      Column{+bits, +wetbits} = words
+      Column{+bits, +wetbits, +partialbits, +lo, +hi} = words
       +inside = World.inside(vx, vy, vz)
       +here = inside && Util.on(bits, ymask) && (col < 1 : U32)
       +ncol = hit(here, axis, col)
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
       +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
-      nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
+      +nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
       +nvz = Bool.pick(F32, ux, vz, Bool.pick(F32, uy, vz, (vz + sz : F32)))
       nmx = Bool.pick(F32, ux, (mx + ex : F32), mx)
-      nmy = Bool.pick(F32, uy, (my + ey : F32), my)
+      +nmy = Bool.pick(F32, uy, (my + ey : F32), my)
       nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + ez : F32)))
       naxis = Bool.pick(F32, ux, 0.0, Bool.pick(F32, uy, 1.0, 2.0))
       # the mask moves one bit, never by a variable amount
-      nymask = Bool.pick(U32, uy,
+      +nymask = Bool.pick(U32, uy,
         Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
       # t is where the ray enters the next voxel; it stops moving at the hit
       +nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
       # the steps before the hit, for the profile
-      +wet = inside && (ncol < 1 : U32) && Util.on(wetbits, ymask)
-      nn = Water.crossed_top(water, wet, t, nt, axis, sy, tr,
+      +ws = seg_start(partial, t, lo)
+      +we = seg_end(partial, nt, hi)
+      +wet = inside && (ncol < 1 : U32) && Util.on(wetbits, ymask) && (ws < we : F32)
+      nn = Water.crossed_top(water, wet, t, ws, we, axis, sy, tr,
         Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n))
-      dda(~water, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nn, nymask,
-          Water.crossed(water, wet, t, nt, tr),
-          refetch_water(~water, Bool.not(uy) && (ncol < 1 : U32), w, base, Util.f2u(nvx), Util.f2u(nvz), Column{bits, wetbits}))
+      dda(~water, ~partial, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nn, nymask,
+          Water.crossed(water, wet, ws, we, tr),
+          step_in(~water, ~partial, Bool.not(uy) && (ncol < 1 : U32), w, World.col_at(base, Util.f2u(nvx), Util.f2u(nvz)), nymask, Util.f2u(nvy), sy, nmy, ey,
+            bits, wetbits, partialbits))
 
 # ---------- the hit's look: sun, texture, ambient occlusion, fog ----------
 # The hit point is o + d t, on a face of the voxel V; the cell before the
@@ -207,10 +279,10 @@ def shadow(fuel: Nat, +base: U32, +vx: F32, +vy: F32, +vz: F32, +sx: F32, +sy: F
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
       +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
-      nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
+      +nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
       +nvz = Bool.pick(F32, ux, vz, Bool.pick(F32, uy, vz, (vz + sz : F32)))
       nmx = Bool.pick(F32, ux, (mx + ex : F32), mx)
-      nmy = Bool.pick(F32, uy, (my + ey : F32), my)
+      +nmy = Bool.pick(F32, uy, (my + ey : F32), my)
       nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + ez : F32)))
       nymask = Bool.pick(U32, uy, Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
       shadow(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, nymask, here,
@@ -425,10 +497,10 @@ def glance(fuel: Nat, +base: U32, +vx: F32, +vy: F32, +vz: F32, +sx: F32, +sy: F
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
       +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
-      nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
+      +nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
       +nvz = Bool.pick(F32, ux, vz, Bool.pick(F32, uy, vz, (vz + sz : F32)))
       nmx = Bool.pick(F32, ux, (mx + ex : F32), mx)
-      nmy = Bool.pick(F32, uy, (my + ey : F32), my)
+      +nmy = Bool.pick(F32, uy, (my + ey : F32), my)
       nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + ez : F32)))
       naxis = Bool.pick(F32, ux, 0.0, Bool.pick(F32, uy, 1.0, 2.0))
       nymask = Bool.pick(U32, uy, Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
@@ -551,25 +623,8 @@ def bed(on: Bool, +base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, +ly: F32, 
       (w, c) = r
       (w, dim(c, Water.caustic(base, x, z, drop, dy, ly)))
 
-# the cell under the ray's first entry into water from above: its amount,
-# read once, lowers the surface to its level (Water.lowered)
-def surface_fin(+cy: U32, +oy: F32, +dy: F32, tr: Water.Trace, r: Array<U32> & U32) -> Array<U32> & Water.Trace:
-  (w, word) = r
-  (w, Water.lowered(World.nib_at(word, cy), cy, oy, dy, tr))
-
-def surface(top: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-            tr: Water.Trace) -> Array<U32> & Water.Trace:
-  match top:
-    case False{}:
-      (w, tr)
-    case True{}:
-      Water.Trace{+entry, depth} = tr
-      +cy = Util.f2u((oy + dy * entry - 0.5 : F32))
-      surface_fin(cy, oy, dy, tr, Array.get(U32, w, (World.col_at(base, Util.f2u((ox + dx * entry : F32)), Util.f2u((oz + dz * entry : F32))) + 6 + cy / 8 : U32)))
-
 def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-              +c: U32, +t: F32, r: Array<U32> & Water.Trace) -> Array<U32> & U32:
-  (w, tr) = r
+              +c: U32, +t: F32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
   Water.Trace{+entry, +depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
@@ -582,16 +637,14 @@ def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: 
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: Ray) -> Array<U32> & U32:
   Ray{+c, +t, tr} = ct
-  +top = Water.top(c) && Bool.not(Util.on(fl, 96))
-  shade_fin(v, fl, lx, ly, lz, base, ox, oy, oz, dx, dy, dz, c, t,
-    surface(top, w, base, ox, oy, oz, dx, dy, dz, tr))
+  shade_fin(v, fl, lx, ly, lz, base, ox, oy, oz, dx, dy, dz, c, t, w, tr)
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
            r: Array<U32> & Ray) -> Array<U32> & U32:
   (w, ct) = r
   shade(v, fl, lx, ly, lz, w, base, ox, oy, oz, dx, dy, dz, ct)
 
-def run_dda(~water: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
+def run_dda(~water: Bool, ~partial: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
             +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   +vx = Util.floorf(F32.max(ox, 0.0))
   +vy = Util.floorf(F32.max(oy, 0.0))
@@ -605,20 +658,29 @@ def run_dda(~water: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F3
   +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
   +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
   +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
-  finish(v, fl, lx, ly, lz, base, ox, oy, oz, dx, dy, dz, dda(~water, 60n, base, vx, vy, vz,
+  +sy = Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32))
+  +ymask = U32.shln(1, F32.to_nat(F32.max(oy, 0.0)))
+  +slot = World.col_at(base, Util.f2u(vx), Util.f2u(vz))
+  finish(v, fl, lx, ly, lz, base, ox, oy, oz, dx, dy, dz, dda(~water, ~partial, 60n, base, vx, vy, vz,
            Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
-           Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
+           sy,
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
            (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-           1.0, 0, 0.0, 0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))), Water.Trace{0.0, 0.0},
-           column_words(~water, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz)))))
+           1.0, 0, 0.0, 0, ymask, Water.Trace{0.0, 0.0},
+           column_words(~water, ~partial, w, slot, ymask, Util.f2u(vy), sy, (ny / ay : F32), (1.0 / ay : F32))))
+
+def run_partial(part: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
+                +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+  match part:
+    case False{}: run_dda(~True{}, ~False{}, w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
+    case True{}: run_dda(~True{}, ~True{}, w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 
 def run_water(on: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
               +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match on:
-    case False{}: run_dda(~False{}, w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
-    case True{}: run_dda(~True{}, w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
+    case False{}: run_dda(~False{}, ~False{}, w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
+    case True{}: run_partial(Util.on(base, 536870912), w, base, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 
 # A ray that misses the loaded box reads the world zero times (and counts
 # no step and no hit under the profile's flags).
@@ -667,8 +729,13 @@ type Cam is Data:
 def looks() -> U32: 4293918751
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
-# the water's mirror, 28 the caustic on its bed; 29 and 30 are spare
+# the water's mirror, 28 the caustic on its bed; 29 says the window holds
+# a cell of partial water, so the rays clip to planes (Player.view_w
+# sets it from the world's count); 30 is spare
 def looks_base() -> U32: 402653184
+
+def with_partial(+more: U32, some: Bool) -> U32:
+  Bool.pick(U32, some, (more .|. 536870912 : U32), more)
 
 def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, more: U32, sel: U32, items: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:

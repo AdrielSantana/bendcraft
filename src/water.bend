@@ -25,18 +25,12 @@ def lattice(base: U32, x: U32, z: U32) -> U32:
 type Trace is Data:
   Trace{entry: F32, depth: F32}
 
-# A cell holding a units has its surface a / 8 up its height. Where a
-# ray first enters water from above, the entry moves down the ray to
-# that plane and the wet path loses the air over it; the reflection, the
-# ripples, Fresnel, the mirror and the caustic then happen on the plane.
-# A full cell's plane is its top face, and its entry stays as the DDA
-# found it, bit for bit.
-def lowered(+a: U32, +cy: U32, +oy: F32, +dy: F32, tr: Trace) -> Trace:
-  Trace{+entry, +depth} = tr
-  +plane = ((Util.u2f(cy) + Util.u2f(a) / 8.0 - oy) / dy : F32)
-  +e = Bool.pick(F32, (a < 8 : U32), F32.max(entry, plane), entry)
-  Trace{e, F32.max((depth - (e - entry) : F32), 0.0)}
-
+# A cell holding a units has its surface a / 8 up its height: the DDA
+# (Render.dda) clips the ray's wet segment in such a cell to the part
+# under that plane, so the entry moves down a descending ray to the
+# plane, a ray over the water passes, and the reflection, the ripples,
+# Fresnel, the mirror and the caustic happen on the plane. A full cell's
+# plane is its top face, and its segment is what it was, bit for bit.
 def entry_of(tr: Trace) -> F32:
   Trace{entry, depth} = tr
   entry
@@ -53,13 +47,15 @@ def mark_top(steps: U32, top: Bool) -> U32:
 def top(code: U32) -> Bool: Util.on(code, 256)
 def steps(code: U32) -> U32: (code / 4 % 64 : U32)
 
-def crossed_top(on: Bool, wet: Bool, +t: F32, next: F32, axis: F32, sy: F32, tr: Trace, n: U32) -> U32:
+# the first wet segment's start is a top entry through the cell's top face,
+# or through a partial cell's plane, where the segment starts past the face
+def crossed_top(on: Bool, wet: Bool, +t: F32, +ws: F32, next: F32, axis: F32, sy: F32, tr: Trace, n: U32) -> U32:
   match on:
     case False{}: n
     case True{}:
       Trace{entry, depth} = tr
-      mark_top(n, wet && (depth <= 0.0 : F32) && (t > 0.0 : F32) && (next > t : F32)
-        && F32.is_eq(axis, 1.0) && (sy < 0.0 : F32))
+      mark_top(n, wet && (depth <= 0.0 : F32) && (ws > 0.0 : F32) && (next > ws : F32)
+        && ((F32.is_eq(axis, 1.0) && (sy < 0.0 : F32)) || (ws > t : F32)))
 
 def crossed(on: Bool, +wet: Bool, +t: F32, +next: F32, tr: Trace) -> Trace:
   match on:

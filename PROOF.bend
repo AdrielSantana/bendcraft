@@ -230,4 +230,16 @@ def Laws.mirror_look_keeps_the_clock(): {==}
 def Laws.mirror_look_keeps_the_readout(): {==}
 def Laws.caustic_look_reads_back(): {==}
 def Laws.caustic_look_is_off_unasked(): {==}
-
+def Laws.down_takes_all_that_fits(): {==}
+def Laws.down_takes_all_there_is(): {==}
+def Laws.down_into_a_solid_is_nothing(): {==}
+def Laws.a_side_takes_half_the_difference(): {==}
+def Laws.a_side_never_takes_past_the_giver(): {==}
+def Laws.a_side_takes_nothing_from_less(): {==}
+def Laws.a_lone_unit_stays(): {==}
+def Laws.a_side_of_a_solid_takes_nothing(): {==}
+def Laws.the_sides_reverse_on_an_odd_tick(): {==}
+def Laws.a_tick_every_256_ms(): {==}
+def Laws.the_tick_grid_survives_the_wrap(): {==}
+def Laws.a_queued_slot_decodes_to_its_column(): {==}
+def Laws.a_queued_slot_decodes_to_its_column_x(): {==}
