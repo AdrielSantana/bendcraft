@@ -464,12 +464,16 @@ machine busy (512² at 6 ms for 2): compare builds by alternated runs and
 their fastest frames.
 
 **The routine, for every `bend update`:** `make check test bench profile`,
-rebuild the page with the rebased fork, run `test/trace.py` once (its
-snippets match the runtime's text and may need an update). 2.0.25
+rebuild the page with the rebased fork (`../bend-web`, the fork's
+`web-wasm` branch, the PR's head) and run `make page-test`, run
+`test/trace.py` once (its snippets match the runtime's text and may need
+an update). 2.0.25
 (2026-09-21): the gate passes as it did, the thirty checksums and the
 physics hash are the same, the frames are the same within a millisecond
-(order-swapped rounds), the trace's snippets still match. The page stays
-on the fork's 2.0.24 head until the PR's rebase is pushed.
+(order-swapped rounds), the trace's snippets still match. The page's
+fork rebased onto 2.0.25 and pushed the same night, after a bisect of the
+18 upstream commits found the page out of memory from 2.0.25's `select`
+sets (see the PR row below); the page is published from it.
 
 **Work that is ours, when a feature asks for it:**
 
@@ -490,7 +494,7 @@ reason.
 
 | | what it is | state | if yes | if no |
 |---|---|---|---|---|
-| [PR #866](https://github.com/bendlang/bend/pull/866) | `-o x.html`: the runtime as WebAssembly, a worker a core, a Window on a canvas | ready for review, rebased onto 2.0.24; over the `comp.ts` cap by 60 tokens, said so in the PR | `make page` with the stock `bend`; drop `BEND_WEB` | the fork stays the page's compiler, rebased at every release |
+| [PR #866](https://github.com/bendlang/bend/pull/866) | `-o x.html`: the runtime as WebAssembly, a worker a core, a Window on a canvas | ready for review, rebased onto 2.0.25 (2026-09-21); over the `comp.ts` cap by 83 tokens (main itself is 42 under it), said so in the PR; carries a one-line fix the page needs: 2.0.25's `io_wait` sizes its `select` sets by the highest fd, and Emscripten's `select` is a shim that `FD_ZERO`s whole `fd_set`s, 128 bytes into an 8-byte set | `make page` with the stock `bend`; drop `BEND_WEB` | the fork stays the page's compiler, rebased at every release |
 | [#920](https://github.com/bendlang/bend/issues/920) | a WGSL lane: `!` on WebGPU; the design, a prototype, 0.3 / 1.8 / 2.4 ms against 4.5 / 42 / 53 on ten wasm threads | open | write the emitter where they say it may live | write it in the fork |
 | [#925](https://github.com/bendlang/bend/issues/925) | Metal: the tree's arity decides the lanes' load (12 / 23-34 / 3 ms for the same leaves) | open | re-measure, maybe the four-way tree again | the binary tree stays; the README is the record |
 | [#921](https://github.com/bendlang/bend/issues/921) | Window: grab the mouse | open | mouse look without dragging | our own effect, below |
