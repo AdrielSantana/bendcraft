@@ -98,10 +98,17 @@ over that, and the highest top of the column's 4x4 cell. The second walk
 (`Render.run_far`) takes 128 steps at most: a step crosses a cell where
 the ray stays over the cell's highest top, a column elsewhere, and it
 stops at its hit, at the map's edge, over the world's top and where the
-fog is whole. What it meets is shaded as the window's blocks are, colour,
-texture and the face's tone, without the corners' occlusion and the
-shadow's walk, then fogged into the sky: the ground and its trees go on
-to the horizon, block for block. A far map of 4x4 cells, each its
+fog is whole. What it meets is shaded by the window's own look, with the
+far map in place of the window's columns: its type from the column's
+word, the corners' occlusion from the eight cells around it, the shadow
+by the far walk towards the sun to where the window's glance reaches; the
+sea by the window's water, over a bed straight down at its column's
+ground, with the mirror walked over the far map. Then it is fogged into
+the sky: the ground, its trees and its lakes go on to the horizon, block
+for block, and a block looks the same on either side of the walks' seam
+(test/terrain.bend: 189 of 192 rays from the start's eye within 4 a
+channel; the three others are steep looks at a lake's bed, where the far
+bed has no shadow and lies under the entry). A far map of 4x4 cells, each its
 highest block, came first and looked wrong: a tree made a pillar of
 leaves four wide, and a cell showed four times a block's size where the
 window's walk ends. The look is a `match` after the walk:
@@ -391,8 +398,8 @@ test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
-test/terrain.bend  noise rows, lake floor materials, dry roots, canopies, saved columns, the far map
-test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea, the look
+test/terrain.bend  noise rows, lake floor materials, dry roots, canopies, saved columns, the far map and its look
+test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea, the look, its shadow and mirror
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads

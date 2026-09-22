@@ -98,7 +98,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `6c06c2d7e24c9af269745efff4131319` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `7d3b7352a690f6efa1b78905895df4da` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `26eafd3e7eb6...`; same rule.
@@ -157,7 +157,9 @@ purpose.
 skip, 64 fixed steps read 47 ms at 1470x796 and stopping at the hit, the
 map's edge and the world's top 40. Its lanes part by kind, open sky or
 far ground, not by a few steps, so a SIMD group of open sky leaves
-together.
+together. With the far look's occlusion, shadow and mirror after it,
+lanes that spin to the fuel's end once done read 48 ms (128 steps) and
+47 (64) against 46.
 - A division in a walk's step is dear, even in a pick's unused side: the
 far walk's three a step took 9 of its 31 ms. Multiply by an inverse
 computed once.
@@ -248,6 +250,13 @@ touches. A cell at the map's edge shares its slots with the one 256
 columns across, so its top is the higher of both: never under a
 column's, which is all the skip needs. A column's word agrees with the window's own column block
 for block in all but 14 of the start window's 16384 (test/terrain.bend).
+The render shades a far block through the window's look with `distant`
+set (`Render.shade_face`, `typed`, `after_sun`, `shadow_if`, the mirror's
+`glance_face`): the reads go to the far map (`Render.solid_in`,
+`far_solid`: a far cell is solid under the run, under the ground alone
+where the sea is, and in the canopy), and the far sea goes through
+`Water.shade` (`Render.far_water`). A change to the window's look is a
+change to the far one; the parity test in test/terrain.bend says so.
 The first far map was 64x64 cells of 4x4 columns, each its highest
 block: a tree made a pillar of leaves, and a cell near the window's edge
 looked four blocks wide. A coarser level belongs where its cell is a

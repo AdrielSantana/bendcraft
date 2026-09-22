@@ -75,12 +75,22 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    where the ray stays over the cell's top, a column elsewhere, and the
    walk stops at its hit, the map's edge, over the world's top and at the
    fog's reach, 120 blocks (was 34). What it meets is shaded by the
-   window's own functions (colour, texture, the face's tone, the sun's
-   side), so the seam does not show; it lacks the corners' occlusion and
-   the shadow walk. The cost, five alternated rounds with the game
-   closed, against the bucket's commit: 24 → 35 ms at 1470×796, 46 → 67
-   at 1920×1080, 7 → 9 at scale 2; the level view 21 → 29, 6 → 9 at
-   scale 2. The first try was a ring of 64² cells of 4x4 columns, each
+   window's own look with the far map in place of the window's columns:
+   the corners' occlusion from eight far cells, the shadow by the far
+   walk towards the sun to where the window's glance reaches, the sea
+   through the window's water shader over a bed straight down, with the
+   mirror walked over the map. So a block looks the same on either side
+   of the seam, and walking shows no pop-in: 189 of 192 rays from the
+   start's eye shade the same within 4 a channel either way (the other
+   three look steeply down at a lake's bed). The cost, five alternated
+   rounds with the game closed, against the bucket's commit, with the
+   window's colours alone: 24 → 35 ms at 1470×796, 46 → 67 at 1920×1080,
+   7 → 9 at scale 2; the level view 21 → 29, 6 → 9 at scale 2. The
+   occlusion, the shadow and the water then took 35 → 46 at 1470×796,
+   65 → 86 at 1920×1080, 9 → 12 at scale 2; the level view 28 → 34, 8 →
+   9 at scale 2. The occlusion is about 5 ms of it at 1470×796 and the
+   shadow 3, more than the window's own for fewer pixels: they come after
+   a walk whose lanes end apart. The first try was a ring of 64² cells of 4x4 columns, each
    its highest block and the type of its top, 32 steps: 2 ms less at
    1470×796, and it looked wrong (a tree a pillar of leaves four wide,
    the walls the grass's green, a cell four blocks wide where the
@@ -89,9 +99,16 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    fog moved into the mist: within the near walk the distance term no
    longer reaches 1. What the map does not carry: edits (a placed tower
    past 60 blocks shows as the noise's ground) and the water's amounts (a
-   lake is its plane). Next, when a farther horizon is wanted: a coarser
-   level where its cell is a few pixels, and the fog farther out; then
-   the same cells let a near ray skip the open air above the ground.
+   lake is its plane); its bed has no shadow and no caustic. Open (his
+   report, 2026-09-22): right at the seam, where the window's walk hands
+   over to the far walk, a line of blocks looks off and follows him as he
+   walks. The first suspect: where the window's walk ran out of steps at
+   a block's face, the far walk starts inside that block and calls it an
+   x side (`Render.run_far` starts with `ax` 1.0), whatever face the
+   window's walk crossed, so its tone, texture and occlusion are a side's
+   on what may be a top. Next, when a farther horizon is wanted: a
+   coarser level where its cell is a few pixels, and the fog farther out;
+   then the same cells let a near ray skip the open air above the ground.
 4. **Clouds with volume.** A slab between two heights, a 3D noise moved by
    the wind, a short march of 8 to 16 steps for the rays that reach it,
    lit by the sun's side. And their shadows on the ground: one lookup of

@@ -2,6 +2,9 @@ import Base
 import ./lib.bend as Lib
 import ../src/world.bend as World
 import ../src/util.bend as Util
+import ../src/render.bend as Render
+import ../src/sky.bend as Sky
+import ../src/day.bend as Day
 
 # Rows of the terrain, to see the noise with your eyes: heights must roll
 # along x as along z. A hash that is a product per axis made stripes here.
@@ -130,6 +133,54 @@ def disagree(n: Nat, +x: U32, +z: U32, +i: U32, +acc: U32) -> U32:
       +cz = (z + i % 128 : U32)
       disagree(k, x, z, (i + 1 : U32), (acc + agree(World.far_col(cx, cz), World.column(cx, cz)) : U32))
 
+# the far look against the window's: rays from the start's eye, each
+# shaded by the window's walk and look, then by the far walk's from the
+# eye over the far map, with the game's looks and the mirror but the
+# ripples, which are gone past 32 blocks where the far walk begins; the
+# count of rays whose colours part by more than 4 a channel
+def apart(+a: U32, +b: U32) -> U32:
+  Bool.pick(U32, (a > b : U32), (a - b : U32), (b - a : U32))
+
+def part(+a: U32, +b: U32) -> U32:
+  U32.max(U32.max(apart((a / 65536 : U32), (b / 65536 : U32)), apart((a / 256 % 256 : U32), (b / 256 % 256 : U32))), apart((a % 256 : U32), (b % 256 : U32)))
+
+def looks() -> U32: (Render.looks() .&. U32.not(1048576) : U32)
+
+def eye_base() -> U32: ((1048512 * 128 + 1048512 : U32) .&. 16383 .|. 134217728 : U32)
+
+def eye_far() -> U32: (World.far_corner(1048512) % 256 * 256 + World.far_corner(1048512) % 256 : U32)
+
+def far_then(+acc: U32, +near: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (ring, +far) = r
+  (ring, (acc + Bool.pick(U32, (part(near, far) > 4 : U32), 1, 0) : U32))
+
+def near_then(+acc: U32, +dx: F32, +dy: F32, +dz: F32, +v: U32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (ring, +near) = r
+  far_then(acc, near, Render.far_fin(eye_base(), eye_far(), looks(), v, 64.5, 30.0, 64.5, dx, dy, dz, lx, ly, lz, Sky.bodies(looks(), v, dx, dy, dz, lx, ly, lz),
+    Render.run_far(128n, ring, eye_far(), 64.5, 30.0, 64.5, dx, dy, dz, 0.0, Sky.reach())))
+
+def look_both(ring: Array<U32>, +acc: U32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+  +v = Sky.atmosphere(looks(), dx, dy, dz, lx, ly, lz)
+  near_then(acc, dx, dy, dz, v, lx, ly, lz, Render.clipped(ring, eye_base(), eye_far(), 64.5, 30.0, 64.5, dx, dy, dz, v, looks(), lx, ly, lz))
+
+# ray i: 24 headings, eight pitches from 0.08 to 0.5 down
+def look_ray(ring: Array<U32>, +acc: U32, +yaw: F32, +pit: F32) -> Array<U32> & U32:
+  look_both(ring, acc, (F32.cos(pit) * F32.sin(yaw) : F32), F32.sin(pit), (F32.cos(pit) * F32.cos(yaw) : F32),
+    Day.sun_x(Day.morning()), Day.sun_y(Day.morning()), Day.sun_z(Day.morning()))
+
+def parted(n: Nat, +i: U32, r: Array<U32> & U32) -> U32:
+  match n:
+    case 0n:
+      (ring, +acc) = r
+      acc
+    case 1n+k:
+      (ring, +acc) = r
+      parted(k, (i + 1 : U32), look_ray(ring, acc, (Util.u2f((i / 8 : U32)) * 0.2618 : F32), (0.0 - 0.08 - Util.u2f((i % 8 : U32)) * 0.06 : F32)))
+
+def parted_in(w: World.World) -> U32:
+  World.W{ring, meta} = w
+  parted(192n, 0, (ring, 0))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     IO.print("along x at the start: " ++ row(40n, 1048576, 1048576, 1, 0))
@@ -156,6 +207,8 @@ def main() -> IO(Unit):
       "a move of a column loads the far map's line that came into view, on either axis, either way, under its cell's top; four moves, and the new line's cell is whole and its top exact")
     Lib.expect(U32.is_eq(disagree(16384n, 1048512, 1048512, 0, 0), 14),
       "the far map agrees with the window's own columns, block by block, in all but 14 of the start window's 16384: a canopy's leaves inside a slope are the slope's, and two canopies at two heights fill the gap between them")
+    Lib.expect(U32.is_eq(parted_in(start()), 3),
+      "the far look is the window's: of 192 rays from the start's eye, all but three steep looks at a lake's bed are the same colour within 4 a channel over the far map")
     Lib.expect(saved_tree(World.load(World.W{[0 : U32^19n],
       World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.col6(511, 0, 4, 0, 0, 3584)),
       1048512, 1048512, Nil{}, 0, 0}}, 1048543, 1048592)), "saved submerged wood survives generation changes")

@@ -39,11 +39,12 @@ def fill(n: Nat, ring: Array<U32>, +i: U32) -> Array<U32>:
 def put(ring: Array<U32>, +x: U32, +z: U32, +word: U32) -> Array<U32>:
   Array.set(U32, ring, World.far_at(x, z), word)
 
-# a column of ground 24 high at far-local (160, 128), the sea at (140,
-# 150), a trunk at (128, 100) and a canopy alone at (120, 90), and the
-# cells' tops over them; the corner's remainders are 0
+# a column of ground 24 high at far-local (160, 128) with the sea at its
+# west foot, the sea at (140, 150), a trunk at (128, 100) and a canopy
+# alone at (120, 90), and the cells' tops over them; the corner's
+# remainders are 0
 def map() -> Array<U32>:
-  World.load_grid(64n, put(put(put(put(fill(65536n, [0 : U32^19n], 0), 160, 128, tall()), 140, 150, sea()), 128, 100, trunk()), 120, 90, leaves()), 0)
+  World.load_grid(64n, put(put(put(put(put(fill(65536n, [0 : U32^19n], 0), 160, 128, tall()), 159, 128, sea()), 140, 150, sea()), 128, 100, trunk()), 120, 90, leaves()), 0)
 
 # a miss keeps walking, so its distance says nothing: only a hit's is held
 def met(r: Array<U32> & Render.Far, +hit: U32, +word: U32, t: F32) -> Bool:
@@ -52,11 +53,37 @@ def met(r: Array<U32> & Render.Far, +hit: U32, +word: U32, t: F32) -> Bool:
   U32.is_eq(h, hit) && ((hit < 1 : U32) || (U32.is_eq((at_word % 1048576 : U32), word) && near(at, t, 0.001)))
 
 def walk(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t0: F32, +hit: U32, +word: U32, t: F32) -> Bool:
-  met(Render.run_far(128n, map(), 0, ox, oy, oz, dx, dy, dz, t0), hit, word, t)
+  met(Render.run_far(128n, map(), 0, ox, oy, oz, dx, dy, dz, t0, Sky.reach()), hit, word, t)
 
-# what the far walk shows of a hit, fog and all, in the noon sun
+# what the far walk shows of a hit, fog and all, in the noon sun, the
+# map read for its occlusion, its shadow and its mirror
+def shown(r: Array<U32> & U32) -> U32:
+  (w, c) = r
+  c
+
+def look_on(+base: U32, +fl: U32, +word: U32, +axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> U32:
+  shown(Render.far_fin(base, 0, fl, 123456, ox, oy, oz, dx, dy, dz, 0.5, 0.8, 0.0, 999, (map(), Render.Far{(axis + 1 : U32), word, t})))
+
+def look_at(+fl: U32, +word: U32, +axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> U32:
+  look_on(0, fl, word, axis, ox, oy, oz, dx, dy, dz, t)
+
 def look(+fl: U32, +word: U32, +axis: U32, +oy: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> U32:
-  Render.far_look(fl, 123456, oy, 0.5, 0.8, 0.0, word, t, Render.face(axis, 64.5, oy, 64.5, dx, dy, dz, t))
+  look_at(fl, word, axis, 64.5, oy, 64.5, dx, dy, dz, t)
+
+def apart(+a: U32, +b: U32) -> U32:
+  Bool.pick(U32, (a > b : U32), (a - b : U32), (b - a : U32))
+
+# the most two colours part by on a channel
+def part(+a: U32, +b: U32) -> U32:
+  U32.max(U32.max(apart((a / 65536 : U32), (b / 65536 : U32)), apart((a / 256 % 256 : U32), (b / 256 % 256 : U32))), apart((a % 256 : U32), (b % 256 : U32)))
+
+# no channel of a over b's, and not the same colour
+def darker(+a: U32, +b: U32) -> Bool:
+  ((a / 65536 : U32) <= b / 65536 : U32) && ((a / 256 % 256 : U32) <= b / 256 % 256 : U32) && ((a % 256 : U32) <= b % 256 : U32) && U32.is_ne(a, b)
+
+# a top of the flat ground 16.5 - 12 blocks under an eye 45 blocks off
+def top_at(+fl: U32, +x: F32, +z: F32) -> U32:
+  look_at(fl, flat(), 1, x, 16.5, (z - 45.0 : F32), 0.0, (0.0 - 0.1 : F32), 1.0, 45.0)
 
 def day(+tone: F32) -> F32:
   (tone * (0.18 + 0.82 * Sky.daylight(0.8)) : F32)
@@ -65,7 +92,7 @@ def main() -> IO(Unit):
   do IO<Unit>:
     Lib.expect(walk(64.5, 16.5, 64.5, 1.0, 0.0, 0.0, 0.0, 1, tall(), 31.5), "the walk meets a tall column's x side at the plane it begins on")
     Lib.expect(walk(64.5, 16.5, 64.5, 0.0, (0.0 - 0.1 : F32), 1.0, 0.0, 2, flat(), 45.0), "a ray sloping down meets the flat ground's top where it drops under it")
-    Lib.expect(met(Render.run_far(12n, map(), 0, 64.5, 16.5, 64.5, 1.0, 0.0, 0.0, 0.0), 1, tall(), 31.5), "over cells whose tops it passes above, a step crosses a cell: twelve steps reach the tall column 32 columns off")
+    Lib.expect(met(Render.run_far(12n, map(), 0, 64.5, 16.5, 64.5, 1.0, 0.0, 0.0, 0.0, Sky.reach()), 1, tall(), 31.5), "over cells whose tops it passes above, a step crosses a cell: twelve steps reach the tall column 32 columns off")
     Lib.expect(walk(76.5, 16.5, 64.5, 0.0, (0.0 - 0.205 : F32), 1.0, 0.0, 2, sea(), 21.95122), "and the sea's top at its plane")
     Lib.expect(walk(64.5, 15.5, 64.5, 0.0, 0.0, (0.0 - 1.0 : F32), 0.0, 3, trunk(), 27.5)
       && walk(64.5, 16.5, 64.5, 0.0, 0.0, (0.0 - 1.0 : F32), 0.0, 3, trunk(), 27.5), "a trunk's z side, below its leaves and in them")
@@ -85,6 +112,15 @@ def main() -> IO(Unit):
     Lib.expect(U32.is_eq(look(1, tall(), 0, 16.5, 1.0, 0.0, 0.0, 31.5), Render.dim(Render.dim(Render.blockcol(2, True{}, 0.5), day(0.8)), 0.6))
       && U32.is_eq(look(1, flat(), 1, 16.5, 0.0, (0.0 - 0.1 : F32), 1.0, 45.0), Render.dim(Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 1.0)),
       "with the shadow flag, a side turned from the sun is darker and the top it shines on is not")
-    Lib.expect(U32.is_eq(look(0, sea(), 1, 16.5, 0.0, (0.0 - 0.205 : F32), 1.0, 21.95122), Util.mix(Water.colour(0.8), 123456, 0.6))
-      && U32.is_eq(look(8, tall(), 0, 16.5, 1.0, 0.0, 0.0, 10000.0), 123456),
-      "the sea is its ink and the sky, and the fog takes a far block into the sky at the reach")
+    Lib.expect(U32.is_eq(look(8, tall(), 0, 16.5, 1.0, 0.0, 0.0, 10000.0), 123456), "the fog takes a far block into the sky at the reach")
+    Lib.expect(U32.is_eq(top_at(2, 64.5, 109.5), top_at(0, 64.5, 109.5)) && darker(top_at(2, 95.5, 64.5), top_at(0, 95.5, 64.5)),
+      "with the occlusion flag, a far top in the open is as it was, and one at the tall column's foot darkens")
+    Lib.expect(U32.is_eq(top_at(1, 90.5, 64.5), Render.dim(Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 0.6))
+      && U32.is_eq(top_at(1, 90.5, 74.5), Render.dim(Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 1.0)),
+      "the far walk casts a far block's shadow: a top the tall column hides from the sun is the window's shade, one beside it is lit")
+    Lib.expect(U32.is_eq(look_at(0, sea(), 1, 76.5, 16.5, 64.5, 0.0, (0.0 - 0.205 : F32), 1.0, 21.95122), Render.dim(Render.blockcol(1, False{}, 0.0), day(1.0)))
+      && (part(look_at(2097152, sea(), 1, 76.5, 16.5, 64.5, 0.0, (0.0 - 0.205 : F32), 1.0, 21.95122), Water.ink_at(Water.colour(0.8), 0.8, 4.0)) < 4 : U32),
+      "without the water the far sea is its bed, dirt at its column's ground; with it, the ink at four blocks down, as dense as the window's water")
+    Lib.expect(U32.is_ne(look_on(134217728, 27262976, sea(), 1, 73.0, 16.5, 64.5, 0.9806, (0.0 - 0.1961 : F32), 0.0, 22.94748),
+                         look_on(0, 27262976, sea(), 1, 73.0, 16.5, 64.5, 0.9806, (0.0 - 0.1961 : F32), 0.0, 22.94748)),
+      "with the world in the mirror, the far sea at the tall column's foot mirrors its side")
