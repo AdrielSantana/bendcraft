@@ -93,9 +93,10 @@ def same_masks(c: World.Col, +solid: U32, +water: U32) -> Bool:
   U32.is_eq(m, solid) && U32.is_eq(w, water)
 
 def same_levels(a: World.Levels, b: World.Levels) -> Bool:
-  World.Levels{a0, a1, a2, a3} = a
-  World.Levels{b0, b1, b2, b3} = b
+  World.Levels{a0, a1, a2, a3, a4, a5, a6, a7} = a
+  World.Levels{b0, b1, b2, b3, b4, b5, b6, b7} = b
   U32.is_eq(a0, b0) && U32.is_eq(a1, b1) && U32.is_eq(a2, b2) && U32.is_eq(a3, b3)
+    && U32.is_eq(a4, b4) && U32.is_eq(a5, b5) && U32.is_eq(a6, b6) && U32.is_eq(a7, b7)
 
 def saved_col(g: Player.Game) -> World.Col:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
@@ -264,24 +265,24 @@ def main() -> IO(Unit):
       && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9), Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 3.0))
       && F32.is_eq(Render.thickness(2.0, 1.5, (0.0 - 0.5 : F32)), 0.75) && F32.is_eq(Render.thickness(0.0, 0.2, (0.0 - 0.5 : F32)), 9.0),
       "the caustic grows with the water over the bed: none under no water, half under half a block, whole from nine tenths; a submerged eye's bed counts as deep")
-    expect(partial_ok(True{}, 4, 64.5, 14.5, 64.5, 1, False{}, 4.0, 0.5, True{})
-      && partial_ok(True{}, 8, 64.5, 14.5, 64.5, 1, False{}, 3.5, 1.0, True{})
-      && partial_ok(True{}, 8, 64.5, 10.25, 62.5, 2, True{}, 1.5, 1.0, False{})
-      && partial_ok(True{}, 4, 64.5, 10.25, 62.5, 2, True{}, 1.5, 1.0, False{})
-      && partial_ok(True{}, 4, 64.5, 10.75, 62.5, 2, True{}, 0.0, 0.0, False{}),
-      "the DDA's wet segment: a full cell's is what it was; a half one's starts down at its plane from above, is whole from the side under the plane, and is none over it")
-    expect(partial_ok(False{}, 4, 63.5, 10.95, 64.5, 0, True{}, 0.0, 0.0, False{})
-      && partial_ok(False{}, 8, 63.5, 10.95, 64.5, 0, True{}, 0.5, 1.0, False{})
-      && partial_ok(False{}, 5, 63.5, 10.95, 64.5, 0, True{}, 1.3, 0.2, True{}),
-      "a ray sloping down over a half cell leaves it before its plane and stays dry; a fuller cell's plane it meets, a top entry")
+    expect(partial_ok(True{}, 102, 64.5, 14.5, 64.5, 1, False{}, 4.1, 0.4, True{})
+      && partial_ok(True{}, 255, 64.5, 14.5, 64.5, 1, False{}, 3.5, 1.0, True{})
+      && partial_ok(True{}, 255, 64.5, 10.25, 62.5, 2, True{}, 1.5, 1.0, False{})
+      && partial_ok(True{}, 102, 64.5, 10.25, 62.5, 2, True{}, 1.5, 1.0, False{})
+      && partial_ok(True{}, 102, 64.5, 10.75, 62.5, 2, True{}, 0.0, 0.0, False{}),
+      "the DDA's wet segment: a full cell's is what it was; a cell four tenths full starts down at its plane from above, is whole from the side under the plane, and is none over it")
+    expect(partial_ok(False{}, 102, 63.5, 10.95, 64.5, 0, True{}, 0.0, 0.0, False{})
+      && partial_ok(False{}, 255, 63.5, 10.95, 64.5, 0, True{}, 0.5, 1.0, False{})
+      && partial_ok(False{}, 204, 63.5, 10.95, 64.5, 0, True{}, 0.6, 0.9, True{}),
+      "a ray sloping down over a cell four tenths full leaves it before its plane and stays dry; one eight tenths full it meets at its plane, a top entry")
     expect(U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 5), 64, 10, 64), 5)
-      && U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 13), 64, 10, 64), 8)
+      && U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 300), 64, 10, 64), 255)
       && U32.is_ne(voxel_of(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 0), 64, 10, 64), 8)
       && U32.is_eq(voxel_of(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 3), 64, 10, 64), 8)
       && U32.is_eq(amount(World.pour(World.edit(empty(), 64, 64, 10, True{}, 2), 64, 10, 64, 5), 64, 10, 64), 0),
-      "an amount poured reads back, is capped at 8, sets the mask's bit exactly when over zero, and a solid cell holds none")
-    expect(U32.is_ne(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 4)), surface_ray_w(Render.looks(), False{}, surface_pool()))
-      && U32.is_eq(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 8)), surface_ray_w(Render.looks(), False{}, surface_pool())),
+      "an amount poured reads back, is capped at 255, sets the mask's bit exactly when over zero, and a solid cell holds none")
+    expect(U32.is_ne(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 128)), surface_ray_w(Render.looks(), False{}, surface_pool()))
+      && U32.is_eq(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 255)), surface_ray_w(Render.looks(), False{}, surface_pool())),
       "a half-full top cell renders another surface; a full one the same")
     expect(F32.is_eq(Water.fresnel(True{}, (0.0 - 1.0 : F32)), 1.0)
       && F32.is_eq(Water.fresnel(True{}, 2.0), 0.02), "Fresnel clamps its angular input")
@@ -330,10 +331,12 @@ def main() -> IO(Unit):
     expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
     expect(U32.is_eq(Save.water_of([], "0,0", 0), World.flood(World.terrain(0, 0), 0)), "old saves restore natural water")
     expect(U32.is_eq(Save.water_of(["0"], "0,0", 0), 0), "explicit dry edits stay dry")
-    expect(same_levels(Save.levels_of(["1056"], 1056), World.Levels{8388608, 2048, 0, 0})
-      && same_levels(Save.levels_of([], 1056), World.Levels{8388608, 2048, 0, 0})
-      && same_levels(Save.levels_of(["1056", "1", "2", "3", "4"], 1056), World.Levels{1, 2, 3, 4}),
-      "a six-word column loads full where it is wet; a ten-word one keeps its amounts")
-    expect(same_levels(World.levels(restored(Save.text(fixture(World.pour(surface_pool(), 64, 10, 64, 5))))), World.Levels{0, 1280, 0, 0}),
+    expect(same_levels(Save.levels_of(["1056"], 1056), World.Levels{0, 65280, 16711680, 0, 0, 0, 0, 0})
+      && same_levels(Save.levels_of([], 1056), World.Levels{0, 65280, 16711680, 0, 0, 0, 0, 0})
+      && same_levels(Save.levels_of(["1056", "1", "2", "3", "4"], 1056), World.Levels{32, 0, 64, 0, 96, 0, 128, 0})
+      && same_levels(Save.levels_of(["1056", "8", "0", "0", "0"], 1056), World.Levels{255, 0, 0, 0, 0, 0, 0, 0})
+      && same_levels(Save.levels_of(["1056", "1", "2", "3", "4", "5", "6", "7", "8"], 1056), World.Levels{1, 2, 3, 4, 5, 6, 7, 8}),
+      "a six-word column loads full where it is wet; a ten-word one's nibbles widen to bytes, an eighth to 32 and eight to 255; a fourteen-word one keeps its bytes")
+    expect(same_levels(World.levels(restored(Save.text(fixture(World.pour(surface_pool(), 64, 10, 64, 5))))), World.Levels{0, 0, 327680, 0, 0, 0, 0, 0}),
       "a poured amount survives a save and a load")
     expect(U32.is_eq(Save.water_of(["1024"], "0,0", 1024), 0), "loaded solids displace overlapping water")

@@ -158,7 +158,7 @@ def measure(w: World.World, q: Ask) -> World.World & U32:
     case Most{x, y, z, nx, ny, nz}:
       box(w, False{}, x, y, z, nx, ny, nz)
     case Marks{x, z}:
-      World.word_at(w, x, z, 10)
+      World.word_at(w, x, z, 14)
     case Queued{}:
       queued(w)
     case Partials{}:
@@ -243,11 +243,11 @@ def main() -> IO(Unit):
     expect(decode_ok(1048512, 1048512, 5, 100) && decode_ok(1048512, 1048512, 0, 0) && decode_ok(1048512, 1048512, 127, 127)
       && decode_ok(1048530, 1048499, 64, 64) && decode_ok(0, 0, 3, 4) && decode_ok(1048512, 1048600, 127, 40),
       "a queued slot decodes to its local column at any origin")
-    expect(U32.is_eq(Flow.down_take(8, 0), 8) && U32.is_eq(Flow.down_take(8, 5), 3) && U32.is_eq(Flow.down_take(3, 5), 3)
-      && U32.is_eq(Flow.down_take(8, 8), 0) && U32.is_eq(Flow.down_take(8, 9), 0),
+    expect(U32.is_eq(Flow.down_take(255, 0), 255) && U32.is_eq(Flow.down_take(255, 100), 155) && U32.is_eq(Flow.down_take(3, 5), 3)
+      && U32.is_eq(Flow.down_take(255, 255), 0) && U32.is_eq(Flow.down_take(255, 256), 0),
       "down takes what fits under, nothing into a solid")
-    expect(U32.is_eq(Flow.side_take(8, 0), 4) && U32.is_eq(Flow.side_take(2, 0), 1) && U32.is_eq(Flow.side_take(1, 0), 0)
-      && U32.is_eq(Flow.side_take(5, 4), 0) && U32.is_eq(Flow.side_take(4, 5), 0) && U32.is_eq(Flow.side_take(8, 9), 0),
+    expect(U32.is_eq(Flow.side_take(255, 0), 127) && U32.is_eq(Flow.side_take(255, 1), 127) && U32.is_eq(Flow.side_take(2, 0), 1) && U32.is_eq(Flow.side_take(1, 0), 0)
+      && U32.is_eq(Flow.side_take(5, 4), 0) && U32.is_eq(Flow.side_take(4, 5), 0) && U32.is_eq(Flow.side_take(255, 256), 0),
       "a side takes half the difference, floored, only from more")
     # marks
     expect(same(query(water(empty(), 64, 15, 64),
@@ -259,40 +259,40 @@ def main() -> IO(Unit):
     expect(same(query(water(empty(), 0, 15, 0), Queued{} <> Nil{}), 3 <> Nil{}),
       "at the ring's corner, two sides are outside and not marked")
     # the still lake: an unmarked world does not change
-    expect(same(query(ticks(3n, 0, Flow.budget(), World.pour(empty(), 64, 12, 64, 8)), At{64, 12, 64} <> At{64, 11, 64} <> Queued{} <> Nil{}),
-      8 <> 0 <> 0 <> Nil{}), "water nobody marked stays, over the void")
+    expect(same(query(ticks(3n, 0, Flow.budget(), World.pour(empty(), 64, 12, 64, 255)), At{64, 12, 64} <> At{64, 11, 64} <> Queued{} <> Nil{}),
+      255 <> 0 <> 0 <> Nil{}), "water nobody marked stays, over the void")
     # a column drains
     expect(same(query(ticks(1n, 0, Flow.budget(), shaft()), At{64, 15, 64} <> At{64, 14, 64} <> Marks{64, 64} <> Queued{} <> Nil{}),
-      0 <> 8 <> 114688 <> 5 <> Nil{}),
+      0 <> 255 <> 114688 <> 5 <> Nil{}),
       "a full cell over air falls a cell a tick, and the cell it left, the one above and the one that gained are marked")
-    expect(same(query(ticks(5n, 0, Flow.budget(), shaft()), At{64, 10, 64} <> Sum{64, 10, 64, 0n, 21n, 0n} <> Nil{}), 8 <> 8 <> Nil{}),
-      "five ticks on, it rests on the floor, all eight units")
-    expect(same(query(ticks(8n, 0, Flow.budget(), shaft()), At{64, 10, 64} <> Queued{} <> Nil{}), 8 <> 0 <> Nil{}),
+    expect(same(query(ticks(5n, 0, Flow.budget(), shaft()), At{64, 10, 64} <> Sum{64, 10, 64, 0n, 21n, 0n} <> Nil{}), 255 <> 255 <> Nil{}),
+      "five ticks on, it rests on the floor, all 255 units")
+    expect(same(query(ticks(8n, 0, Flow.budget(), shaft()), At{64, 10, 64} <> Queued{} <> Nil{}), 255 <> 0 <> Nil{}),
       "and there it stays, off the queue")
     # a pool spreads and settles
     expect(same(query(ticks(1n, 0, Flow.budget(), pool()),
         over(60, 10, 60) <> At{62, 10, 62} <> At{63, 10, 62} <> At{61, 10, 62} <> At{62, 10, 63} <> At{62, 10, 61} <> Nil{}),
-      8 <> 1 <> 4 <> 2 <> 1 <> 0 <> Nil{}),
+      255 <> 16 <> 127 <> 64 <> 32 <> 16 <> Nil{}),
       "a full cell on a floor spreads to its sides, in the tick's order, halving what is left")
     expect(same(query(ticks(1n, 1, Flow.budget(), pool()), At{62, 10, 61} <> At{62, 10, 63} <> At{61, 10, 62} <> At{63, 10, 62} <> Nil{}),
-      4 <> 2 <> 1 <> 0 <> Nil{}), "an odd tick takes the sides in the reverse order")
-    expect(same(query(ticks(40n, 0, Flow.budget(), pool()), over(60, 10, 60) <> Queued{} <> Nil{}), 8 <> 0 <> Nil{})
-      && (nth(query(ticks(40n, 0, Flow.budget(), pool()), layer(60, 10, 60) <> Nil{}), 0n) < 3 : U32),
-      "forty ticks on, the eight units lie flat over the basin, no cell over two, the queue empty")
-    expect(same(query(ticks(41n, 0, Flow.budget(), pool()), over(60, 10, 60) <> Nil{}), 8 <> Nil{}), "a tick more changes nothing")
+      127 <> 64 <> 32 <> 16 <> Nil{}), "an odd tick takes the sides in the reverse order")
+    expect(same(query(ticks(40n, 0, Flow.budget(), pool()), over(60, 10, 60) <> Queued{} <> Nil{}), 255 <> 0 <> Nil{})
+      && (nth(query(ticks(40n, 0, Flow.budget(), pool()), layer(60, 10, 60) <> Nil{}), 0n) < 14 : U32),
+      "forty ticks on, the 255 units lie flat over the basin, no cell over thirteen (a level lake is 10.2 a cell), the queue empty")
+    expect(same(query(ticks(41n, 0, Flow.budget(), pool()), over(60, 10, 60) <> Nil{}), 255 <> Nil{}), "a tick more changes nothing")
     expect(same(query(ticks(60n, 0, Flow.budget(), water(water(pool(), 62, 11, 62), 62, 12, 62)),
-        over(60, 10, 60) <> layer(60, 11, 60) <> Nil{}), 24 <> 0 <> Nil{}),
+        over(60, 10, 60) <> layer(60, 11, 60) <> Nil{}), 765 <> 0 <> Nil{}),
       "three cells of water over the floor spread to one layer")
     # a wall holds
     expect(same(query(ticks(40n, 0, Flow.budget(), water(wall_z(5n, basin(60, 60, 5, 5n), 62, 60), 61, 10, 62)),
-        over(60, 10, 60) <> Sum{63, 10, 60, 1n, 21n, 4n} <> Nil{}), 8 <> 0 <> Nil{}),
+        over(60, 10, 60) <> Sum{63, 10, 60, 1n, 21n, 4n} <> Nil{}), 255 <> 0 <> Nil{}),
       "a wall across the basin keeps the water on its side")
     # the ring's edge holds: a floor at the corner, walls inward only
     expect(same(query(ticks(40n, 0, Flow.budget(), water(settled(wall_x(3n, wall_z(3n, floor(3n, empty(), 0, 0, 3n), 3, 0), 0, 3)), 0, 10, 0)),
-        Sum{0, 10, 0, 2n, 21n, 2n} <> Sum{125, 0, 125, 2n, 31n, 2n} <> Nil{}), 8 <> 0 <> Nil{}),
+        Sum{0, 10, 0, 2n, 21n, 2n} <> Sum{125, 0, 125, 2n, 31n, 2n} <> Nil{}), 255 <> 0 <> Nil{}),
       "water at the ring's corner spreads inward only, the edge closed, and none wraps to the far corner")
     # the budget
-    expect(same(query(ticks(200n, 0, 2n, pool()), over(60, 10, 60) <> Queued{} <> Nil{}), 8 <> 0 <> Nil{}),
+    expect(same(query(ticks(200n, 0, 2n, pool()), over(60, 10, 60) <> Queued{} <> Nil{}), 255 <> 0 <> Nil{}),
       "two columns a tick, the same pool settles, nothing lost or made")
     # the load marks
     expect(same(query(World.load(World.W{[0 : U32^18n], Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
@@ -300,18 +300,22 @@ def main() -> IO(Unit):
         Marks{50, 50} <> Marks{51, 50} <> Marks{50, 49} <> Queued{} <> Nil{}), 3072 <> 4294967295 <> 4294967295 <> 5 <> Nil{}),
       "a saved column loads marked where it is wet, its sides marked whole")
     expect(same(query(water(basin(60, 60, 5, 5n), 62, 10, 62), Partials{} <> Nil{}), 0 <> Nil{})
-      && same(query(ticks(1n, 0, Flow.budget(), pool()), Partials{} <> Nil{}), 4 <> Nil{})
-      && same(query(ticks(40n, 0, Flow.budget(), pool()), Partials{} <> Nil{}), 8 <> Nil{})
-      && same(query(World.shift_xp(ticks(40n, 0, Flow.budget(), pool())), Partials{} <> Nil{}), 8 <> Nil{})
-      && same(query(World.load(ticks(40n, 0, Flow.budget(), pool()), 62, 62), Partials{} <> Nil{}), 8 <> Nil{}),
-      "the world counts its partial cells: none placed, four after the first spread, eight settled, the same after a shift and a reload")
-    expect(U32.is_eq(World.partial_mask(World.Levels{3, 0, 0, 0}), 1) && U32.is_eq(World.partial_mask(World.Levels{2147483648, 0, 0, 0}), 0)
-      && U32.is_eq(World.partial_mask(World.Levels{16, 0, 0, 0}), 2) && U32.is_eq(World.partial_mask(World.Levels{2290649224, 2290649224, 2290649224, 2290649224}), 0)
-      && U32.is_eq(World.partial_mask(World.Levels{1717986918, 1717986918, 1717986918, 1717986918}), 4294967295)
-      && U32.is_eq(World.partial_mask(World.Levels{0, 1879048192, 0, 117440512}), 1073774592) && U32.is_eq(World.partial_mask(World.full_levels(1056)), 0),
-      "the partial mask has a bit where a nibble holds one to seven")
+      && same(query(ticks(1n, 0, Flow.budget(), pool()), Partials{} <> Nil{}), 5 <> Nil{})
+      && same(query(ticks(40n, 0, Flow.budget(), pool()), Partials{} <> Nil{}), 25 <> Nil{})
+      && same(query(World.shift_xp(ticks(40n, 0, Flow.budget(), pool())), Partials{} <> Nil{}), 25 <> Nil{})
+      && same(query(World.load(ticks(40n, 0, Flow.budget(), pool()), 62, 62), Partials{} <> Nil{}), 25 <> Nil{}),
+      "the world counts its partial cells: none placed, five after the first spread, all twenty-five settled, the same after a shift and a reload")
+    expect(U32.is_eq(World.partial_mask(World.Levels{3, 0, 0, 0, 0, 0, 0, 0}), 1) && U32.is_eq(World.partial_mask(World.Levels{255, 0, 0, 0, 0, 0, 0, 0}), 0)
+      && U32.is_eq(World.partial_mask(World.Levels{256, 0, 0, 0, 0, 0, 0, 0}), 2) && U32.is_eq(World.partial_mask(World.Levels{4278190080, 0, 0, 0, 0, 0, 0, 0}), 0)
+      && U32.is_eq(World.partial_mask(World.Levels{4294967295, 4294967295, 4294967295, 4294967295, 4294967295, 4294967295, 4294967295, 4294967295}), 0)
+      && U32.is_eq(World.partial_mask(World.Levels{16843009, 16843009, 16843009, 16843009, 16843009, 16843009, 16843009, 16843009}), 4294967295)
+      && U32.is_eq(World.partial_mask(World.Levels{2155905152, 2155905152, 2155905152, 2155905152, 2155905152, 2155905152, 2155905152, 2155905152}), 4294967295)
+      && U32.is_eq(World.partial_mask(World.Levels{0, 1879048192, 0, 117440512, 0, 0, 0, 0}), 32896)
+      && U32.is_eq(World.partial_mask(World.Levels{0, 0, 0, 0, 0, 0, 0, 4261412864}), 2147483648)
+      && U32.is_eq(World.partial_mask(World.full_levels(1056)), 0),
+      "the partial mask has a bit where a byte holds one to 254")
     # the game's clock drives the ticks (Player.advance)
-    expect(same(query(advanced(100, shaft()), At{64, 15, 64} <> At{64, 14, 64} <> Nil{}), 8 <> 0 <> Nil{})
-      && same(query(advanced(300, shaft()), At{64, 15, 64} <> At{64, 14, 64} <> Nil{}), 0 <> 8 <> Nil{})
-      && same(query(advanced(2000, shaft()), At{64, 13, 64} <> Nil{}), 8 <> Nil{}),
+    expect(same(query(advanced(100, shaft()), At{64, 15, 64} <> At{64, 14, 64} <> Nil{}), 255 <> 0 <> Nil{})
+      && same(query(advanced(300, shaft()), At{64, 15, 64} <> At{64, 14, 64} <> Nil{}), 0 <> 255 <> Nil{})
+      && same(query(advanced(2000, shaft()), At{64, 13, 64} <> Nil{}), 255 <> Nil{}),
       "the game's clock runs the flow: none in 100 ms, one tick in 300, two at most a frame however long the stall")

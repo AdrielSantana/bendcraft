@@ -186,17 +186,20 @@ The model is the one chosen above, finite volume with explicit sources,
 made concrete. The picture of the still lake must not change until a
 block moves; that is the first gate of every step below.
 
-- **Units.** A cell holds 0 to 8 units of water; 8 is full. The amount
-  is a nibble, four words a column at slots 6..9, so the column widens
-  from 8 words to 16 (the ring is 2^18 words, a megabyte; slots 10..15
-  are spare, four of them for the light of the blocks later). The water
+- **Units.** A cell holds 0 to 255 units of water; 255 is full (as
+  built 2026-09-22; the design said 8 in a nibble, and step 2 found that
+  too coarse, below). The amount is a byte, eight words a column at
+  slots 6..13, the flow's marks at 14 and the partial mask at 15, so the
+  column is 16 words whole (the ring is 2^18 words, a megabyte; the
+  light of the blocks, if it comes, needs another array). The water
   mask at slot 5 stays the truth for "any water here", bit y set exactly
   when the amount is over zero: the ray walks the mask as it does today
-  and reads nothing new along the way. A save writes the four words after
-  the six it writes now; a six-word column loads with 8 wherever its
-  mask has a bit, so old saves are the same lake.
+  and reads nothing new along the way. A save writes the eight words
+  after the six it wrote before; a six-word column loads with 255
+  wherever its mask has a bit, so old saves are the same lake, and a
+  ten-word one, the day of nibbles, widens an eighth to 32.
 - **The surface.** Where a ray first enters water from above, the render
-  reads that cell's nibble once and lowers the surface to y + amount / 8:
+  reads that cell's byte once and lowers the surface to y + amount / 255:
   the entry moves to where the ray meets that plane, the wet depth loses
   the air above it, and the reflection, the ripples, Fresnel, the mirror
   and the caustic all happen on the plane. A full cell's plane is its top
@@ -206,17 +209,18 @@ block moves; that is the first gate of every step below.
   read; nothing else changes in the DDA.
 - **The rule.** A simulation tick every 200 ms, whatever the frame rate.
   For each active cell holding a > 0 units: first down, the cell below,
-  if not solid, takes min(a, 8 - b); then sideways, each of the four
+  if not solid, takes min(a, 255 - b); then sideways, each of the four
   neighbours that is not solid and holds less takes floor((a - n) / 2),
   never more than what is left. Every transfer is one atomic move of k
   units from a cell to a neighbour, applied at once on the current state:
-  volume is conserved by construction, no cell exceeds 8 or goes under 0,
+  volume is conserved by construction, no cell exceeds 255 or goes under 0,
   and no traversal order can duplicate water. The order of the four
   sides alternates with the tick's parity, so the bias of a fixed order
   cancels over two ticks. A neighbour outside the ring is solid: the
   loaded window's edge is closed, and a lake that reaches it holds.
-- **Sources.** A source is a cell marked in its column (a bit in a spare
-  word) that refills to 8 at the end of each tick it took part in. The
+- **Sources.** A source is a cell marked in its column (the type nibble
+  9 in the type words, since no word is spare) that refills to 255 at
+  the end of each tick it took part in. The
   seed's lakes are not sources: dig a channel and they drain. Sources are
   the only creation of water, and an explicit edit (a solid placed in
   water, water collected) the only removal; the flow itself neither
@@ -224,7 +228,7 @@ block moves; that is the first gate of every step below.
   keeps the world's volume; with sources, the volume grows by exactly
   what they refilled.
 - **The active set.** As built (2026-09-22): a word of marks per column
-  in the ring (slot 10, bit y: the cell is due a step) and a queue of the
+  in the ring (slot 14, bit y: the cell is due a step) and a queue of the
   marked columns' slots in the world, oldest first, each once while its
   word is set; a `Map` keyed by column would have cost a string key per
   mark. Marks are on slots, so a mark on a column that has left the
@@ -235,8 +239,10 @@ block moves; that is the first gate of every step below.
   move anything drops out; a column back from the edits is marked where
   it is wet, its sides whole. A tick steps at most 256 columns, the rest
   wait their turn, so the host's work a tick is bounded whatever the
-  lake: `make flow-bench` drains the spawn's lake through shafts at 0.3 to
-  1 ms a tick with 100 to 190 columns queued.
+  lake: `make flow-bench` drains the spawn's lake through shafts at 2 to
+  3 ms a tick with 500 to 1600 columns queued (with the byte unit the
+  whole surface of a draining lake is active; with eighths it was 0.3 to
+  1 ms at 100 to 190).
 - **The steps.** (1) The levels: the wider column, the save, the surface
   plane; the digest and the physics hash unchanged; laws on the nibble
   packing — done 2026-09-21 (eleven laws, 110 in all; the frame costs the
@@ -249,7 +255,11 @@ block moves; that is the first gate of every step below.
   day's clock, 4096 a turn; the DDA clips a partial cell's wet segment
   to its plane, specialized on a bit of the base so a frame without
   partial water costs what it did and one with it about a sixth more,
-  34 → 41 ms on the lake at 1470×796). (3) Sources, with their accounting
+  34 → 41 ms on the lake at 1470×796). (2b) The byte: 0..255 a cell, the
+  column 16 words whole, fourteen-word saves that widen the day's
+  ten-word ones — done 2026-09-22 (five more laws, 128 in all; 153 tests;
+  the digest and the physics hash unchanged; the plane clip costs what it
+  did, 30.6 → 36.0 ms on the lake). (3) Sources, with their accounting
   law. (4) Edits: what a placed block displaces and what collecting
   takes, both counted. (5) The player in water: buoyancy, drag, swimming,
   breath later.
@@ -270,7 +280,33 @@ block moves; that is the first gate of every step below.
   effectively nothing to the eye while still counted. It changes step
   1's format (ten-word saves are only local so far; a loader can widen
   them) and the eleven nibble laws. The decision is the user's, since the
-  design above said eight; nothing else in the flow changes.
+  design above said eight; nothing else in the flow changes. Decided and
+  built the same day, above.
+- **What the byte found: the rule is slow to level.** With the fine
+  unit the breached lake rests at `193 192 191 … 173` along its top
+  row, a unit a cell, 0.08 of a block over 22 cells: the terrace is
+  gone. But the rule halves a difference a tick, so a lake levels by
+  diffusion, in about as many ticks as the square of its length: this
+  one takes 1300 ticks, five and a half minutes of the clock, where the
+  eighth stopped it at 424 (at the terrace, not level). Three costs
+  follow. The active set is the whole surface while it levels, 640
+  columns here, 2.5 times the tick's budget, so each column is stepped
+  every 2.5 ticks and the levelling is slower still; a tick costs 2.5 ms
+  on the host rather than 0.4; and a lake that has lost any water is a
+  layer of partial cells for good, so the frame pays the plane clip
+  (a sixth more on the lake) from the first breach on, not only while
+  water moves. The options, each costed: a budget spread over the
+  frames, so many columns a millisecond of the clock rather than 256 a
+  tick, holds the host's work steady and lets the budget grow (1024
+  columns a tick would be 10 ms if paid at once, a hitch every quarter
+  second; a column a millisecond is 0.1 ms a frame); a rest threshold of
+  a few units cuts the tail of the levelling but brings a terrace back,
+  (t - 1)/255 of a block a cell; and communicating vessels, one level
+  per connected body of still water found by a flood fill each tick, level
+  a lake at once and leave the rule to the streams between bodies, the
+  right model for a lake and a step of its own. The plane clip's cost on a
+  lake partial everywhere is not yet measured (`make profile`'s last view
+  has seven partial cells).
 
 ## The laws
 

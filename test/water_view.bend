@@ -37,15 +37,15 @@ def diver(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
   Player.G{w, 36.5, 8.3, 66.5, 1.5707963, (0.0 - 0.25 : F32), vy, held, edge, mx, my, sel, res, 300000, bag}
 
-# a stair of amounts 1 to 7 in the lake's top cells (y 11) across the
-# lake view's middle, and one of 4 beside the near bank: the surface
-# lowered to each level
+# a stair of amounts 32 to 224 (an eighth a step) in the lake's top
+# cells (y 11) across the lake view's middle: the surface lowered to
+# each level
 def stair(n: Nat, g: Player.Game, +i: U32) -> Player.Game:
   match n:
     case 0n: g
     case 1n+k:
       Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-      stair(k, Player.G{World.pour(w, (38 + i * 2 : U32), 11, 66, (i + 1 : U32)), px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, (i + 1 : U32))
+      stair(k, Player.G{World.pour(w, (38 + i * 2 : U32), 11, 66, ((i + 1) * 32 : U32)), px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, (i + 1 : U32))
 
 def main() -> IO(Unit):
   do IO<Unit>:

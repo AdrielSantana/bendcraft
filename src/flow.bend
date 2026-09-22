@@ -2,17 +2,17 @@ import Base
 import ./util.bend as Util
 import ./world.bend as World
 
-# THE FLOW OF WATER: finite volume, in units of an eighth of a cell.
+# THE FLOW OF WATER: finite volume, in units of 1/255 of a cell.
 #
-# A cell holds 0 to 8 units (World.Levels). A tick steps the cells the
+# A cell holds 0 to 255 units (World.Levels). A tick steps the cells the
 # world has marked (World.mark: a word of cells a column, a queue of the
 # marked columns' slots, oldest first). For a cell holding a > 0 units:
-# first down, the cell below, if not solid, takes min(a, 8 - b); then
+# first down, the cell below, if not solid, takes min(a, 255 - b); then
 # sideways, each of the four neighbours that is not solid and holds less
 # takes floor((a - n) / 2), never more than what is left. Every transfer
 # is one atomic move of k units from a cell to a neighbour, both
 # rewritten at once on the current state: the volume is the same before
-# and after, no cell goes over 8 or under 0, and no order of the cells
+# and after, no cell goes over 255 or under 0, and no order of the cells
 # can duplicate water. The order of the four sides alternates with the
 # tick's parity, so the bias of a fixed order cancels over two ticks. A
 # neighbour outside the ring is solid: the window's edge is closed, and
@@ -24,9 +24,9 @@ import ./world.bend as World
 
 # ---------- one transfer ----------
 
-# what goes down: all that fits under, where under is not solid (9)
+# what goes down: all that fits under, where under is not solid (256)
 def down_take(+a: U32, +b: U32) -> U32:
-  Bool.pick(U32, (b < 9 : U32), U32.min(a, (8 - b : U32)), 0)
+  Bool.pick(U32, (b < 256 : U32), U32.min(a, (World.full() - b : U32)), 0)
 
 # what goes to a side: half the difference, floored, only where the
 # neighbour holds less; a lone unit stays, two share
@@ -47,11 +47,11 @@ def move_if(some: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32, +a: U32, +n
 
 # ---------- one cell ----------
 
-# the amount at a neighbour, or 9 where the flow cannot go: a solid cell,
-# one under the world, one outside the ring
+# the amount at a neighbour, or 256 where the flow cannot go: a solid
+# cell, one under the world, one outside the ring
 def probe_fin(+y: U32, +mask: U32, r: World.World & U32) -> World.World & U32:
   (w, a) = r
-  (w, Bool.pick(U32, Util.on(mask, U32.shln(1, U32.to_nat(y))), 9, a))
+  (w, Bool.pick(U32, Util.on(mask, U32.shln(1, U32.to_nat(y))), 256, a))
 
 def probe_mask(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World & U32:
   (w, mask) = r
@@ -60,7 +60,7 @@ def probe_mask(+lx: U32, +y: U32, +lz: U32, r: World.World & U32) -> World.World
 def probe_in(ok: Bool, w: World.World, +lx: U32, +y: U32, +lz: U32) -> World.World & U32:
   match ok:
     case False{}:
-      (w, 9)
+      (w, 256)
     case True{}:
       probe_mask(lx, y, lz, World.word_at(w, lx, lz, 0))
 
@@ -162,11 +162,11 @@ def lx_of(+slot: U32, +ox: U32, +oz: U32, +lz: U32) -> U32:
 def slot_fin(m: Map<&2, World.Col>, +ox: U32, +oz: U32, q: List<&2, U32>, np: U32, +slot: U32, +odd: Bool, r: Array<U32> & U32) -> World.World:
   (ring, +bits) = r
   +lz = lz_of(slot, oz)
-  column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 10 : U32), 0), m, ox, oz, q, np})
+  column(32n, U32.is_eq(bits, 0), 0, bits, lx_of(slot, ox, oz, lz), lz, odd, World.W{Array.set(U32, ring, (slot + 14 : U32), 0), m, ox, oz, q, np})
 
 def step_slot(w: World.World, +slot: U32, +odd: Bool) -> World.World:
   World.W{ring, m, +ox, +oz, q, np} = w
-  slot_fin(m, ox, oz, q, np, slot, odd, Array.get(U32, ring, (slot + 10 : U32)))
+  slot_fin(m, ox, oz, q, np, slot, odd, Array.get(U32, ring, (slot + 14 : U32)))
 
 # ---------- one tick ----------
 

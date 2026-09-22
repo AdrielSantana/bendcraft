@@ -39,9 +39,10 @@ def num(s: String) -> U32:
 def col_line(kv: Sigma<&2, &2, String, _ => World.Col>) -> String:
   (k, c) = kv
   World.Col{m, a, b, cc, d, water, lv} = c
-  World.Levels{la, lb, lc, ld} = lv
+  World.Levels{l0, l1, l2, l3, l4, l5, l6, l7} = lv
   k ++ " " ++ U32.show(m) ++ " " ++ U32.show(a) ++ " " ++ U32.show(b) ++ " " ++ U32.show(cc) ++ " " ++ U32.show(d) ++ " " ++ U32.show(water)
-    ++ " " ++ U32.show(la) ++ " " ++ U32.show(lb) ++ " " ++ U32.show(lc) ++ " " ++ U32.show(ld)
+    ++ " " ++ U32.show(l0) ++ " " ++ U32.show(l1) ++ " " ++ U32.show(l2) ++ " " ++ U32.show(l3)
+    ++ " " ++ U32.show(l4) ++ " " ++ U32.show(l5) ++ " " ++ U32.show(l6) ++ " " ++ U32.show(l7)
 
 def col_lines(kvs: List<&2, Sigma<&2, &2, String, _ => World.Col>>) -> String:
   match kvs:
@@ -113,11 +114,26 @@ def water_of(fs: List<&2, String>, k: String, +solid: U32) -> U32:
     case Nil{}: legacy_water(String.split(k, ','), solid)
     case Con{w, rest}: (num(w) .&. U32.not(solid) : U32)
 
-# The four amount words follow the water word; a column saved before
-# them is full wherever it is wet.
+# The eight amount words follow the water word. A column saved with four
+# (the amounts were nibbles of 0..8 for a day) is widened, an eighth to
+# 32 units and a full cell to 255; one saved before them is full wherever
+# it is wet.
+def widen_nibble(+n: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(n, 8), World.full(), (n * 32 : U32))
+
+# the low or the high four nibbles of an amounts word, as four bytes
+def widen(+word: U32, +high: Bool) -> U32:
+  +w = Bool.pick(U32, high, (word / 65536 : U32), (word % 65536 : U32))
+  (widen_nibble((w % 16 : U32)) + widen_nibble((w / 16 % 16 : U32)) * 256
+    + widen_nibble((w / 256 % 16 : U32)) * 65536 + widen_nibble((w / 4096 % 16 : U32)) * 16777216 : U32)
+
 def levels_of(fs: List<&2, String>, +water: U32) -> World.Levels:
   match fs:
-    case Con{w, Con{la, Con{lb, Con{lc, Con{ld, rest}}}}}: World.Levels{num(la), num(lb), num(lc), num(ld)}
+    case Con{w, Con{l0, Con{l1, Con{l2, Con{l3, Con{l4, Con{l5, Con{l6, Con{l7, rest}}}}}}}}}:
+      World.Levels{num(l0), num(l1), num(l2), num(l3), num(l4), num(l5), num(l6), num(l7)}
+    case Con{w, Con{+la, Con{+lb, Con{+lc, Con{+ld, rest}}}}}:
+      World.Levels{widen(num(la), False{}), widen(num(la), True{}), widen(num(lb), False{}), widen(num(lb), True{}),
+                   widen(num(lc), False{}), widen(num(lc), True{}), widen(num(ld), False{}), widen(num(ld), True{})}
     case Con{w, rest}: World.full_levels(water)
     case Nil{}: World.full_levels(water)
 

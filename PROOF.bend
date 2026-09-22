@@ -188,14 +188,19 @@ def Laws.water_cannot_replace_a_bank(): {==}
 
 def Laws.full_levels_follow_the_mask(): {==}
 def Laws.full_levels_of_a_dry_column(): {==}
-def Laws.amount_reads_its_nibble(): {==}
-def Laws.amount_reads_its_nibble_up(): {==}
+def Laws.amount_reads_its_byte(): {==}
+def Laws.amount_reads_its_byte_up(): {==}
+def Laws.a_byte_reads_back(): {==}
+def Laws.a_byte_set_keeps_the_others(): {==}
+def Laws.the_device_reads_the_same_byte(): {==}
 def Laws.water_placed_is_a_full_cell(): {==}
 def Laws.solid_placed_holds_no_water(): {==}
 def Laws.pour_sets_the_amount_and_the_bit(): {==}
 def Laws.pour_keeps_the_amount(): {==}
 def Laws.pour_of_nothing_clears_the_bit(): {==}
-def Laws.pour_is_capped_at_eight(): {==}
+def Laws.pour_is_capped_at_255(): {==}
+def Laws.a_poured_cell_is_partial(): {==}
+def Laws.a_full_cell_is_not_partial(): {==}
 def Laws.pour_into_a_solid_is_nothing(): {==}
 def Laws.water_fog_has_its_own_flag(): {==}
 def Laws.water_fog_is_on_by_default(): {==}

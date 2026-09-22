@@ -295,39 +295,56 @@ law water_type_reads_back:
 law water_cannot_replace_a_bank:
   {World.edit_col(World.col6(1024, 0, 1536, 0, 0, 2048), 10, True{}, 8) == World.col6(1024, 0, 1536, 0, 0, 2048) : World.Col}
 
-# --- the amount of water in a cell: a nibble, 0 to 8 -----------------------
+# --- the amount of water in a cell: a byte, 0 to 255 -------------------------
 # A column born of the terrain or of an edit is full wherever its mask
 # has a bit; the mask's bit follows the amount; a solid cell holds none.
+# The byte of height y is byte y % 4 of word y / 4; the host and the
+# device read the same byte; a cell is partial exactly between 0 and 255.
 
 law full_levels_follow_the_mask:
-  {World.full_levels(1056) == World.Levels{8388608, 2048, 0, 0} : World.Levels}
+  {World.full_levels(1056) == World.Levels{0, 65280, 16711680, 0, 0, 0, 0, 0} : World.Levels}
 
 law full_levels_of_a_dry_column:
-  {World.full_levels(0) == World.Levels{0, 0, 0, 0} : World.Levels}
+  {World.full_levels(0) == World.Levels{0, 0, 0, 0, 0, 0, 0, 0} : World.Levels}
 
-law amount_reads_its_nibble:
-  {World.amount(World.Levels{0, 8, 0, 0}, 10) == 0 : U32}
+law amount_reads_its_byte:
+  {World.amount(World.Levels{0, 0, 255, 0, 0, 0, 0, 0}, 10) == 0 : U32}
 
-law amount_reads_its_nibble_up:
-  {World.amount(World.Levels{0, 8, 0, 0}, 8) == 8 : U32}
+law amount_reads_its_byte_up:
+  {World.amount(World.Levels{0, 0, 255, 0, 0, 0, 0, 0}, 8) == 255 : U32}
+
+law a_byte_reads_back:
+  {World.byte_get(World.byte_set(4294967295, 7, 200), 7) == 200 : U32}
+
+law a_byte_set_keeps_the_others:
+  {World.byte_set(4294967295, 7, 200) == 3372220415 : U32}
+
+law the_device_reads_the_same_byte:
+  {World.byte_at(World.byte_set(0, 9, 200), 9) == 200 : U32}
 
 law water_placed_is_a_full_cell:
-  {World.levels(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 8)) == World.Levels{0, 2048, 0, 0} : World.Levels}
+  {World.levels(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 8)) == World.Levels{0, 0, 16711680, 0, 0, 0, 0, 0} : World.Levels}
 
 law solid_placed_holds_no_water:
-  {World.levels(World.edit_col(World.col6(0, 0, 0, 0, 0, 1024), 10, True{}, 6)) == World.Levels{0, 0, 0, 0} : World.Levels}
+  {World.levels(World.edit_col(World.col6(0, 0, 0, 0, 0, 1024), 10, True{}, 6)) == World.Levels{0, 0, 0, 0, 0, 0, 0, 0} : World.Levels}
 
 law pour_sets_the_amount_and_the_bit:
   {World.masks(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 3)) == (0, 1024) : U32 & U32}
 
 law pour_keeps_the_amount:
-  {World.levels(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 3)) == World.Levels{0, 768, 0, 0} : World.Levels}
+  {World.levels(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 3)) == World.Levels{0, 0, 196608, 0, 0, 0, 0, 0} : World.Levels}
 
 law pour_of_nothing_clears_the_bit:
   {World.masks(World.pour_col(World.col6(0, 0, 0, 0, 0, 1024), 10, 0)) == (0, 0) : U32 & U32}
 
-law pour_is_capped_at_eight:
-  {World.levels(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 13)) == World.Levels{0, 2048, 0, 0} : World.Levels}
+law pour_is_capped_at_255:
+  {World.levels(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 300)) == World.Levels{0, 0, 16711680, 0, 0, 0, 0, 0} : World.Levels}
+
+law a_poured_cell_is_partial:
+  {World.partial_mask(World.levels(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 3))) == 1024 : U32}
+
+law a_full_cell_is_not_partial:
+  {World.partial_mask(World.full_levels(1056)) == 0 : U32}
 
 law pour_into_a_solid_is_nothing:
   {World.pour_col(World.col6(1024, 0, 1536, 0, 0, 0), 10, 5) == World.col6(1024, 0, 1536, 0, 0, 0) : World.Col}
@@ -440,16 +457,16 @@ law mirror_look_keeps_the_readout:
 # tests in test/flow.bend sum a basin over ticks)
 
 law down_takes_all_that_fits:
-  {Flow.down_take(8, 5) == 3 : U32}
+  {Flow.down_take(255, 100) == 155 : U32}
 
 law down_takes_all_there_is:
   {Flow.down_take(3, 5) == 3 : U32}
 
 law down_into_a_solid_is_nothing:
-  {Flow.down_take(8, 9) == 0 : U32}
+  {Flow.down_take(255, 256) == 0 : U32}
 
 law a_side_takes_half_the_difference:
-  {Flow.side_take(8, 2) == 3 : U32}
+  {Flow.side_take(255, 1) == 127 : U32}
 
 law a_side_never_takes_past_the_giver:
   {Flow.side_take(7, 0) == 3 : U32}
@@ -461,7 +478,7 @@ law a_lone_unit_stays:
   {Flow.side_take(1, 0) == 0 : U32}
 
 law a_side_of_a_solid_takes_nothing:
-  {Flow.side_take(8, 9) == 0 : U32}
+  {Flow.side_take(255, 256) == 0 : U32}
 
 law the_sides_reverse_on_an_odd_tick:
   {Flow.side_of(0, True{}) == 3 : U32}

@@ -182,13 +182,14 @@ nothing", and the README):
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
   512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
 - The world: a ring of 128x128 columns in one `Array<U32>` of 2^18 words,
-  sixteen words a column (solid mask, four type words, water mask, four
-  words of water amounts 0..8 in nibbles, the flow's marks, the partial
-  mask, four spare); the water mask's bit is set exactly when the amount
-  is over zero (`World.pour` keeps both), the partial mask's exactly when
-  it is 1..7 (`put_col` derives it and keeps the window's count); edits in
-  a `Map`; terrain from a seeded noise; a save line has ten words and
-  loads six-word lines full where wet. `World.W` also carries the flow's
+  sixteen words a column (solid mask, four type words, water mask, eight
+  words of water amounts 0..255 in bytes, the flow's marks at slot 14,
+  the partial mask at 15, none spare); the water mask's bit is set
+  exactly when the amount is over zero (`World.pour` keeps both), the
+  partial mask's exactly when it is 1..254 (`put_col` derives it and
+  keeps the window's count); edits in a `Map`; terrain from a seeded
+  noise; a save line has fourteen words and loads six-word lines full
+  where wet, ten-word lines (a day of nibbles) widened. `World.W` also carries the flow's
   queue of marked slots (`World.mark`; marks are on slots, so a mark on a
   column that left the window is spent harmlessly on the one at its slot).
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the

@@ -74,8 +74,8 @@ def hit(here: Bool, +axis: F32, +col: U32) -> U32:
 # The dry specialization keeps water loads out of the profile's off row.
 # All specializations use this same loop and the same fixed fuel. With
 # partial water in the window (~partial, bit 29 of the base), the column
-# brings its partial mask too (slot + 11, the same cache line): bit y
-# says the cell holds less than eight units, so it is water only under
+# brings its partial mask too (slot + 15, the same cache line): bit y
+# says the cell holds less than 255 units, so it is water only under
 # its plane, and the loop clips the wet segment to it. Only such a cell,
 # rare, reads its amount, as the ray enters it; the column then carries
 # the clip as two distances, lo and hi, the wet segment being
@@ -96,21 +96,17 @@ def far() -> F32: 1000000000.0
 # (Water.crossed_top).
 def plane_fin(bits: U32, wetbits: U32, partial: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
   (w, word) = r
-  +frac = (Util.u2f(World.nib_at(word, y)) / 8.0 : F32)
+  +frac = (Util.u2f(World.byte_at(word, y)) / 255.0 : F32)
   +down = (sy < 0.0 : F32)
   +sp = (my - Bool.pick(F32, down, frac, (1.0 - frac : F32)) * ey : F32)
   (w, Column{bits, wetbits, partial, Bool.pick(F32, down, sp, (0.0 - far() : F32)), Bool.pick(F32, down, far(), sp)})
-
-# the octet of a height's bit: which levels word holds its nibble
-def octet(+ymask: U32) -> U32:
-  (Bool.pick(U32, (ymask > 255 : U32), 1, 0) + Bool.pick(U32, (ymask > 65535 : U32), 1, 0) + Bool.pick(U32, (ymask > 16777215 : U32), 1, 0) : U32)
 
 def plane_if(part: Bool, w: Array<U32>, bits: U32, wetbits: U32, partial: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
   match part:
     case False{}:
       (w, Column{bits, wetbits, partial, (0.0 - far() : F32), far()})
     case True{}:
-      plane_fin(bits, wetbits, partial, y, sy, my, ey, Array.get(U32, w, (slot + 6 + octet(ymask) : U32)))
+      plane_fin(bits, wetbits, partial, y, sy, my, ey, Array.get(U32, w, (slot + 6 + y / 4 : U32)))
 
 def with_plane(bits: U32, +wetbits: U32, +partial: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, w: Array<U32>) -> Array<U32> & Column:
   plane_if(Util.on(partial, ymask) && Util.on(wetbits, ymask), w, bits, wetbits, partial, slot, ymask, y, sy, my, ey)
@@ -126,7 +122,7 @@ def water_word_fin(partial: Bool, bits: U32, +slot: U32, +ymask: U32, +y: U32, +
       (w, Column{bits, water, 0, (0.0 - far() : F32), far()})
     case True{}:
       (w, water) = r
-      partial_word_fin(bits, water, slot, ymask, y, sy, my, ey, Array.get(U32, w, (slot + 11 : U32)))
+      partial_word_fin(bits, water, slot, ymask, y, sy, my, ey, Array.get(U32, w, (slot + 15 : U32)))
 
 def water_word(on: Bool, partial: Bool, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
   match on:

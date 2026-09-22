@@ -63,7 +63,7 @@ def wading(g: Player.Game) -> Player.Game:
 def stair(n: Nat, w: World.World, +i: U32) -> World.World:
   match n:
     case 0n: w
-    case 1n+k: stair(k, World.pour(w, (38 + i * 2 : U32), 11, 66, (i + 1 : U32)), (i + 1 : U32))
+    case 1n+k: stair(k, World.pour(w, (38 + i * 2 : U32), 11, 66, ((i + 1) * 32 : U32)), (i + 1 : U32))
 
 def stair_side(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g

@@ -25,7 +25,7 @@ def lattice(base: U32, x: U32, z: U32) -> U32:
 type Trace is Data:
   Trace{entry: F32, depth: F32}
 
-# A cell holding a units has its surface a / 8 up its height: the DDA
+# A cell holding a units has its surface a / 255 up its height: the DDA
 # (Render.dda) clips the ray's wet segment in such a cell to the part
 # under that plane, so the entry moves down a descending ray to the
 # plane, a ray over the water passes, and the reflection, the ripples,

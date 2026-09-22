@@ -8,11 +8,10 @@ import ./util.bend as Util
 # block, `Array.join` gives it back), so the columns around the player live
 # in an `Array<U32>`: sixteen words a column, the first a mask whose bit
 # y says "there is a solid at height y", the next four the types of the
-# 32 blocks, four bits each, then a non-solid water mask at slot + 5, and
-# at slots 6..9 the amount of water in each cell, 0 to 8 units in a
-# nibble, then at slot + 10 the cells the flow steps next, at + 11 the
-# cells holding less than eight units (12..15 are spare). Every primary
-# ray with water enabled reads
+# 32 blocks, four bits each, then a non-solid water mask at slot + 5, at
+# slots 6..13 the amount of water in each cell, 0 to 255 units in a
+# byte, at slot + 14 the cells the flow steps next, at + 15 the cells
+# holding less than 255 units. Every primary ray with water enabled reads
 # both masks through its handle, once per column it crosses, the type
 # once, at the hit, and the amount once, where it first enters water; an
 # edit is a few `Array.set` on the host; a built world costs what an
@@ -52,10 +51,10 @@ def tnoise(+u: F32, +v: F32) -> F32:
 # (base + lx * 128 + lz) * 16, base = ox * 128 + oz: the one word a reader
 # carries. Slot + 0 is the mask, + 1 + y / 8 the word with the type of
 # height y, in its nibble y % 8. Slot + 5 holds water occupancy, and
-# + 6 + y / 8 the amount of water at height y, in its nibble. Slot + 10
+# + 6 + y / 4 the amount of water at height y, in its byte. Slot + 14
 # is the flow's mark: bit y says cell y is due a step, and the column's
 # slot is then in the world's queue, once, until the flow pops it. Slot
-# + 11 is the partial mask, bit y set when 0 < amount < 8, written with
+# + 15 is the partial mask, bit y set when 0 < amount < 255, written with
 # the amounts; the world counts these cells over the window (partials),
 # and a frame with none walks the ray as if every wet cell were full.
 
@@ -167,31 +166,52 @@ def types_word(+k: U32, +h: U32, +wood: U32, +leaf: U32) -> U32:
 def flood(+h: U32, +solid: U32) -> U32:
   ((U32.shln(1, U32.to_nat(sea())) - 1) .&. U32.not(((U32.shln(1, U32.to_nat(h)) - 1) .|. solid : U32)) : U32)
 
-# The amount of water in each cell, 0 to 8 units in a nibble: the water
-# mask's bit y is set exactly when the amount at y is over zero, so the
-# ray keeps walking the mask. A column is born full wherever its mask has
-# a bit, as is one from a save that predates the amounts.
-type Levels is Data:
-  Levels{a: U32, b: U32, c: U32, d: U32}
+# The amount of water in each cell, 0 to 255 units in a byte, eight words
+# a column, four cells a word: the water mask's bit y is set exactly when
+# the amount at y is over zero, so the ray keeps walking the mask. A unit
+# is 1/255 of a block: the flow rests at a unit's difference between
+# neighbours, and that slope must not show (an eighth did). A column is
+# born full wherever its mask has a bit, as is one from a save that
+# predates the amounts.
+def full() -> U32: 255
 
-# the eight nibbles of an octet, 8 under each of its mask bits
-def full_word(n: Nat, +bits: U32, +acc: U32) -> U32:
-  match n:
-    case 0n:
-      acc
-    case 1n+k:
-      full_word(k, (bits * 2 : U32), (acc * 16 + Bool.pick(U32, Util.on(bits, 128), 8, 0) : U32))
+type Levels is Data:
+  Levels{l0: U32, l1: U32, l2: U32, l3: U32, l4: U32, l5: U32, l6: U32, l7: U32}
+
+# the byte of height y in its word (host: a variable shift)
+def byte_shift(+y: U32) -> Nat:
+  U32.to_nat((y % 4 * 8 : U32))
+
+def byte_set(+word: U32, +y: U32, +v: U32) -> U32:
+  ((word .&. U32.not(U32.shln(255, byte_shift(y)))) .|. U32.shln(v, byte_shift(y)) : U32)
+
+def byte_get(+word: U32, +y: U32) -> U32:
+  (U32.shrn(word, byte_shift(y)) .&. 255 : U32)
+
+# the same on the device, without a variable shift
+def pow256(+i: U32) -> U32:
+  Bool.pick(U32, (i < 2 : U32), Bool.pick(U32, U32.is_eq(i, 0), 1, 256), Bool.pick(U32, U32.is_eq(i, 2), 65536, 16777216))
+
+def byte_at(+word: U32, +y: U32) -> U32:
+  (word / pow256((y % 4 : U32)) % 256 : U32)
+
+# the four bytes of a word, 255 under each of the four mask bits: the
+# bits spread a byte apart by a product, then each becomes its byte
+def full_word(+bits: U32) -> U32:
+  ((((bits .&. 15) * 2113665) .&. 16843009) * 255 : U32)
 
 def full_levels(+water: U32) -> Levels:
-  Levels{full_word(8n, (water % 256 : U32), 0), full_word(8n, (water / 256 % 256 : U32), 0),
-         full_word(8n, (water / 65536 % 256 : U32), 0), full_word(8n, (water / 16777216 : U32), 0)}
+  Levels{full_word(water), full_word((water / 16 : U32)), full_word((water / 256 : U32)), full_word((water / 4096 : U32)),
+         full_word((water / 65536 : U32)), full_word((water / 1048576 : U32)), full_word((water / 16777216 : U32)), full_word((water / 268435456 : U32))}
 
 def level_word(+lv: Levels, +k: U32) -> U32:
-  Levels{a, b, c, d} = lv
-  Bool.pick(U32, (k < 2 : U32), Bool.pick(U32, U32.is_eq(k, 0), a, b), Bool.pick(U32, U32.is_eq(k, 2), c, d))
+  Levels{l0, l1, l2, l3, l4, l5, l6, l7} = lv
+  Bool.pick(U32, (k < 4 : U32),
+    Bool.pick(U32, (k < 2 : U32), Bool.pick(U32, U32.is_eq(k, 0), l0, l1), Bool.pick(U32, U32.is_eq(k, 2), l2, l3)),
+    Bool.pick(U32, (k < 6 : U32), Bool.pick(U32, U32.is_eq(k, 4), l4, l5), Bool.pick(U32, U32.is_eq(k, 6), l6, l7)))
 
 def amount(+lv: Levels, +y: U32) -> U32:
-  nib_get(level_word(lv, (y / 8 : U32)), y)
+  byte_get(level_word(lv, (y / 4 : U32)), y)
 
 type Col is Data:
   Col{mask: U32, t0: U32, t1: U32, t2: U32, t3: U32, water: U32, lv: Levels}
@@ -217,18 +237,22 @@ def column_fin(+h: U32, m: Masks) -> Col:
 def column(+x: U32, +z: U32) -> Col:
   column_fin(terrain(x, z), canopy(25n, x, z, 0, Masks{0, 0}))
 
-# the partial bits of a levels word, gathered into an octet: a nibble is
-# partial exactly when one of its low three bits is set (1..7, not 0 or 8)
-def partial_octet(+word: U32) -> U32:
-  +low = (word .&. 2004318071 : U32)
-  +p = ((low .|. (low / 2 : U32) .|. (low / 4 : U32)) .&. 286331153 : U32)
-  +q = ((p .|. (p / 8 : U32)) .&. 50529027 : U32)
-  +r = ((q .|. (q / 64 : U32)) .&. 983055 : U32)
-  ((r .|. (r / 4096 : U32)) .&. 255 : U32)
+# the partial bits of a levels word, gathered into a nibble: a byte is
+# partial exactly when it is neither 0 nor 255
+def partial_nibble(+word: U32) -> U32:
+  +nz = ((((word .&. 2139062143) + 2139062143) .|. word) .&. 2155905152 : U32)
+  +t1 = (word .&. ((word / 16 : U32) .&. 252645135) : U32)
+  +t2 = (t1 .&. ((t1 / 4 : U32) .&. 50529027) : U32)
+  +all = (t2 .&. ((t2 / 2 : U32) .&. 16843009) : U32)
+  +p = (((nz / 128 : U32) .&. U32.not(all)) .&. 16843009 : U32)
+  +q = ((p .|. (p / 128 : U32)) .&. 196611 : U32)
+  ((q .|. (q / 16384 : U32)) .&. 15 : U32)
 
 def partial_mask(+lv: Levels) -> U32:
-  Levels{+la, +lb, +lc, +ld} = lv
-  (partial_octet(la) .|. (partial_octet(lb) * 256 : U32) .|. (partial_octet(lc) * 65536 : U32) .|. (partial_octet(ld) * 16777216 : U32) : U32)
+  Levels{+l0, +l1, +l2, +l3, +l4, +l5, +l6, +l7} = lv
+  (partial_nibble(l0) .|. (partial_nibble(l1) * 16 : U32) .|. (partial_nibble(l2) * 256 : U32) .|. (partial_nibble(l3) * 4096 : U32)
+    .|. (partial_nibble(l4) * 65536 : U32) .|. (partial_nibble(l5) * 1048576 : U32) .|. (partial_nibble(l6) * 16777216 : U32)
+    .|. (partial_nibble(l7) * 268435456 : U32) : U32)
 
 def pop(+x: U32) -> U32:
   +a = (x - ((x / 2 : U32) .&. 1431655765) : U32)
@@ -239,12 +263,14 @@ def pop(+x: U32) -> U32:
 # the partial word replaced, and the window's count of partial cells kept
 def put_partial(+np: U32, +slot: U32, +mask: U32, r: Array<U32> & U32) -> Array<U32> & U32:
   (ring, +old) = r
-  (Array.set(U32, ring, (slot + 11 : U32), mask), (np - pop(old) + pop(mask) : U32))
+  (Array.set(U32, ring, (slot + 15 : U32), mask), (np - pop(old) + pop(mask) : U32))
 
 def put_levels(ring: Array<U32>, +slot: U32, +lv: Levels, +np: U32) -> Array<U32> & U32:
-  Levels{+la, +lb, +lc, +ld} = lv
-  put_partial(np, slot, partial_mask(lv), Array.get(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring, (slot + 6 : U32), la),
-    (slot + 7 : U32), lb), (slot + 8 : U32), lc), (slot + 9 : U32), ld), (slot + 11 : U32)))
+  Levels{+l0, +l1, +l2, +l3, +l4, +l5, +l6, +l7} = lv
+  put_partial(np, slot, partial_mask(lv), Array.get(U32,
+    Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring,
+      (slot + 6 : U32), l0), (slot + 7 : U32), l1), (slot + 8 : U32), l2), (slot + 9 : U32), l3),
+      (slot + 10 : U32), l4), (slot + 11 : U32), l5), (slot + 12 : U32), l6), (slot + 13 : U32), l7), (slot + 15 : U32)))
 
 # a column written at a slot: the ring, and the count of partial cells
 def put_col(ring: Array<U32>, +slot: U32, c: Col, +np: U32) -> Array<U32> & U32:
@@ -252,21 +278,37 @@ def put_col(ring: Array<U32>, +slot: U32, c: Col, +np: U32) -> Array<U32> & U32:
   put_levels(Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring, slot, m),
     (slot + 1 : U32), a), (slot + 2 : U32), b), (slot + 3 : U32), cc), (slot + 4 : U32), d), (slot + 5 : U32), water), slot, lv, np)
 
-def get9(m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, la: U32, lb: U32, lc: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, ld) = r
-  (ring, Col{m, a, b, c, d, water, Levels{la, lb, lc, ld}})
+def get13(m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, l3: U32, l4: U32, l5: U32, l6: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, l7) = r
+  (ring, Col{m, a, b, c, d, water, Levels{l0, l1, l2, l3, l4, l5, l6, l7}})
 
-def get8(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, la: U32, lb: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, lc) = r
-  get9(m, a, b, c, d, water, la, lb, lc, Array.get(U32, ring, (slot + 9 : U32)))
+def get12(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, l3: U32, l4: U32, l5: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, l6) = r
+  get13(m, a, b, c, d, water, l0, l1, l2, l3, l4, l5, l6, Array.get(U32, ring, (slot + 13 : U32)))
 
-def get7(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, la: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, lb) = r
-  get8(slot, m, a, b, c, d, water, la, lb, Array.get(U32, ring, (slot + 8 : U32)))
+def get11(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, l3: U32, l4: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, l5) = r
+  get12(slot, m, a, b, c, d, water, l0, l1, l2, l3, l4, l5, Array.get(U32, ring, (slot + 12 : U32)))
+
+def get10(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, l3: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, l4) = r
+  get11(slot, m, a, b, c, d, water, l0, l1, l2, l3, l4, Array.get(U32, ring, (slot + 11 : U32)))
+
+def get9(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, l3) = r
+  get10(slot, m, a, b, c, d, water, l0, l1, l2, l3, Array.get(U32, ring, (slot + 10 : U32)))
+
+def get8(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, l2) = r
+  get9(slot, m, a, b, c, d, water, l0, l1, l2, Array.get(U32, ring, (slot + 9 : U32)))
+
+def get7(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, l1) = r
+  get8(slot, m, a, b, c, d, water, l0, l1, Array.get(U32, ring, (slot + 8 : U32)))
 
 def get6(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, la) = r
-  get7(slot, m, a, b, c, d, water, la, Array.get(U32, ring, (slot + 7 : U32)))
+  (ring, l0) = r
+  get7(slot, m, a, b, c, d, water, l0, Array.get(U32, ring, (slot + 7 : U32)))
 
 def get5(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, r: Array<U32> & U32) -> Array<U32> & Col:
   (ring, water) = r
@@ -323,7 +365,7 @@ def queue_if(first: Bool, +slot: U32, q: List<&2, U32>) -> List<&2, U32>:
 
 def mark_fin(m: Map<&2, Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, +slot: U32, +bits: U32, r: Array<U32> & U32) -> World:
   (ring, +had) = r
-  W{Array.set(U32, ring, (slot + 10 : U32), (had .|. bits : U32)), m, ox, oz, queue_if(U32.is_eq(had, 0), slot, q), np}
+  W{Array.set(U32, ring, (slot + 14 : U32), (had .|. bits : U32)), m, ox, oz, queue_if(U32.is_eq(had, 0), slot, q), np}
 
 def mark_in(ok: Bool, w: World, +lx: U32, +lz: U32, +bits: U32) -> World:
   match ok:
@@ -332,7 +374,7 @@ def mark_in(ok: Bool, w: World, +lx: U32, +lz: U32, +bits: U32) -> World:
     case True{}:
       W{ring, m, +ox, +oz, q, np} = w
       +slot = col_at((ox * 128 + oz : U32), lx, lz)
-      mark_fin(m, ox, oz, q, np, slot, bits, Array.get(U32, ring, (slot + 10 : U32)))
+      mark_fin(m, ox, oz, q, np, slot, bits, Array.get(U32, ring, (slot + 14 : U32)))
 
 # the cells `bits` of a local column; outside the window, nothing
 def mark(w: World, +lx: U32, +lz: U32, +bits: U32) -> World:
@@ -449,11 +491,15 @@ def setbit(+b: U32, +ybit: U32, set: Bool) -> U32:
 # column is remembered; water placed is a full cell, and a cell that
 # stops being water holds no amount
 def edit_levels(+lv: Levels, +y: U32, +k: U32, +amt: U32) -> Levels:
-  Levels{+la, +lb, +lc, +ld} = lv
-  Levels{Bool.pick(U32, U32.is_eq(k, 0), nib_set(la, y, amt), la),
-         Bool.pick(U32, U32.is_eq(k, 1), nib_set(lb, y, amt), lb),
-         Bool.pick(U32, U32.is_eq(k, 2), nib_set(lc, y, amt), lc),
-         Bool.pick(U32, U32.is_eq(k, 3), nib_set(ld, y, amt), ld)}
+  Levels{+l0, +l1, +l2, +l3, +l4, +l5, +l6, +l7} = lv
+  Levels{Bool.pick(U32, U32.is_eq(k, 0), byte_set(l0, y, amt), l0),
+         Bool.pick(U32, U32.is_eq(k, 1), byte_set(l1, y, amt), l1),
+         Bool.pick(U32, U32.is_eq(k, 2), byte_set(l2, y, amt), l2),
+         Bool.pick(U32, U32.is_eq(k, 3), byte_set(l3, y, amt), l3),
+         Bool.pick(U32, U32.is_eq(k, 4), byte_set(l4, y, amt), l4),
+         Bool.pick(U32, U32.is_eq(k, 5), byte_set(l5, y, amt), l5),
+         Bool.pick(U32, U32.is_eq(k, 6), byte_set(l6, y, amt), l6),
+         Bool.pick(U32, U32.is_eq(k, 7), byte_set(l7, y, amt), l7)}
 
 def edit_col(c: Col, +y: U32, +set: Bool, +what: U32) -> Col:
   Col{+m, +a, +b, +cc, +d, +water, +lv} = c
@@ -469,7 +515,7 @@ def edit_col(c: Col, +y: U32, +set: Bool, +what: U32) -> Col:
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 2), nib_set(cc, y, what), cc),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 3), nib_set(d, y, what), d),
       setbit(water, bit, poured),
-      Bool.pick(Levels, blocked, lv, edit_levels(lv, y, k, Bool.pick(U32, poured, 8, 0)))}
+      Bool.pick(Levels, blocked, lv, edit_levels(lv, y, (y / 4 : U32), Bool.pick(U32, poured, full(), 0)))}
 
 def edit_fin(m: Map<&2, Col>, +ox: U32, +oz: U32, +x: U32, +z: U32, +y: U32, set: Bool, +what: U32, q: List<&2, U32>, +np: U32,
              r: Array<U32> & Col) -> World:
@@ -484,13 +530,13 @@ def edit(w: World, +lx: U32, +lz: U32, +y: U32, set: Bool, +what: U32) -> World:
   edit_fin(m, ox, oz, x, z, y, set, what, q, np, get_col(ring, ((x * 128 + z) * 16 : U32)))
 
 # The amount at a cell, set, the mask's bit following it (set exactly
-# when the amount is over zero); a solid cell holds none, and 8 is the
+# when the amount is over zero); a solid cell holds none, and 255 is the
 # most a cell holds. The flow's one write.
 def pour_col(c: Col, +y: U32, +a: U32) -> Col:
   Col{+m, ta, tb, tc, td, +water, +lv} = c
   +bit = U32.shln(1, U32.to_nat(y))
-  +amt = Bool.pick(U32, Util.on(m, bit), 0, U32.min(a, 8))
-  Col{m, ta, tb, tc, td, setbit(water, bit, (amt > 0 : U32)), edit_levels(lv, y, (y / 8 : U32), amt)}
+  +amt = Bool.pick(U32, Util.on(m, bit), 0, U32.min(a, full()))
+  Col{m, ta, tb, tc, td, setbit(water, bit, (amt > 0 : U32)), edit_levels(lv, y, (y / 4 : U32), amt)}
 
 def pour_fin(m: Map<&2, Col>, +ox: U32, +oz: U32, +x: U32, +z: U32, +y: U32, +a: U32, q: List<&2, U32>, +np: U32, r: Array<U32> & Col) -> World:
   (ring, c) = r
@@ -553,8 +599,8 @@ def voxel(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
   +slot = col_at((ox * 128 + oz : U32), lx, lz)
   voxel_solid(m, ox, oz, q, np, y, slot, Array.get(U32, ring, slot))
 
-# a word of a local column: 0 the solid mask, 5 the water mask, 6 + y / 8
-# the amounts, 10 the marks (for the tests and the flow)
+# a word of a local column: 0 the solid mask, 5 the water mask, 6 + y / 4
+# the amounts, 14 the marks, 15 the partial mask (for the tests and the flow)
 def word_fin(m: Map<&2, Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, r: Array<U32> & U32) -> World & U32:
   (ring, word) = r
   (W{ring, m, ox, oz, q, np}, word)
@@ -563,10 +609,10 @@ def word_at(w: World, +lx: U32, +lz: U32, +off: U32) -> World & U32:
   W{ring, m, +ox, +oz, q, np} = w
   word_fin(m, ox, oz, q, np, Array.get(U32, ring, (col_at((ox * 128 + oz : U32), lx, lz) + off : U32)))
 
-# the amount of water at a local cell, 0 to 8
+# the amount of water at a local cell, 0 to 255
 def amount_fin(+y: U32, r: World & U32) -> World & U32:
   (w, word) = r
-  (w, nib_get(word, y))
+  (w, byte_get(word, y))
 
 def amount_at(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
-  amount_fin(y, word_at(w, lx, lz, (6 + y / 8 : U32)))
+  amount_fin(y, word_at(w, lx, lz, (6 + y / 4 : U32)))

@@ -56,10 +56,10 @@ fork anyway, two handles to one block that `Array.join` gives back, so the
 columns around the player live in an `Array<U32>`: sixteen words a
 column, the first a mask whose bit `y` says "there is a block at height
 `y`", the next four the types of its 32 solid blocks, four bits each. Word
-six is a separate water mask; words seven to ten hold the amount of water
-in each cell, 0 to 8 units in a nibble, the mask's bit set exactly when
-the amount is over zero; word eleven marks the cells the flow steps next,
-word twelve the cells holding less than eight units; four words remain
+six is a separate water mask; words seven to fourteen hold the amount of
+water in each cell, 0 to 255 units in a byte, the mask's bit set exactly
+when the amount is over zero; word fifteen marks the cells the flow steps
+next, word sixteen the cells holding less than 255 units; no word remains
 spare. A primary ray with water on reads both masks once per column it
 crosses and the solid type once, at the hit; only while the window holds
 partial water does it read the partial mask with them, and a partial
@@ -124,11 +124,12 @@ the level less the height; the water's physics will give each column its
 level. The tint follows daylight.
 
 The amounts are the first step of the water's physics (the design is in
-ROADMAP.md): a cell holds 0 to 8 units, `World.pour` sets one (the mask's
-bit follows, a solid cell holds none), a save writes the four amount
-words after its six and loads a six-word column full wherever it is wet.
-A cell holding less than eight units is water only under its plane at
-y + amount / 8, and the ray's DDA clips its wet segment to that plane
+ROADMAP.md): a cell holds 0 to 255 units, `World.pour` sets one (the
+mask's bit follows, a solid cell holds none), a save writes the eight
+amount words after its six and loads a six-word column full wherever it
+is wet, a ten-word one (a day of nibbles, 0..8) widened, an eighth to 32.
+A cell holding less than 255 units is water only under its plane at
+y + amount / 255, and the ray's DDA clips its wet segment to that plane
 (`Render.dda`, `Column.lo` and `hi`): a descending ray's entry moves down
 to the plane, a ray over the water passes, a ray under it meets the side
 face whole, and the reflection, the ripples, Fresnel, the mirror and the
@@ -138,31 +139,38 @@ specialized on bit 29 of the camera's base, set by `Player.view_w` when
 the world counts a partial cell in the window (`World.partials`), so a
 frame without one costs what it did, while a frame with one pays about
 a sixth more at 1470×796 (34 → 41 ms on the lake, `make profile`'s last
-view). `make water` renders a stair of amounts 1 to 7 in the lake's top
+view). `make water` renders a stair of amounts 32 to 224 in the lake's top
 row (`build/water-levels.png`); `make flow` renders the flow itself.
 
 The flow is the second step (`src/flow.bend`): a tick every 256 ms of the
 day's clock steps the cells the world has marked. A cell holding a > 0
-units first gives the cell below what fits, min(a, 8 - b), then each of
-its four sides that holds less takes floor((a - n) / 2) of what is left,
-in an order that reverses on odd ticks; every transfer is two `World.pour`
-at once, so the volume is kept by construction and no cell leaves 0..8
-(thirteen laws, and the tests sum a basin over ticks). A neighbour
+units first gives the cell below what fits, min(a, 255 - b), then each
+of its four sides that holds less takes floor((a - n) / 2) of what is
+left, in an order that reverses on odd ticks; every transfer is two
+`World.pour` at once, so the volume is kept by construction and no cell
+leaves 0..255 (thirteen laws, and the tests sum a basin over ticks). A neighbour
 outside the window is solid, so a lake that reaches the edge holds. The
 marks: an edit marks its cell, the one above and the four sides; a move
 marks the cell that lost water, the one above it and its sides, and the
 one that gained; a marked column's slot is queued once, oldest first,
 and a tick steps at most 256 columns (`Flow.budget`), the rest waiting
-their turn, so a tick costs under a millisecond on the host whatever the
-lake (`make flow-bench`: a lake draining through shafts, 0.3 to 1 ms a
-tick at 100 to 190 columns queued). A cell that moved nothing drops out.
+their turn, so a tick costs a few milliseconds on the host whatever the
+lake (`make flow-bench`: a lake draining through shafts, 2 to 3 ms a
+tick at 500 to 1600 columns queued). A cell that moved nothing drops out.
 A column back in the window from the edits is stepped once where it is
 wet, its sides whole. After a stall the flow catches up at two ticks a
 frame. What the rule leaves: a difference of one unit between neighbours
-does not move, so a surface at rest may slope one unit a cell toward
-where it drained (the lake breached in `make flow` stops at `8 8 7 6 5 4
-3 2 1 0` along its top row, 424 ticks on, the pit under it a film); a
-unit is an eighth of a block, so the slope shows. Distance and height fog use the full solid-hit
+does not move, so a surface at rest slopes one unit a cell toward where
+it drained; a unit is 1/255 of a block, so the slope is nothing to the
+eye (the lake breached in `make flow` rests at `193 192 191 … 173` along
+its top row, 0.08 of a block over 22 cells; with eighths it stopped at
+`8 8 7 6 5 4 3 2 1 0`, a visible terrace, which is why the unit is a
+byte). The price of the fine unit is time: the rule halves a difference
+a tick, so a lake levels by diffusion, in about as many ticks as the
+square of its length; the breached lake takes 1300 ticks, five and a
+half minutes of the clock, with 640 columns active the whole way, 2.5
+times the budget, and its whole surface a layer of partial cells after,
+so the frame pays the plane clip from then on. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -890,12 +898,15 @@ it is off unless asked for, and the ring address, the ripple clock and
 the readout's bit pass through it untouched. Windowless tests walk the
 mirror's ray to a placed brick along an axis and across, past its reach,
 and to the sky, and check the fade and the byte a miss leaves alone.
-Two more keep the caustic's look in bit 28. Eleven amount laws: a column
+Two more keep the caustic's look in bit 28. Sixteen amount laws: a column
 born of the terrain or a save is full where it is wet, an amount reads
-its nibble, water placed is a full cell, a solid placed holds none, and
-a pour sets the amount and the bit, clears the bit at zero, caps at
-eight and does nothing to a solid. There are 110 laws: eight universal
-claims and 102 concrete checks. Integration tests exercise the actual ring edits, all eight types,
+its byte, a byte written reads back and leaves the others, the device's
+read agrees with the host's, water placed is a full cell, a solid placed
+holds none, a pour sets the amount and the bit, clears the bit at zero,
+caps at 255 and does nothing to a solid, and the partial mask has a bit
+for a poured cell and none for a full one. Thirteen flow laws bound one
+transfer. There are 128 laws: eight universal claims and 120 concrete
+checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;
 its output hash stays unchanged, while the inventory tests check an empty
