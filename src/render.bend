@@ -616,12 +616,17 @@ def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +v
 # 1.0 (Sky.daylight is 0 from 0.12 under the horizon), and the sun's
 # height is the same for every pixel, so skipping it there costs no
 # divergence and changes no byte.
-def bed(on: Bool, +base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, +ly: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+# the water over the bed: the wet path's height for an eye in the air,
+# whole for a submerged one (its path starts at the eye, not the surface)
+def thickness(+entry: F32, +depth: F32, +dy: F32) -> F32:
+  Bool.pick(F32, (entry > 0.0 : F32), (depth * Util.absf(dy) : F32), 9.0)
+
+def bed(on: Bool, +base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, +ly: F32, +thick: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   match on:
     case False{}: r
     case True{}:
       (w, c) = r
-      (w, dim(c, Water.caustic(base, x, z, drop, dy, ly)))
+      (w, dim(c, Water.caustic(base, x, z, drop, dy, ly, thick)))
 
 def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
               +c: U32, +t: F32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
@@ -631,7 +636,7 @@ def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: 
   +hitw = (c % 4 : U32)
   Water.shade(wet, fl, v, oy, dy, lx, ly, lz, Water.top(c), t, (hitw > 0 : U32), tr,
     mirrored(wet && Water.top(c) && Water.reflection_on(fl), fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
-      bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly,
+      bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
         shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz))))
 
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,

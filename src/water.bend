@@ -162,16 +162,20 @@ def thread(n: F32) -> F32:
 # are whole numbers and the lattice is scaled with them, so a ring shift
 # cannot drag the pattern. It is strongest just under the surface and gone
 # six blocks down, as the light is, in daylight alone, and fades out where
-# the eye looks along the surface. No walk and no world read: four hashes
-# an octave. The factor multiplies the bed's colour; 1.0 leaves it alone.
-def caustic(+base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, sun_y: F32) -> F32:
+# the eye looks along the surface, and where the water over the bed is
+# thin: a film has no depth to focus the light, so the threads grow with
+# the water's thickness up to nine tenths of a block (a lake's shallowest
+# cell, a whole block, keeps them whole). No walk and no world read: four
+# hashes an octave. The factor multiplies the bed's colour; 1.0 leaves it
+# alone.
+def caustic(+base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, sun_y: F32, +thick: F32) -> F32:
   +angle = (U32.to_f32(clock(base)) * (6.2831853 / 8192.0) : F32)
   +sx = (0.8 * F32.sin(angle) : F32)
   +sz = (0.8 * F32.cos(angle) : F32)
   +a = thread(value((base * 2 : U32), (x * 2.0 + 512.0 + sx : F32), (z * 2.0 + 512.0 + sz : F32)))
   +b = thread(value((base * 3 : U32), (x * 3.0 + 768.0 - sz : F32), (z * 3.0 + 768.0 - sx : F32)))
   +fade = (Sky.daylight(sun_y) * (1.0 - F32.clamp((drop / 6.0 : F32), 0.0, 1.0))
-    * F32.clamp((0.0 - dy * 8.0 : F32), 0.0, 1.0) : F32)
+    * F32.clamp((0.0 - dy * 8.0 : F32), 0.0, 1.0) * F32.clamp((thick / 0.9 : F32), 0.0, 1.0) : F32)
   +t = (a * b : F32)
   (1.0 + fade * (2.6 * t * t - 0.45) : F32)
 

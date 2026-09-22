@@ -220,7 +220,10 @@ out where the eye looks along the surface. The scales are whole numbers
 and the lattice is scaled with them, so a ring shift cannot drag the
 pattern (a test walks the ring one column each way). No walk and no world
 read: four hashes an octave, on the pixels of a wet hit alone. Bit 28 of
-the base word; `make water` renders it on and off from above the lake. This is a function of the ray, which a ray
+the base word; `make water` renders it on and off from above the lake. The threads grow
+with the water over the bed, whole from nine tenths of a block, so a film
+the flow leaves has none and a bank's wall just under the surface little
+(`Render.thickness`: the wet path's height for an eye in the air). This is a function of the ray, which a ray
 caster gets for the price of a walk; a screen-space reflection would be a
 function of the image, which a pixel of the fork tree cannot read.
 Placing an inventory block displaces water, and edits survive ring reloads
