@@ -97,10 +97,11 @@ publish: page
 	cd build/ghp && git add -A && git commit -q -m "page: $$(git -C ../.. log --format=%s -1)" && git push -q origin gh-pages
 
 # the page in headless Chrome: drag, click, place, jump; hashes and fps
+# (make's shell has no job control, so the server is stopped by its pid)
 page-test:
-	cd site && python3 ../test/serve.py 8770 & sleep 1; \
+	(cd site && exec python3 ../test/serve.py 8770) & echo $$! > build/serve.pid; sleep 1; \
 	node test/page.mjs 'http://127.0.0.1:8770/index.html?threads=10' build/shot_; \
 	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
-	kill %1
+	kill $$(cat build/serve.pid); rm -f build/serve.pid
 
 .PHONY: mirror run full check test bench profile sky water page publish page-test

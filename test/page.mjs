@@ -34,7 +34,7 @@ try {
   // a right click: a block is placed
   await mouse("mousePressed", cx, cy, "right"); await sleep(50); await mouse("mouseReleased", cx, cy, "right"); await sleep(600);
   const h3 = await grab("3");
-  // space: a jump, then the landing brings the same view back
+  // space: a jump; the frame at the top differs from the one before, and the one after landing from the top (the sun moves 1.2 degrees in the 3.5 s, so the exact return is test/physics.bend's to assert, not a hash's)
   await send("Input.dispatchKeyEvent", { type: "keyDown", key: " ", code: "Space", windowsVirtualKeyCode: 32 }); await sleep(60);
   await send("Input.dispatchKeyEvent", { type: "keyUp", key: " ", code: "Space", windowsVirtualKeyCode: 32 }); await sleep(500);
   const h4 = await grab("4"); await sleep(3000); const h5 = await grab("5");
@@ -50,5 +50,5 @@ try {
   const h7 = await grab("7");
   const out = await send("Runtime.evaluate", { expression: "document.getElementById('bend-out').textContent", returnByValue: true });
   const f = await send("Runtime.evaluate", { expression: "document.body.innerText.match(/\\d+ fps/)?.[0] || ''", returnByValue: true });
-  console.log("hashes", h0, h1, h2, h3, h4, h5, h6, "| drag turned:", h0 !== h1, "click broke:", h1 !== h2, "right placed:", h2 !== h3, "jump rose:", h3 !== h4, "landed back:", h5 === h3, "sand differs:", h6 !== h3, "readout up:", h7 !== h6, "saved:", !out.result.value.includes("could not save"), "|", f.result.value, errors.length ? "ERRORS " + errors.join(" | ") : "");
+  console.log("hashes", h0, h1, h2, h3, h4, h5, h6, "| drag turned:", h0 !== h1, "click broke:", h1 !== h2, "right placed:", h2 !== h3, "jump rose:", h3 !== h4, "came down:", h5 !== h4, "sand differs:", h6 !== h3, "readout up:", h7 !== h6, "saved:", !out.result.value.includes("could not save"), "|", f.result.value, errors.length ? "ERRORS " + errors.join(" | ") : "");
 } finally { try { process.kill(-chrome.pid, "SIGKILL"); } catch {} chrome.kill(); }
