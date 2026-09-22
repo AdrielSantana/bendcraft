@@ -187,11 +187,12 @@ def dda_end(+col: U32, +n: U32, t: F32, tr: Water.Trace, r: Array<U32> & Column)
   (w, Ray{(col + n * 4 : U32), t, tr})
 
 # The loop walks its 60 steps whatever happens, the state frozen after the
-# hit: an exit at the hit (or on leaving the box) walked a third of the
-# steps and made the frame slower, 15 -> 17 ms at 1470 x 796 and 28 -> 32
-# at 1920 x 1080 (2026-09-21, the same checksums), since the lanes of a
-# SIMD group then leave the loop at different steps and the runtime's
-# switch over segments runs them one case at a time. Uniform beats less.
+# hit (t stops moving there): an exit at the hit (or on leaving the box)
+# walked a third of the steps and made the frame slower, 15 -> 17 ms at
+# 1470 x 796 and 28 -> 32 at 1920 x 1080 (2026-09-21, the same checksums),
+# since the lanes of a SIMD group then leave the loop at different steps
+# and the runtime's switch over segments runs them one case at a time.
+# Uniform beats less. The mask moves one bit a step, never by a variable.
 def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
         +vx: F32, +vy: F32, +vz: F32,
         +sx: F32, +sy: F32, +sz: F32,
@@ -216,12 +217,9 @@ def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
       +nmy = Bool.pick(F32, uy, (my + ey : F32), my)
       nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + ez : F32)))
       naxis = Bool.pick(F32, ux, 0.0, Bool.pick(F32, uy, 1.0, 2.0))
-      # the mask moves one bit, never by a variable amount
       +nymask = Bool.pick(U32, uy,
         Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
-      # t is where the ray enters the next voxel; it stops moving at the hit
       +nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
-      # the steps before the hit, for the profile
       +ws = seg_start(partial, t, lo)
       +we = seg_end(partial, nt, hi)
       +wet = inside && (ncol < 1 : U32) && Util.on(wetbits, ymask) && (ws < we : F32)
@@ -581,7 +579,8 @@ def glance_open(bottom: U32, m: Water.Reflection, +fl: U32, +base: U32,
   Glance{+c, t} = g
   glance_look((c > 0 : U32), bottom, m, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, c, t, w)
 
-# the world in the mirror is a look of its own (bit 27 of the camera's base)
+# the world in the mirror is a look of its own (bit 27 of the camera's
+# base); its walk starts a hair over the water, in the air the ray came through
 def mirror_world(world: Bool, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32,
                  +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +m: Water.Reflection,
                  r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
@@ -592,7 +591,6 @@ def mirror_world(world: Bool, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32
     case True{}:
       Water.Reflection{+rx, +ry, +rz, cosine} = m
       (w, bottom) = r
-      # the walk starts a hair over the water, in the air the ray came through
       glance_open(bottom, m, fl, base, px, (py + 0.01 : F32), pz, rx, ry, rz, far, eye, lx, ly, lz,
         run_glance(w, base, px, (py + 0.01 : F32), pz, rx, ry, rz))
 
@@ -1006,21 +1004,6 @@ def t4(+cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
 # ---------- the fork ----------
 # Each level hands its one handle to four kids and joins the four that come
 # back; the images become a Qua.
-
-def two(l: Array<U32> & Image, r: Array<U32> & Image) -> Array<U32> & (Image & Image):
-  (wl, p) = l
-  (wr, q) = r
-  (Array.join(U32, wl, wr), (p, q))
-
-def quad_fin(wl: Array<U32>, wm: Array<U32>, pq: Image & Image, rs: Image & Image) -> Array<U32> & Image:
-  (p, q) = pq
-  (r, s) = rs
-  (Array.join(U32, wl, wm), Qua{p, q, r, s})
-
-def quad(l: Array<U32> & (Image & Image), m: Array<U32> & (Image & Image)) -> Array<U32> & Image:
-  (wl, pq) = l
-  (wm, rs) = m
-  quad_fin(wl, wm, pq, rs)
 
 # the tree of a frame: see fork below
 def pair(l: Array<U32> & Image, r: Array<U32> & Image) -> Array<U32> & Image:

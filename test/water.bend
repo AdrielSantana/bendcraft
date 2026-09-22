@@ -317,10 +317,6 @@ def main() -> IO(Unit):
       && U32.is_eq(surface_ray(Render.looks(), False{}, True{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), False{}, True{})),
       "ripples preserve submerged eyes and foreground banks")
     expect(U32.is_eq(far_surface_w(pool(88n, empty(), 40, 128)), Sky.rgb(100, 140, 180)), "air fog hides a distant reflecting water top")
-    expect(U32.is_ne(Water.reflected_sky(134217728, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, 1.0, 0.0),
-      Water.reflected_sky(0, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, 1.0, 0.0))
-      && U32.is_ne(Water.reflected_sky(1073741824, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, (0.0 - 1.0 : F32), 0.0),
-      Water.reflected_sky(0, 0.0, (0.0 - 1.0 : F32), 0.0, 0.0, (0.0 - 1.0 : F32), 0.0)), "reflected direction finds the sun and moon and respects their flags")
     expect(no_silhouette(6291464, 0.8) && no_silhouette(6291464, 0.0)
       && no_silhouette(6291464, (0.0 - 1.0 : F32)), "emerged ray hides distant silhouettes in daytime, twilight and night but keeps a nearby wall")
     expect(no_silhouette(2097160, 0.8) && no_silhouette(2153775112, 0.8), "background agrees with sky with water fog off and height fog on")
@@ -344,7 +340,7 @@ def main() -> IO(Unit):
       64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "picking traverses water and finds the bottom")
     expect(Bool.not(shadow(Render.run_shadow(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
       0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0))), "water casts no solid shadow")
-    expect(U32.is_eq(material(World.voxel(World.shift_xn(World.shift_xp(World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
+    expect(U32.is_eq(material(World.voxel(World.shift_x(False{}, World.shift_x(True{}, World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
     expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
     expect(U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 10, 64)), 8), "water material reads back")
     expect(placed(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 6,
@@ -357,14 +353,5 @@ def main() -> IO(Unit):
     expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
     expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 2048), "save preserves displacement, the water above the brick")
     expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
-    expect(U32.is_eq(Save.water_of([], "0,0", 0), World.flood(World.terrain(0, 0), 0)), "old saves restore natural water")
-    expect(U32.is_eq(Save.water_of(["0"], "0,0", 0), 0), "explicit dry edits stay dry")
-    expect(same_levels(Save.levels_of(["1056"], 1056), World.Levels{0, 65280, 16711680, 0, 0, 0, 0, 0})
-      && same_levels(Save.levels_of([], 1056), World.Levels{0, 65280, 16711680, 0, 0, 0, 0, 0})
-      && same_levels(Save.levels_of(["1056", "1", "2", "3", "4"], 1056), World.Levels{32, 0, 64, 0, 96, 0, 128, 0})
-      && same_levels(Save.levels_of(["1056", "8", "0", "0", "0"], 1056), World.Levels{255, 0, 0, 0, 0, 0, 0, 0})
-      && same_levels(Save.levels_of(["1056", "1", "2", "3", "4", "5", "6", "7", "8"], 1056), World.Levels{1, 2, 3, 4, 5, 6, 7, 8}),
-      "a six-word column loads full where it is wet; a ten-word one's nibbles widen to bytes, an eighth to 32 and eight to 255; a fourteen-word one keeps its bytes")
     expect(same_levels(World.levels(restored(Save.text(fixture(World.pour(surface_pool(), 64, 10, 64, 5))))), World.Levels{0, 0, 327680, 0, 0, 0, 0, 0}),
       "a poured amount survives a save and a load")
-    expect(U32.is_eq(Save.water_of(["1024"], "0,0", 1024), 0), "loaded solids displace overlapping water")

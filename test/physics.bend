@@ -82,7 +82,7 @@ def persist_fin(r: World.World & U32) -> String:
 
 def persist(g: Player.Game) -> String:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  persist_fin(wcol(World.follow_z(130n, False{}, World.follow_z(130n, True{}, World.edit(w, 64, 64, 20, True{}, 6))), 64, 64))
+  persist_fin(wcol(World.follow(130n, False{}, False{}, World.follow(130n, False{}, True{}, World.edit(w, 64, 64, 20, True{}, 6))), 64, 64))
 
 # Keep the historical physics scenario's one sand placement funded. The
 # inventory tests exercise the real empty start and rejected placements.

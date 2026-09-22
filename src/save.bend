@@ -8,11 +8,11 @@ import ./inventory.bend as Inventory
 # SAVE AND LOAD: the edited columns and where the player stands, as text.
 #
 # The file is `bendcraft.save` in the working directory: a first line with
-# the corner, position, look, chosen block, optional day clock and eight
-# optional counts, then a line per edited column: its key "x,z", five solid
-# words and an optional water mask. The game loads it
-# at start and writes it on P and on quit. Floats travel as thousandths,
-# offset by a thousand so they stay positive.
+# the corner, position, look, chosen block, day clock and eight counts,
+# then a line per edited column: its key "x,z" and its fourteen words. The
+# game loads it at start and writes it on P and on quit; a line that does
+# not fit is skipped. Floats travel as thousandths, offset by a thousand so
+# they stay positive.
 
 def enc(+v: F32) -> U32:
   Util.f2u(((v + 1000.0) * 1000.0 : F32))
@@ -100,50 +100,11 @@ def save(g: Player.Game) -> IO(Player.Game):
 
 # --- reading ---------------------------------------------------------------
 
-# Five-word columns predate water. Restore only the natural lake above
-# the original terrain, leaving old excavations dry. An explicit zero in
-# the sixth word remains zero after loading.
-def legacy_water(coords: List<&2, String>, +solid: U32) -> U32:
-  match coords:
-    case Con{x, Con{z, rest}}: World.flood(World.terrain(num(x), num(z)), solid)
-    case Con{x, rest}: 0
-    case Nil{}: 0
-
-def water_of(fs: List<&2, String>, k: String, +solid: U32) -> U32:
-  match fs:
-    case Nil{}: legacy_water(String.split(k, ','), solid)
-    case Con{w, rest}: (num(w) .&. U32.not(solid) : U32)
-
-# The eight amount words follow the water word. A column saved with four
-# (the amounts were nibbles of 0..8 for a day) is widened, an eighth to
-# 32 units and a full cell to 255; one saved before them is full wherever
-# it is wet.
-def widen_nibble(+n: U32) -> U32:
-  Bool.pick(U32, U32.is_eq(n, 8), World.full(), (n * 32 : U32))
-
-# the low or the high four nibbles of an amounts word, as four bytes
-def widen(+word: U32, +high: Bool) -> U32:
-  +w = Bool.pick(U32, high, (word / 65536 : U32), (word % 65536 : U32))
-  (widen_nibble((w % 16 : U32)) + widen_nibble((w / 16 % 16 : U32)) * 256
-    + widen_nibble((w / 256 % 16 : U32)) * 65536 + widen_nibble((w / 4096 % 16 : U32)) * 16777216 : U32)
-
-def levels_of(fs: List<&2, String>, +water: U32) -> World.Levels:
-  match fs:
-    case Con{w, Con{l0, Con{l1, Con{l2, Con{l3, Con{l4, Con{l5, Con{l6, Con{l7, rest}}}}}}}}}:
-      World.Levels{num(l0), num(l1), num(l2), num(l3), num(l4), num(l5), num(l6), num(l7)}
-    case Con{w, Con{+la, Con{+lb, Con{+lc, Con{+ld, rest}}}}}:
-      World.Levels{widen(num(la), False{}), widen(num(la), True{}), widen(num(lb), False{}), widen(num(lb), True{}),
-                   widen(num(lc), False{}), widen(num(lc), True{}), widen(num(ld), False{}), widen(num(ld), True{})}
-    case Con{w, rest}: World.full_levels(water)
-    case Nil{}: World.full_levels(water)
-
-def col_with(+k: String, +ms: U32, a: U32, b: U32, c: U32, d: U32, +water: U32, fs: List<&2, String>, m: Map<&2, World.Col>) -> Map<&2, World.Col>:
-  Map.set(&2, World.Col, m, k, World.Col{ms, a, b, c, d, water, levels_of(fs, water)})
-
 def col_of(fs: List<&2, String>, m: Map<&2, World.Col>) -> Map<&2, World.Col>:
   match fs:
-    case Con{+k, Con{+ms, Con{a, Con{b, Con{c, Con{d, +rest}}}}}}:
-      col_with(k, num(ms), num(a), num(b), num(c), num(d), water_of(rest, k, num(ms)), rest, m)
+    case Con{k, Con{ms, Con{a, Con{b, Con{c, Con{d, Con{water, Con{l0, Con{l1, Con{l2, Con{l3, Con{l4, Con{l5, Con{l6, Con{l7, rest}}}}}}}}}}}}}}}:
+      Map.set(&2, World.Col, m, k, World.Col{num(ms), num(a), num(b), num(c), num(d), num(water),
+        World.Levels{num(l0), num(l1), num(l2), num(l3), num(l4), num(l5), num(l6), num(l7)}})
     case Con{k, rest}:
       m
     case Nil{}:
@@ -156,21 +117,12 @@ def cols_of(ls: List<&2, String>, m: Map<&2, World.Col>) -> Map<&2, World.Col>:
     case Con{l, rest}:
       cols_of(rest, col_of(String.split(l, ' '), m))
 
-# Old headers end after sel; their morning is the new game's morning.
-def clock_of(fs: List<&2, String>) -> U32:
-  match fs:
-    case Nil{}:
-      Day.morning()
-    case Con{t, rest}:
-      Day.phase(num(t))
-
 def natural(m: Maybe<&2, Nat>) -> Nat:
   match m:
     case None{}: 0n
     case Some{n}: n
 
-# Every load makes eight slots. Missing fields in old headers are zero;
-# the optional clock stays before them. Column water is parsed separately.
+# the eight counts, zero where the header is short
 def counts_of(n: Nat, fs: List<&2, String>) -> List<&2, Nat>:
   match n:
     case 0n:
@@ -182,18 +134,13 @@ def counts_of(n: Nat, fs: List<&2, String>) -> List<&2, Nat>:
         case Con{h, t}:
           Con{natural(Nat.read(h)), counts_of(p, t)}
 
-def inventory_of(fs: List<&2, String>) -> List<&2, Nat>:
-  match fs:
-    case Nil{}: Inventory.empty()
-    case Con{clock, counts}: counts_of(8n, counts)
-
 def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Game:
   match fs:
-    case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, +rest}}}}}}}}}}:
+    case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, Con{clock, counts}}}}}}}}}}}:
       +cx = num(ox)
       +cz = num(oz)
       Player.G{World.load_all(128n, World.W{[0 : U32^18n], cols_of(ls, Map.new(&2, World.Col)), cx, cz, Nil{}, 0, 0, 0}, cx, cz),
-               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, (num(sel) % 8 : U32), res, clock_of(rest), inventory_of(rest)}
+               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, (num(sel) % 8 : U32), res, Day.phase(num(clock)), counts_of(8n, counts)}
     case Con{tag, rest}:
       Player.start_at(res)
     case Nil{}:

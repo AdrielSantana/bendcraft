@@ -267,10 +267,10 @@ def edit_world(act: Bool, +idx: U32, set: Bool, what: U32, r: World.World & List
 # block of `py - 1.6` and the one of `py + 0.2`. Walking tests those two
 # per axis and stops at a wall (the feet test sits 0.05 up, so the block
 # under the feet never counts). Gravity pulls `vy`; landing snaps the feet
-# onto the block; space pushes off it. Then the world's corner follows, so
-# the player is back in local column 64, and the crosshair's block is
-# found. A block is never placed on the player. Every test reads the
-# world, so the tick is a chain that passes it along.
+# onto the block; space pushes off it. Then the world's corner follows
+# (step_bump), so the player is back in local column 64, and the
+# crosshair's block is found. A block is never placed on the player.
+# Every test reads the world, so the tick is a chain that passes it along.
 
 def eye() -> F32: 1.6
 
@@ -326,14 +326,13 @@ def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool, 
                              Bool.pick(F32, bump, py, ty)), eye(), 31.5)
   +nvy = Bool.pick(F32, (land && Util.on(held, 8192)) || bank, 0.2,
                    Bool.pick(F32, land || bump, 0.0, vy1))
-  # the corner follows: back to local column 64
   +cx = Util.f2u(npx)
   +cz = Util.f2u(npz)
   +lx = (npx - Util.u2f(cx) + 64.0 : F32)
   +lz = (npz - Util.u2f(cz) + 64.0 : F32)
   step_aim(lx, npy, lz, nvy, nyaw, npit, held, edge, mx, my, sel, res, clock, bag,
-           waim(World.follow_z(U32.to_nat(Bool.pick(U32, (cz > 64 : U32), (cz - 64 : U32), (64 - cz : U32))), (cz > 64 : U32),
-                World.follow_x(U32.to_nat(Bool.pick(U32, (cx > 64 : U32), (cx - 64 : U32), (64 - cx : U32))), (cx > 64 : U32), w)),
+           waim(World.follow(U32.to_nat(Bool.pick(U32, (cz > 64 : U32), (cz - 64 : U32), (64 - cz : U32))), False{}, (cz > 64 : U32),
+                World.follow(U32.to_nat(Bool.pick(U32, (cx > 64 : U32), (cx - 64 : U32), (64 - cx : U32))), True{}, (cx > 64 : U32), w)),
                 lx, npy, lz, Render.look_x(nyaw, npit), Render.look_y(npit), Render.look_z(nyaw, npit)))
 
 def step_land(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, bank: Bool,
@@ -385,15 +384,6 @@ def step_swim(+px: F32, +py: F32, +pz: F32, yaw: F32, pit: F32, +vy: F32, +held:
 def step(g: Game) -> Game:
   G{w, +px, +py, +pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
   step_swim(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, World.wet_at(w, px, (py - 0.8 : F32), pz))
-
-def alive(g: Game) -> IO(Maybe<Game>):
-  G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res, clock, bag} = g
-  Bool.pick(IO(Maybe<Game>), Util.on(edge, 4096),
-    IO.pure(Maybe<Game>, None{}),
-    IO.pure(Maybe<Game>, Some{G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res, clock, bag}}))
-
-def tick(evs: List<Event>, g: Game) -> IO(Maybe<Game>):
-  alive(step(feed(evs, g)))
 
 # the world's corner starts far from zero, so walking west never wraps it
 def start_at(+res: U32) -> Game:

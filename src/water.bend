@@ -31,14 +31,6 @@ type Trace is Data:
 # plane, a ray over the water passes, and the reflection, the ripples,
 # Fresnel, the mirror and the caustic happen on the plane. A full cell's
 # plane is its top face, and its segment is what it was, bit for bit.
-def entry_of(tr: Trace) -> F32:
-  Trace{entry, depth} = tr
-  entry
-
-def depth_of(tr: Trace) -> F32:
-  Trace{entry, depth} = tr
-  depth
-
 # The primary ray uses six bits for its 60-step count. Bit six records
 # entry through the first water top, without widening the DDA state.
 def mark_top(steps: U32, top: Bool) -> U32:
@@ -78,9 +70,8 @@ def colour(sun_y: F32) -> U32:
 # 0.35 d)^2 (an exponential's shape without one: a half at one block, 0.85
 # at four), so the bed does not compete with what the surface mirrors. An
 # eye under the water keeps the clear one, or a diver would see two blocks.
-# Every lake lies at the sea level today, so a point's depth under the
-# surface is the level less its height. The water's physics, the next
-# step, gives each column its own level, and this will read it there.
+# A point's depth under the surface is the sea's level less its height:
+# the lakes lie at the sea level, and a spring's pool is shallow.
 def level() -> F32: 12.0
 def drop(y: F32) -> F32: F32.max((level() - y : F32), 0.0)
 
@@ -215,15 +206,15 @@ def tilted(+dx: F32, +dy: F32, +dz: F32, +strength: F32, s: Slope) -> Reflection
   lifted((dx + 2.0 * cosine * nx * inv : F32), (dy + 2.0 * cosine * inv : F32),
     (dz + 2.0 * cosine * nz * inv : F32), cosine)
 
+# The ripples fade with distance, against a far shimmer, and in the last
+# degrees before the horizon, where `lifted` keeps a grazing ray's mirror
+# over the water.
 def reflected(on: Bool, +base: U32, x: F32, z: F32, distance: F32,
-              dx: F32, +dy: F32, dz: F32) -> Reflection:
+              +dx: F32, +dy: F32, +dz: F32) -> Reflection:
   match on:
-    case False{}: Reflection{dx, (0.0 - dy : F32), dz, (0.0 - dy : F32)}
+    case False{}: flat(dx, dy, dz)
     case True{}:
       +angle = (U32.to_f32(clock(base)) * (6.2831853 / 8192.0) : F32)
-      # Fade with distance to avoid small distant shimmer, and only in the
-      # last degrees before the horizon: `lifted` keeps a grazing ray's
-      # mirror over the water. This changes shading, not water volume.
       +fade = (F32.clamp((0.0 - dy * 16.0 : F32), 0.0, 1.0)
         * (1.0 - F32.clamp((distance / 32.0 : F32), 0.0, 1.0)) : F32)
       tilted(dx, dy, dz, (0.15 * fade : F32),
@@ -240,10 +231,6 @@ def fresnel(on: Bool, cosine: F32) -> F32:
     case True{}:
       +c = (1.0 - F32.clamp(cosine, 0.0, 1.0) : F32)
       (0.02 + 0.98 * c * c * c : F32)
-
-def reflected_sky(+fl: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, +sz: F32) -> U32:
-  +ry = (0.0 - dy : F32)
-  Sky.bodies(fl, Sky.atmosphere(fl, dx, ry, dz, sx, sy, sz), dx, ry, dz, sx, sy, sz)
 
 # The mirror's walk has 32 steps, and a step crosses one face: a ray of
 # direction d has crossed at most (|dx| + |dy| + |dz|) t + 3 faces at the
@@ -268,18 +255,18 @@ def reflected_colour(+fl: U32, c: U32, sky: U32, front: F32,
   Sky.mix(c, Sky.mix(in_mirror(hit, Sky.bodies(fl, Sky.atmosphere(fl, rx, ry, rz, sx, sy, sz), rx, ry, rz, sx, sy, sz), colour, f), sky, front),
     fresnel(fresnel_on(fl), cosine))
 
+# A surface hidden by full haze is the exact sky: mixing identical byte
+# colours through floats can leave a one-level silhouette. The reflection
+# travels only to the surface, so the water's depth does not absorb it;
+# the air in front fogs it.
 def surface(on: Bool, hidden: Bool, +fl: U32, c: U32, sky: U32, front: F32,
             sx: F32, sy: F32, sz: F32, m: Mirror) -> U32:
   match on:
     case False{}: c
     case True{}:
       match hidden:
-        # Return the exact sky at full haze; mixing identical byte colours
-        # through floats can otherwise leave a one-level silhouette.
         case True{}: sky
         case False{}:
-          # Reflection travels only to the surface; the water depth behind
-          # it must not absorb it. Foreground air still fogs the reflection.
           reflected_colour(fl, c, sky, front, sx, sy, sz, m)
 
 # Full extinction at 24 wet blocks hides the 60-step limit even on a
@@ -296,6 +283,11 @@ def dry(r: Array<U32> & Mirror) -> Array<U32> & U32:
   Mirror{bottom, x, hit, colour, f} = m
   (w, bottom)
 
+# The whole solid distance is fogged, the air after the water too (a sky
+# miss has its atmosphere and discs already); the background is fogged
+# before the tint, since a hidden block and the sky behind it pass through
+# the same water, and the haze in front reduces the tint, so a lake past
+# the air's reach stays hidden and fades to the sky.
 def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
           sun_x: F32, +sun_y: F32, sun_z: F32, water_top: Bool,
           +distance: F32, +hit: Bool, tr: Trace, r: Array<U32> & Mirror) -> Array<U32> & U32:
@@ -306,16 +298,10 @@ def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
       (w, +m) = r
       Mirror{bottom, mr, mhit, mcolour, mf} = m
       +ink = colour(sun_y)
-      # Fog the whole solid distance, including air after leaving water.
-      # A sky miss already has its atmospheric colour and celestial discs.
       +front = Sky.fog(fl, entry, oy, (oy + dy * entry : F32))
       +air = Bool.pick(F32, hit, Sky.fog(fl, distance, oy, (oy + dy * distance : F32)), front)
-      # Fog the background before tinting it: a hidden block and the sky
-      # behind it must pass through the same water. Foreground haze reduces
-      # the tint so a lake beyond the air's visibility limit stays hidden.
       +down = drop((oy + dy * distance : F32))
       +lit = Sky.mix(bottom, 0, Bool.pick(F32, hit, (1.0 - light(down) : F32), 0.0))
       +base = Sky.mix(Sky.mix(lit, sky, air), ink_at(ink, sun_y, down), (opacity((entry > 0.0 : F32), lit_path(depth, dy)) * (1.0 - front) : F32))
-      # A lake beyond the air's visibility limit must also fade to sky.
       (w, surface(water_top && reflection_on(fl), (front >= 1.0 : F32), fl, fog(fog_on(fl), base, ink_at(ink, sun_y, drop(oy)), sky, front, depth),
         sky, front, sun_x, sun_y, sun_z, m))

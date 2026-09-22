@@ -203,8 +203,7 @@ the partial mask at 15, none spare); the water mask's bit is set
 exactly when the amount is over zero (`World.pour` keeps both), the
 partial mask's exactly when it is 1..254 (`put_col` derives it and
 keeps the window's count); edits in a `Map`; terrain from a seeded
-noise; a save line has fourteen words and loads six-word lines full
-where wet, ten-word lines (a day of nibbles) widened. `World.W` also carries the flow's
+noise; a save line has fourteen words, and nothing else loads. `World.W` also carries the flow's
 queue of marked slots (`World.mark`; marks are on slots, so a mark on a
 column that left the window is spent harmlessly on the one at its slot).
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the

@@ -260,82 +260,45 @@ def pop(+x: U32) -> U32:
   +c = ((b + (b / 16 : U32)) .&. 252645135 : U32)
   ((c * 16843009) / 16777216 : U32)
 
+# A column's fourteen words in the ring's order are the record's fields
+# in order, so a read or a write walks them by turning the record: the
+# first field falls off and the new word comes in last.
+def first(c: Col) -> U32:
+  Col{m, a, b, cc, d, water, lv} = c
+  m
+
+def turned(c: Col, +x: U32) -> Col:
+  Col{m, a, b, cc, d, water, lv} = c
+  Levels{l0, l1, l2, l3, l4, l5, l6, l7} = lv
+  Col{a, b, cc, d, water, l0, Levels{l1, l2, l3, l4, l5, l6, l7, x}}
+
+def get_go(n: Nat, +slot: U32, +i: U32, c: Col, r: Array<U32> & U32) -> Array<U32> & Col:
+  match n:
+    case 0n:
+      (ring, x) = r
+      (ring, turned(c, x))
+    case 1n+k:
+      (ring, +x) = r
+      get_go(k, slot, (i + 1 : U32), turned(c, x), Array.get(U32, ring, (slot + i + 1 : U32)))
+
+def get_col(ring: Array<U32>, +slot: U32) -> Array<U32> & Col:
+  get_go(13n, slot, 0, col6(0, 0, 0, 0, 0, 0), Array.get(U32, ring, slot))
+
 # the partial word replaced, and the window's count of partial cells kept
 def put_partial(+np: U32, +slot: U32, +mask: U32, r: Array<U32> & U32) -> Array<U32> & U32:
   (ring, +old) = r
   (Array.set(U32, ring, (slot + 15 : U32), mask), (np - pop(old) + pop(mask) : U32))
 
-def put_levels(ring: Array<U32>, +slot: U32, +lv: Levels, +np: U32) -> Array<U32> & U32:
-  Levels{+l0, +l1, +l2, +l3, +l4, +l5, +l6, +l7} = lv
-  put_partial(np, slot, partial_mask(lv), Array.get(U32,
-    Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring,
-      (slot + 6 : U32), l0), (slot + 7 : U32), l1), (slot + 8 : U32), l2), (slot + 9 : U32), l3),
-      (slot + 10 : U32), l4), (slot + 11 : U32), l5), (slot + 12 : U32), l6), (slot + 13 : U32), l7), (slot + 15 : U32)))
+def put_go(n: Nat, ring: Array<U32>, +slot: U32, +i: U32, +c: Col) -> Array<U32>:
+  match n:
+    case 0n:
+      ring
+    case 1n+k:
+      put_go(k, Array.set(U32, ring, (slot + i : U32), first(c)), slot, (i + 1 : U32), turned(c, 0))
 
 # a column written at a slot: the ring, and the count of partial cells
-def put_col(ring: Array<U32>, +slot: U32, c: Col, +np: U32) -> Array<U32> & U32:
-  Col{+m, +a, +b, +cc, +d, +water, lv} = c
-  put_levels(Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring, slot, m),
-    (slot + 1 : U32), a), (slot + 2 : U32), b), (slot + 3 : U32), cc), (slot + 4 : U32), d), (slot + 5 : U32), water), slot, lv, np)
-
-def get13(m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, l3: U32, l4: U32, l5: U32, l6: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, l7) = r
-  (ring, Col{m, a, b, c, d, water, Levels{l0, l1, l2, l3, l4, l5, l6, l7}})
-
-def get12(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, l3: U32, l4: U32, l5: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, l6) = r
-  get13(m, a, b, c, d, water, l0, l1, l2, l3, l4, l5, l6, Array.get(U32, ring, (slot + 13 : U32)))
-
-def get11(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, l3: U32, l4: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, l5) = r
-  get12(slot, m, a, b, c, d, water, l0, l1, l2, l3, l4, l5, Array.get(U32, ring, (slot + 12 : U32)))
-
-def get10(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, l3: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, l4) = r
-  get11(slot, m, a, b, c, d, water, l0, l1, l2, l3, l4, Array.get(U32, ring, (slot + 11 : U32)))
-
-def get9(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, l2: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, l3) = r
-  get10(slot, m, a, b, c, d, water, l0, l1, l2, l3, Array.get(U32, ring, (slot + 10 : U32)))
-
-def get8(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, l1: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, l2) = r
-  get9(slot, m, a, b, c, d, water, l0, l1, l2, Array.get(U32, ring, (slot + 9 : U32)))
-
-def get7(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, l0: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, l1) = r
-  get8(slot, m, a, b, c, d, water, l0, l1, Array.get(U32, ring, (slot + 8 : U32)))
-
-def get6(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, l0) = r
-  get7(slot, m, a, b, c, d, water, l0, Array.get(U32, ring, (slot + 7 : U32)))
-
-def get5(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, water) = r
-  get6(slot, m, a, b, c, d, water, Array.get(U32, ring, (slot + 6 : U32)))
-
-def get4(+slot: U32, m: U32, a: U32, b: U32, c: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, d) = r
-  get5(slot, m, a, b, c, d, Array.get(U32, ring, (slot + 5 : U32)))
-
-def get3(+slot: U32, +m: U32, +a: U32, +b: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, c) = r
-  get4(slot, m, a, b, c, Array.get(U32, ring, (slot + 4 : U32)))
-
-def get2(+slot: U32, +m: U32, +a: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, b) = r
-  get3(slot, m, a, b, Array.get(U32, ring, (slot + 3 : U32)))
-
-def get1(+slot: U32, +m: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, a) = r
-  get2(slot, m, a, Array.get(U32, ring, (slot + 2 : U32)))
-
-def get0(+slot: U32, r: Array<U32> & U32) -> Array<U32> & Col:
-  (ring, m) = r
-  get1(slot, m, Array.get(U32, ring, (slot + 1 : U32)))
-
-def get_col(ring: Array<U32>, +slot: U32) -> Array<U32> & Col:
-  get0(slot, Array.get(U32, ring, slot))
+def put_col(ring: Array<U32>, +slot: U32, +c: Col, +np: U32) -> Array<U32> & U32:
+  put_partial(np, slot, partial_mask(levels(c)), Array.get(U32, put_go(14n, ring, slot, 0, c), (slot + 15 : U32)))
 
 type World is Type:
   W{ring: Array<U32>, edits: Map<&2, Col>, ox: U32, oz: U32, queue: List<&2, U32>, partials: U32, made: U32, gone: U32}
@@ -348,8 +311,6 @@ def put_fin(m: Map<&2, Col>, ox: U32, oz: U32, q: List<&2, U32>, made: U32, gone
 def key(+x: U32, +z: U32) -> String:
   U32.show(x) ++ "," ++ U32.show(z)
 
-# a column comes back from the edits if the player ever touched it, else
-# from the terrain
 # ---------- the flow's marks ----------
 
 # A mark says the flow steps these cells of the column next tick; the
@@ -416,73 +377,47 @@ def load(w: World, +x: U32, +z: U32) -> World:
   W{ring, m, ox, oz, q, np, made, gone} = w
   load_go(ring, ox, oz, x, z, q, np, made, gone, Map.has(&2, Col, m, key(x, z)))
 
-# n columns from (x, z), along z or along x; a whole window
-def load_z(n: Nat, w: World, +x: U32, +z: U32) -> World:
+# n columns from (x, z) a step of (dx, dz) apart: a row, and a whole window
+def load_line(n: Nat, w: World, +x: U32, +z: U32, +dx: U32, +dz: U32) -> World:
   match n:
     case 0n:
       w
     case 1n+k:
-      load_z(k, load(w, x, z), x, (z + 1 : U32))
-
-def load_x(n: Nat, w: World, +x: U32, +z: U32) -> World:
-  match n:
-    case 0n:
-      w
-    case 1n+k:
-      load_x(k, load(w, x, z), (x + 1 : U32), z)
+      load_line(k, load(w, x, z), (x + dx : U32), (z + dz : U32), dx, dz)
 
 def load_all(n: Nat, w: World, +x: U32, +z: U32) -> World:
   match n:
     case 0n:
       w
     case 1n+k:
-      load_all(k, load_z(128n, w, x, z), (x + 1 : U32), z)
+      load_all(k, load_line(128n, w, x, z, 0, 1), (x + 1 : U32), z)
 
-# the corner moves one column and the row that came into view loads
-def shift_xp(w: World) -> World:
+# the corner moves one column along an axis, up (pos) or down, and the
+# row that came into view loads
+def shift_x(+pos: Bool, w: World) -> World:
   W{ring, m, +ox, +oz, q, np, made, gone} = w
-  load_z(128n, W{ring, m, (ox + 1 : U32), oz, q, np, made, gone}, (ox + 128 : U32), oz)
+  +nox = Bool.pick(U32, pos, (ox + 1 : U32), (ox - 1 : U32))
+  load_line(128n, W{ring, m, nox, oz, q, np, made, gone}, Bool.pick(U32, pos, (ox + 128 : U32), nox), oz, 0, 1)
 
-def shift_xn(w: World) -> World:
+def shift_z(+pos: Bool, w: World) -> World:
   W{ring, m, +ox, +oz, q, np, made, gone} = w
-  load_z(128n, W{ring, m, (ox - 1 : U32), oz, q, np, made, gone}, (ox - 1 : U32), oz)
+  +noz = Bool.pick(U32, pos, (oz + 1 : U32), (oz - 1 : U32))
+  load_line(128n, W{ring, m, ox, noz, q, np, made, gone}, ox, Bool.pick(U32, pos, (oz + 128 : U32), noz), 1, 0)
 
-def shift_zp(w: World) -> World:
-  W{ring, m, +ox, +oz, q, np, made, gone} = w
-  load_x(128n, W{ring, m, ox, (oz + 1 : U32), q, np, made, gone}, ox, (oz + 128 : U32))
-
-def shift_zn(w: World) -> World:
-  W{ring, m, +ox, +oz, q, np, made, gone} = w
-  load_x(128n, W{ring, m, ox, (oz - 1 : U32), q, np, made, gone}, ox, (oz - 1 : U32))
-
-def shift_x(pos: Bool, w: World) -> World:
-  match pos:
+def shift(along_x: Bool, pos: Bool, w: World) -> World:
+  match along_x:
     case True{}:
-      shift_xp(w)
+      shift_x(pos, w)
     case False{}:
-      shift_xn(w)
-
-def shift_z(pos: Bool, w: World) -> World:
-  match pos:
-    case True{}:
-      shift_zp(w)
-    case False{}:
-      shift_zn(w)
+      shift_z(pos, w)
 
 # the player keeps local column 64: n columns past it, n shifts
-def follow_x(n: Nat, +pos: Bool, w: World) -> World:
+def follow(n: Nat, +along_x: Bool, +pos: Bool, w: World) -> World:
   match n:
     case 0n:
       w
     case 1n+k:
-      follow_x(k, pos, shift_x(pos, w))
-
-def follow_z(n: Nat, +pos: Bool, w: World) -> World:
-  match n:
-    case 0n:
-      w
-    case 1n+k:
-      follow_z(k, pos, shift_z(pos, w))
+      follow(k, along_x, pos, shift(along_x, pos, w))
 
 def setbit(+b: U32, +ybit: U32, set: Bool) -> U32:
   Bool.pick(U32, set, (b .|. ybit : U32), (b .&. U32.not(ybit) : U32))

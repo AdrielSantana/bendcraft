@@ -337,7 +337,7 @@ def main() -> IO(Unit):
     expect(same(query(water(basin(60, 60, 5, 5n), 62, 10, 62), Partials{} <> Nil{}), 0 <> Nil{})
       && same(query(ticks(1n, 0, Flow.budget(), pool()), Partials{} <> Nil{}), 5 <> Nil{})
       && same(query(ticks(40n, 0, Flow.budget(), pool()), Partials{} <> Nil{}), 25 <> Nil{})
-      && same(query(World.shift_xp(ticks(40n, 0, Flow.budget(), pool())), Partials{} <> Nil{}), 25 <> Nil{})
+      && same(query(World.shift_x(True{}, ticks(40n, 0, Flow.budget(), pool())), Partials{} <> Nil{}), 25 <> Nil{})
       && same(query(World.load(ticks(40n, 0, Flow.budget(), pool()), 62, 62), Partials{} <> Nil{}), 25 <> Nil{}),
       "the world counts its partial cells: none placed, five after the first spread, all twenty-five settled, the same after a shift and a reload")
     expect(U32.is_eq(World.partial_mask(World.Levels{3, 0, 0, 0, 0, 0, 0, 0}), 1) && U32.is_eq(World.partial_mask(World.Levels{255, 0, 0, 0, 0, 0, 0, 0}), 0)

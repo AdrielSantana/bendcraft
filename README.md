@@ -126,9 +126,8 @@ level. The tint follows daylight.
 
 The amounts are the first step of the water's physics (the design is in
 ROADMAP.md): a cell holds 0 to 255 units, `World.pour` sets one (the
-mask's bit follows, a solid cell holds none), a save writes the eight
-amount words after its six and loads a six-word column full wherever it
-is wet, a ten-word one (a day of nibbles, 0..8) widened, an eighth to 32.
+mask's bit follows, a solid cell holds none), and a save writes the eight
+amount words after its six.
 A cell holding less than 255 units is water only under its plane at
 y + amount / 255, and the ray's DDA clips its wet segment to that plane
 (`Render.dda`, `Column.lo` and `hi`): a descending ray's entry moves down
@@ -323,15 +322,12 @@ render fork. Labels belong to HUD flag 16 and its existing profile row.
 
 **The world is saved.** `bendcraft.save` in the working directory holds
 the corner, position, look, chosen block, day clock and eight counts on its
-first line, then one line per edited column: its key, five solid words and
-the water mask. The game
-loads it at start, if it is there, and writes it on `P` and on quit; the
-untouched columns are never stored, they come back from the noise. On the
-page the file lives in the browser's memory, so it lasts until the tab is
-closed. Old headers without the optional clock still load at morning;
-headers without counts start with an empty inventory. Column lines append the water mask. Old five-word columns restore
-natural water above the original terrain, excluding their saved solids;
-old excavations stay dry, and an explicit zero water word stays zero. Both `P` and `Esc` save after that tick's edits.
+first line, then one line per edited column: its key and its fourteen
+words. The game loads it at start, if it is there, and writes it on `P`
+and on quit; the untouched columns are never stored, they come back from
+the noise; a line that does not fit the format is skipped. On the page the
+file lives in the browser's memory, so it lasts until the tab is closed.
+Both `P` and `Esc` save after that tick's edits.
 
 **The player** is 1.8 blocks tall with the eye at 1.6. Walking tests the
 feet and the head per axis and stops at walls; gravity pulls, landing snaps
