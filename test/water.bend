@@ -1,4 +1,5 @@
 import Base
+import ./lib.bend as Lib
 import ../src/world.bend as World
 import ../src/water.bend as Water
 import ../src/render.bend as Render
@@ -10,11 +11,6 @@ import ../src/sky.bend as Sky
 
 def near(a: F32, b: F32, epsilon: F32) -> Bool:
   (F32.abs((a - b : F32)) <= epsilon : F32)
-
-def expect(ok: Bool, name: String) -> IO(Unit):
-  match ok:
-    case True{}: IO.print("ok " ++ name)
-    case False{}: IO.die(Unit, 1, "failed " ++ name)
 
 def empty() -> World.World:
   World.W{[0 : U32^18n], Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0, 0}
@@ -65,10 +61,10 @@ def axes(n: Nat, +i: U32) -> IO(Unit):
     case 0n: IO.pure(Unit, Unit{})
     case 1n+k:
       do IO<Unit>:
-        expect(probe(~True{}, i, True{}, False{}, False{}) && probe(~True{}, i, False{}, False{}, False{}), "wet DDA both signs, axis " ++ U32.show(i))
-        expect(probe(~True{}, i, True{}, True{}, False{}) && probe(~True{}, i, False{}, True{}, False{}), "submerged DDA, axis " ++ U32.show(i))
-        expect(probe(~True{}, i, True{}, False{}, True{}) && probe(~True{}, i, False{}, False{}, True{}), "water behind solid is hidden, axis " ++ U32.show(i))
-        expect(probe(~False{}, i, True{}, False{}, False{}) && probe(~False{}, i, False{}, False{}, False{}), "water flag removes wet intervals, axis " ++ U32.show(i))
+        Lib.expect(probe(~True{}, i, True{}, False{}, False{}) && probe(~True{}, i, False{}, False{}, False{}), "wet DDA both signs, axis " ++ U32.show(i))
+        Lib.expect(probe(~True{}, i, True{}, True{}, False{}) && probe(~True{}, i, False{}, True{}, False{}), "submerged DDA, axis " ++ U32.show(i))
+        Lib.expect(probe(~True{}, i, True{}, False{}, True{}) && probe(~True{}, i, False{}, False{}, True{}), "water behind solid is hidden, axis " ++ U32.show(i))
+        Lib.expect(probe(~False{}, i, True{}, False{}, False{}) && probe(~False{}, i, False{}, False{}, False{}), "water flag removes wet intervals, axis " ++ U32.show(i))
         axes(k, (i + 1 : U32))
 
 def solid(r: World.World & Bool) -> Bool:
@@ -252,106 +248,106 @@ def far_surface_w(w: World.World) -> U32:
 def main() -> IO(Unit):
   do IO<Unit>:
     axes(3n, 0)
-    expect(F32.is_eq(Water.fresnel(True{}, 1.0), 0.02) && F32.is_eq(Water.fresnel(True{}, 0.0), 1.0)
+    Lib.expect(F32.is_eq(Water.fresnel(True{}, 1.0), 0.02) && F32.is_eq(Water.fresnel(True{}, 0.0), 1.0)
       && (Water.fresnel(True{}, 0.5) > 0.142 : F32) && (Water.fresnel(True{}, 0.5) < 0.143 : F32)
       && F32.is_eq(Water.fresnel(False{}, 0.0), 0.02), "Fresnel grows toward grazing angles; off keeps normal reflectance")
-    expect(near(Water.opacity(True{}, 0.0), 0.12, 0.0001) && near(Water.opacity(True{}, 1.0), 0.5171, 0.001)
+    Lib.expect(near(Water.opacity(True{}, 0.0), 0.12, 0.0001) && near(Water.opacity(True{}, 1.0), 0.5171, 0.001)
       && (Water.opacity(True{}, 4.0) > 0.84 : F32) && (Water.opacity(True{}, 60.0) < 1.0 : F32)
       && near(Water.opacity(False{}, 4.0), 0.54, 0.0001) && (Water.opacity(False{}, 4.0) < Water.opacity(True{}, 4.0) : F32), "water is dense seen from the air and clear for an eye under it")
-    expect(U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 0.0), Water.colour(0.8))
+    Lib.expect(U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 0.0), Water.colour(0.8))
       && U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 6.0), Water.deep(0.8))
       && U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 20.0), Water.deep(0.8))
       && (Water.deep(0.8) < Water.colour(0.8) : U32) && (Water.deep((0.0 - 0.5 : F32)) < Water.colour((0.0 - 0.5 : F32)) : U32),
       "the water's colour darkens with the depth under the surface, by day and by night")
-    expect(near(Water.lit_path(3.0, (0.0 - 1.0 : F32)), 6.0, 0.0001) && near(Water.lit_path(3.0, 0.0), 3.0, 0.0001)
+    Lib.expect(near(Water.lit_path(3.0, (0.0 - 1.0 : F32)), 6.0, 0.0001) && near(Water.lit_path(3.0, 0.0), 3.0, 0.0001)
       && near(Water.lit_path(3.0, 0.5), 3.0, 0.0001), "the bed's light went down before it came up the ray")
-    expect((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) >= 0.5 : F32)
+    Lib.expect((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) >= 0.5 : F32)
       && (Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) <= 2.1 : F32)
       && Bool.not(near(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), Water.caustic(4000000, 61.1, 66.2, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), 0.001)),
       "the caustic brightens and darkens the bed within bounds, and differs from point to point")
-    expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 6.0, (0.0 - 1.0 : F32), 0.9, 1.0), 1.0)
+    Lib.expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 6.0, (0.0 - 1.0 : F32), 0.9, 1.0), 1.0)
       && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), (0.0 - 0.5 : F32), 1.0), 1.0)
       && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, 0.1, 0.9, 1.0), 1.0),
       "the caustic is gone six blocks down, at night, and looking along or up through the surface")
-    expect(near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
+    Lib.expect(near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
         Water.caustic(Water.frame_base((4000000 + 128 : U32), 700), 59.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0), 0.0001)
       && near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
         Water.caustic(Water.frame_base((4000000 + 1 : U32), 700), 60.4, 65.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0), 0.0001),
       "a ring shift along either axis cannot drag the caustic")
-    expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.0), 1.0)
+    Lib.expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.0), 1.0)
       && near((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.45) - 1.0 : F32),
         ((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9) - 1.0) / 2.0 : F32), 0.0001)
       && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9), Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 3.0))
       && F32.is_eq(Render.thickness(2.0, 1.5, (0.0 - 0.5 : F32)), 0.75) && F32.is_eq(Render.thickness(0.0, 0.2, (0.0 - 0.5 : F32)), 9.0),
       "the caustic grows with the water over the bed: none under no water, half under half a block, whole from nine tenths; a submerged eye's bed counts as deep")
-    expect(partial_ok(True{}, 102, 64.5, 14.5, 64.5, 1, False{}, 4.1, 0.4, True{})
+    Lib.expect(partial_ok(True{}, 102, 64.5, 14.5, 64.5, 1, False{}, 4.1, 0.4, True{})
       && partial_ok(True{}, 255, 64.5, 14.5, 64.5, 1, False{}, 3.5, 1.0, True{})
       && partial_ok(True{}, 255, 64.5, 10.25, 62.5, 2, True{}, 1.5, 1.0, False{})
       && partial_ok(True{}, 102, 64.5, 10.25, 62.5, 2, True{}, 1.5, 1.0, False{})
       && partial_ok(True{}, 102, 64.5, 10.75, 62.5, 2, True{}, 0.0, 0.0, False{}),
       "the DDA's wet segment: a full cell's is what it was; a cell four tenths full starts down at its plane from above, is whole from the side under the plane, and is none over it")
-    expect(partial_ok(False{}, 102, 63.5, 10.95, 64.5, 0, True{}, 0.0, 0.0, False{})
+    Lib.expect(partial_ok(False{}, 102, 63.5, 10.95, 64.5, 0, True{}, 0.0, 0.0, False{})
       && partial_ok(False{}, 255, 63.5, 10.95, 64.5, 0, True{}, 0.5, 1.0, False{})
       && partial_ok(False{}, 204, 63.5, 10.95, 64.5, 0, True{}, 0.6, 0.9, True{}),
       "a ray sloping down over a cell four tenths full leaves it before its plane and stays dry; one eight tenths full it meets at its plane, a top entry")
-    expect(ray_matches(1.5, 1.0, True{}, step_trace(102, 153))
+    Lib.expect(ray_matches(1.5, 1.0, True{}, step_trace(102, 153))
       && ray_matches(0.5, 1.0, False{}, step_trace(153, 102))
       && ray_matches(1.5, 1.0, True{}, step_trace(102, 255)),
       "a ray over a cell's plane that enters its higher neighbour by the step between them enters the surface, a top entry; one that enters water from the air by a side is at a wall")
-    expect(U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 5), 64, 10, 64), 5)
+    Lib.expect(U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 5), 64, 10, 64), 5)
       && U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 300), 64, 10, 64), 255)
       && U32.is_ne(voxel_of(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 0), 64, 10, 64), 8)
       && U32.is_eq(voxel_of(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 3), 64, 10, 64), 8)
       && U32.is_eq(amount(World.pour(World.edit(empty(), 64, 64, 10, True{}, 2), 64, 10, 64, 5), 64, 10, 64), 0),
       "an amount poured reads back, is capped at 255, sets the mask's bit exactly when over zero, and a solid cell holds none")
-    expect(U32.is_ne(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 128)), surface_ray_w(Render.looks(), False{}, surface_pool()))
+    Lib.expect(U32.is_ne(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 128)), surface_ray_w(Render.looks(), False{}, surface_pool()))
       && U32.is_eq(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 255)), surface_ray_w(Render.looks(), False{}, surface_pool())),
       "a half-full top cell renders another surface; a full one the same")
-    expect(F32.is_eq(Water.fresnel(True{}, (0.0 - 1.0 : F32)), 1.0)
+    Lib.expect(F32.is_eq(Water.fresnel(True{}, (0.0 - 1.0 : F32)), 1.0)
       && F32.is_eq(Water.fresnel(True{}, 2.0), 0.02), "Fresnel clamps its angular input")
-    expect(U32.is_ne(surface_ray(31457280, False{}, False{}), surface_ray(14680064, False{}, False{})), "reflection colours a real top entry at an edited water height")
-    expect(U32.is_eq(surface_ray(31457280, True{}, False{}), surface_ray(14680064, True{}, False{}))
+    Lib.expect(U32.is_ne(surface_ray(31457280, False{}, False{}), surface_ray(14680064, False{}, False{})), "reflection colours a real top entry at an edited water height")
+    Lib.expect(U32.is_eq(surface_ray(31457280, True{}, False{}), surface_ray(14680064, True{}, False{}))
       && U32.is_eq(surface_ray(31457280, False{}, True{}), surface_ray(14680064, False{}, True{})), "reflection leaves submerged eyes and foreground banks unchanged")
-    expect(U32.is_eq(emerged_ray(31457288, 0.8, 40), emerged_ray(14680072, 0.8, 40)), "upward water exit does not acquire a sky mirror")
-    expect(U32.is_eq(surface_ray(Render.looks(), True{}, False{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), True{}, False{}))
+    Lib.expect(U32.is_eq(emerged_ray(31457288, 0.8, 40), emerged_ray(14680072, 0.8, 40)), "upward water exit does not acquire a sky mirror")
+    Lib.expect(U32.is_eq(surface_ray(Render.looks(), True{}, False{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), True{}, False{}))
       && U32.is_eq(surface_ray(Render.looks(), False{}, True{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), False{}, True{})),
       "ripples preserve submerged eyes and foreground banks")
-    expect(U32.is_eq(far_surface_w(pool(88n, empty(), 40, 128)), Util.rgb(100, 140, 180)), "air fog hides a distant reflecting water top")
-    expect(no_silhouette(6291464, 0.8) && no_silhouette(6291464, 0.0)
+    Lib.expect(U32.is_eq(far_surface_w(pool(88n, empty(), 40, 128)), Util.rgb(100, 140, 180)), "air fog hides a distant reflecting water top")
+    Lib.expect(no_silhouette(6291464, 0.8) && no_silhouette(6291464, 0.0)
       && no_silhouette(6291464, (0.0 - 1.0 : F32)), "emerged ray hides distant silhouettes in daytime, twilight and night but keeps a nearby wall")
-    expect(no_silhouette(2097160, 0.8) && no_silhouette(2153775112, 0.8), "background agrees with sky with water fog off and height fog on")
-    expect(U32.is_eq(fog_ray(2097160, 2, 40), fog_ray(2097160, 2, 100))
+    Lib.expect(no_silhouette(2097160, 0.8) && no_silhouette(2153775112, 0.8), "background agrees with sky with water fog off and height fog on")
+    Lib.expect(U32.is_eq(fog_ray(2097160, 2, 40), fog_ray(2097160, 2, 100))
       && U32.is_ne(fog_ray(2097160, 2, 40), Util.rgb(100, 140, 180)), "distance fog through a wet side exit reaches the same tinted sky")
-    expect(U32.is_eq(fog_ray_w(6291464, World.edit(pool(88n, empty(), 40, 128), 56, 64, 10, True{}, 2)),
+    Lib.expect(U32.is_eq(fog_ray_w(6291464, World.edit(pool(88n, empty(), 40, 128), 56, 64, 10, True{}, 2)),
       Util.rgb(100, 140, 180)), "distant water stays hidden by foreground air fog")
-    expect(U32.is_eq(fog_ray(6291464, 128, 40), Water.ink_at(Water.colour(0.8), 0.8, 1.5))
+    Lib.expect(U32.is_eq(fog_ray(6291464, 128, 40), Water.ink_at(Water.colour(0.8), 0.8, 1.5))
       && U32.is_eq(fog_ray(6291464, 128, 100), Water.ink_at(Water.colour(0.8), 0.8, 1.5))
       && (fog_ray(6291464, 128, 40) < Water.colour(0.8) : U32), "underwater wall and ray limit converge to the same fog colour, the water's at the eye's depth")
-    expect(U32.is_ne(fog_ray(2097160, 128, 40), Water.ink_at(Water.colour(0.8), 0.8, 1.5)), "water fog has its own flag")
-    expect(F32.is_eq(Water.light(0.0), 1.0) && near(Water.light(3.0), 0.575, 0.0001) && near(Water.light(6.0), 0.15, 0.0001)
+    Lib.expect(U32.is_ne(fog_ray(2097160, 128, 40), Water.ink_at(Water.colour(0.8), 0.8, 1.5)), "water fog has its own flag")
+    Lib.expect(F32.is_eq(Water.light(0.0), 1.0) && near(Water.light(3.0), 0.575, 0.0001) && near(Water.light(6.0), 0.15, 0.0001)
       && near(Water.light(30.0), 0.15, 0.0001) && F32.is_eq(Water.drop(12.0), 0.0) && F32.is_eq(Water.drop(14.0), 0.0)
       && F32.is_eq(Water.drop(9.5), 2.5), "the light left under the surface: all of it at the level, a sixth six blocks down")
-    expect(U32.is_eq(fog_ray(4194312, 128, 40), Util.rgb(100, 140, 180)), "water off keeps ordinary fog")
-    expect(U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 0.0), 123)
+    Lib.expect(U32.is_eq(fog_ray(4194312, 128, 40), Util.rgb(100, 140, 180)), "water off keeps ordinary fog")
+    Lib.expect(U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 0.0), 123)
       && U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 24.0), 456)
       && U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 80.0), 456)
       && U32.is_eq(Water.fog(False{}, 123, 456, 456, 0.0, 80.0), 123), "wet fog bounds and disable")
-    expect(picked(Player.waim(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8),
+    Lib.expect(picked(Player.waim(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8),
       64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "picking traverses water and finds the bottom")
-    expect(Bool.not(shadow(Render.shadow_fin(Render.run_glance(24n, ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
+    Lib.expect(Bool.not(shadow(Render.shadow_fin(Render.run_glance(24n, ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
       0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)))), "water casts no solid shadow")
-    expect(U32.is_eq(material(World.voxel(World.shift_x(False{}, World.shift_x(True{}, World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
-    expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
-    expect(U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 10, 64)), 8), "water material reads back")
-    expect(placed(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 6,
+    Lib.expect(U32.is_eq(material(World.voxel(World.shift_x(False{}, World.shift_x(True{}, World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
+    Lib.expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
+    Lib.expect(U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 10, 64)), 8), "water material reads back")
+    Lib.expect(placed(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 6,
       (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n]))), "placing spends one brick and shoves the water up onto it")
-    expect(sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (empty(), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
+    Lib.expect(sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (empty(), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
       && sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
       && not_sourced(Player.edit_world(True{}, (64 * 4096 + 10 * 128 + 64 : U32), True{}, 9, (World.edit(empty(), 64, 64, 10, True{}, 2), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n])))
       && U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 9), 64, 10, 64)), 8),
       "the spring places a source into air or water, never into a solid, spends nothing, and the source reads as water")
-    expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
-    expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 2048), "save preserves displacement, the water above the brick")
-    expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
-    expect(same_levels(World.levels(restored(Save.text(fixture(World.pour(surface_pool(), 64, 10, 64, 5))))), World.Levels{0, 0, 327680, 0, 0, 0, 0, 0}),
+    Lib.expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
+    Lib.expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 2048), "save preserves displacement, the water above the brick")
+    Lib.expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
+    Lib.expect(same_levels(World.levels(restored(Save.text(fixture(World.pour(surface_pool(), 64, 10, 64, 5))))), World.Levels{0, 0, 327680, 0, 0, 0, 0, 0}),
       "a poured amount survives a save and a load")

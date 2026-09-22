@@ -1,4 +1,5 @@
 import Base
+import ./lib.bend as Lib
 import ../src/world.bend as World
 import ../src/player.bend as Player
 import ../src/save.bend as Save
@@ -6,16 +7,6 @@ import ../src/save.bend as Save
 # Save and load without a window: place a brick, walk a bit, save to a
 # file under build/, load it back, and print what came back: the position
 # and the brick.
-
-def ticks(n: Nat, g: Player.Game) -> Player.Game:
-  match n:
-    case 0n:
-      g
-    case 1n+m:
-      ticks(m, Player.step(g))
-
-def one(e: Event) -> List<Event>:
-  Con{e, Nil{}}
 
 def spot_fin(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, w: World.World) -> Player.Game & String:
   World.W{ring, m, +ox, +oz, q, np, made, gone} = w
@@ -41,22 +32,16 @@ def place(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
   Player.G{World.edit(w, 60, 60, 25, True{}, 6), px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}
 
-def say(tag: String, r: Player.Game & String) -> IO(Player.Game):
-  (g, s) = r
-  do IO<Player.Game>:
-    IO.print(tag ++ s)
-    IO.pure(Player.Game, g)
-
 def main() -> IO(Unit):
   do IO<Unit>:
-    g0 : Player.Game <- say("start   ", spot(ticks(200n, Player.feed(one(Key{55, True{}}), Player.start()))))
-    g1 : Player.Game <- say("placed  ", brick(place(g0), 60))
-    g2a : Player.Game <- say("walked  ", spot(ticks(40n, Player.feed(one(Key{119, True{}}), g1))))
-    g2 : Player.Game <- say("walked  ", brick(g2a, 55))
+    g0 : Player.Game <- Lib.say("start   ", spot(Lib.ticks(200n, Player.feed(Lib.one(Key{55, True{}}), Player.start()))))
+    g1 : Player.Game <- Lib.say("placed  ", brick(place(g0), 60))
+    g2a : Player.Game <- Lib.say("walked  ", spot(Lib.ticks(40n, Player.feed(Lib.one(Key{119, True{}}), g1))))
+    g2 : Player.Game <- Lib.say("walked  ", brick(g2a, 55))
     g3 : Player.Game <- Save.save_to("build/test.save", g2)
     g4 : Player.Game <- Save.load_from("build/test.save", Player.res512())
-    g5 : Player.Game <- say("loaded  ", spot(g4))
-    g6 : Player.Game <- say("loaded  ", brick(g5, 55))
+    g5 : Player.Game <- Lib.say("loaded  ", spot(g4))
+    g6 : Player.Game <- Lib.say("loaded  ", brick(g5, 55))
     g7 : Player.Game <- Save.load_from("build/no_such_file.save", Player.res512())
-    g8 : Player.Game <- say("missing ", spot(g7))
+    g8 : Player.Game <- Lib.say("missing ", spot(g7))
     IO.pure(Unit, Unit{})

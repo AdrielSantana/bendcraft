@@ -1,4 +1,5 @@
 import Base
+import ./lib.bend as Lib
 import ../src/day.bend as Day
 import ../src/inventory.bend as Inventory
 import ../src/sky.bend as Sky
@@ -6,13 +7,6 @@ import ../src/render.bend as Render
 import ../src/world.bend as World
 import ../src/player.bend as Player
 import ../src/save.bend as Save
-
-def expect(ok: Bool, name: String) -> IO(Unit):
-  match ok:
-    case True{}:
-      IO.print("ok " ++ name)
-    case False{}:
-      IO.die(Unit, 1, "failed " ++ name)
 
 def blocked(r: Array<U32> & Bool) -> Bool:
   (w, got) = r
@@ -38,25 +32,25 @@ def fixture(t: U32) -> Player.Game:
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    expect(U32.is_ne(Sky.gradient(True{}, 0.0, 0.8), Sky.gradient(True{}, 1.0, 0.8)), "sky has a vertical gradient")
-    expect((Sky.gradient(True{}, 0.5, (0.0 - 1.0 : F32)) < Sky.gradient(True{}, 0.5, 1.0) : U32), "night sky is darker")
-    expect(F32.is_eq(Sky.fog(0, 40.0, 5.0, 5.0), 0.0), "fog flags disable both terms")
-    expect(F32.is_eq(Sky.fog(8, 34.0, 30.0, 30.0), 1.0), "distant terrain reaches sky colour")
-    expect((Sky.fog(2147483648, 20.0, 5.0, 5.0) > Sky.fog(2147483648, 20.0, 30.0, 30.0) : F32), "mist is denser near the ground")
-    expect(U32.is_ne(Sky.sun(True{}, 0, 1.0, 0.8, 0.8), 0), "sun disc")
-    expect(U32.is_eq(Sky.sun(False{}, 123, 1.0, 0.8, 0.8), 123), "sun flag")
-    expect(U32.is_ne(Sky.moon(True{}, 0, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 0), "moon disc")
-    expect(U32.is_eq(Sky.moon(False{}, 123, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 123), "moon flag")
-    expect(probe(69, 10, 64, 1.0, 0.0, 0.0), "shadow +x")
-    expect(probe(59, 10, 64, (0.0 - 1.0 : F32), 0.0, 0.0), "shadow -x")
-    expect(probe(64, 15, 64, 0.0, 1.0, 0.0), "shadow +y")
-    expect(probe(64, 5, 64, 0.0, (0.0 - 1.0 : F32), 0.0), "shadow -y")
-    expect(probe(64, 10, 69, 0.0, 0.0, 1.0), "shadow +z")
-    expect(probe(64, 10, 59, 0.0, 0.0, (0.0 - 1.0 : F32)), "shadow -z")
-    expect(Bool.not(probe(69, 10, 64, (0.0 - 1.0 : F32), 0.0, 0.0)), "block behind ray")
-    expect(probe(59, 18, 60, (0.0 - 0.48 : F32), 0.8, (0.0 - 0.36 : F32)), "afternoon shadow")
-    expect(U32.is_eq(clock(Player.advance(fixture(1048575), 2)), 1), "clock wraps")
-    expect(U32.is_eq(clock(Player.advance(Player.advance(fixture(1234), 16), 17)),
+    Lib.expect(U32.is_ne(Sky.gradient(True{}, 0.0, 0.8), Sky.gradient(True{}, 1.0, 0.8)), "sky has a vertical gradient")
+    Lib.expect((Sky.gradient(True{}, 0.5, (0.0 - 1.0 : F32)) < Sky.gradient(True{}, 0.5, 1.0) : U32), "night sky is darker")
+    Lib.expect(F32.is_eq(Sky.fog(0, 40.0, 5.0, 5.0), 0.0), "fog flags disable both terms")
+    Lib.expect(F32.is_eq(Sky.fog(8, 34.0, 30.0, 30.0), 1.0), "distant terrain reaches sky colour")
+    Lib.expect((Sky.fog(2147483648, 20.0, 5.0, 5.0) > Sky.fog(2147483648, 20.0, 30.0, 30.0) : F32), "mist is denser near the ground")
+    Lib.expect(U32.is_ne(Sky.sun(True{}, 0, 1.0, 0.8, 0.8), 0), "sun disc")
+    Lib.expect(U32.is_eq(Sky.sun(False{}, 123, 1.0, 0.8, 0.8), 123), "sun flag")
+    Lib.expect(U32.is_ne(Sky.moon(True{}, 0, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 0), "moon disc")
+    Lib.expect(U32.is_eq(Sky.moon(False{}, 123, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 123), "moon flag")
+    Lib.expect(probe(69, 10, 64, 1.0, 0.0, 0.0), "shadow +x")
+    Lib.expect(probe(59, 10, 64, (0.0 - 1.0 : F32), 0.0, 0.0), "shadow -x")
+    Lib.expect(probe(64, 15, 64, 0.0, 1.0, 0.0), "shadow +y")
+    Lib.expect(probe(64, 5, 64, 0.0, (0.0 - 1.0 : F32), 0.0), "shadow -y")
+    Lib.expect(probe(64, 10, 69, 0.0, 0.0, 1.0), "shadow +z")
+    Lib.expect(probe(64, 10, 59, 0.0, 0.0, (0.0 - 1.0 : F32)), "shadow -z")
+    Lib.expect(Bool.not(probe(69, 10, 64, (0.0 - 1.0 : F32), 0.0, 0.0)), "block behind ray")
+    Lib.expect(probe(59, 18, 60, (0.0 - 0.48 : F32), 0.8, (0.0 - 0.36 : F32)), "afternoon shadow")
+    Lib.expect(U32.is_eq(clock(Player.advance(fixture(1048575), 2)), 1), "clock wraps")
+    Lib.expect(U32.is_eq(clock(Player.advance(Player.advance(fixture(1234), 16), 17)),
                      clock(Player.advance(fixture(1234), 33))), "frame rate independent clock")
-    expect(U32.is_eq(restored(Save.text(fixture(786432))), 786432), "save restores night")
-    expect(U32.is_eq(clock(Save.parse(["bendcraft 1 1048512 1048512 1064500 1030000 1064500 1000000 1000000 0"], Player.res512())), Day.morning()), "old save starts at morning")
+    Lib.expect(U32.is_eq(restored(Save.text(fixture(786432))), 786432), "save restores night")
+    Lib.expect(U32.is_eq(clock(Save.parse(["bendcraft 1 1048512 1048512 1064500 1030000 1064500 1000000 1000000 0"], Player.res512())), Day.morning()), "old save starts at morning")

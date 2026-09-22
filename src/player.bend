@@ -43,18 +43,15 @@ def view_more(g: Game, +fl: U32, fps: U32, more: U32) -> Game & Image:
   G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
   view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, fl, fps, more, w)
 
-def view_info(g: Game, +fl: U32, fps: U32) -> Game & Image:
-  view_more(g, fl, fps, Render.looks_base())
-
 def view_with(g: Game, fl: U32) -> Game & Image:
-  view_info(g, fl, 0)
+  view_more(g, fl, 0, Render.looks_base())
 
 def view(g: Game) -> Game & Image:
   view_with(g, Render.looks())
 
 # the game's frame with the readout in its corner; zeros hide it
 def view_stat(g: Game, +ms10: U32, +fps: U32) -> Game & Image:
-  view_info(g, Render.stat_flags(Render.looks(), ms10, fps), fps)
+  view_more(g, Render.stat_flags(Render.looks(), ms10, fps), fps, Render.looks_base())
 
 # Time advances at the IO edge; a physics step has no wall-clock dependency.
 # The water flows on the same clock (Flow.advance).

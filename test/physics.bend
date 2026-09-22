@@ -1,4 +1,5 @@
 import Base
+import ./lib.bend as Lib
 import ../src/util.bend as Util
 import ../src/world.bend as World
 import ../src/render.bend as Render
@@ -7,13 +8,6 @@ import ../src/player.bend as Player
 # The game without a window: synthetic events through `feed` and `step`,
 # the state printed after each. `bend test/physics.bend` prints the lines;
 # compare them with the ones in the README.
-
-def ticks(n: Nat, g: Player.Game) -> Player.Game:
-  match n:
-    case 0n:
-      g
-    case 1n+m:
-      ticks(m, Player.step(g))
 
 def show_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +vy: F32, +held: U32, +edge: U32, +mx: U32, +my: U32, +sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
            w: World.World) -> Player.Game & String:
@@ -61,15 +55,6 @@ def target(g: Player.Game) -> Player.Game & String:
   target_hit(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag,
              Player.waim(w, px, py, pz, Render.look_x(yaw, pit), Render.look_y(pit), Render.look_z(yaw, pit)))
 
-def say(tag: String, r: Player.Game & String) -> IO(Player.Game):
-  (g, s) = r
-  do IO<Player.Game>:
-    IO.print(tag ++ s)
-    IO.pure(Player.Game, g)
-
-def one(e: Event) -> List<Event>:
-  Con{e, Nil{}}
-
 # an edit survives its column leaving the ring and coming back: the bit
 # and the type
 def persist_typ(+c: U32, r: World.World & U32) -> String:
@@ -100,27 +85,27 @@ def dunk(g: Player.Game) -> Player.Game:
 def main() -> IO(Unit):
   do IO<Unit>:
     IO.print("terrain at the corner: " ++ U32.show(World.terrain(1048512, 1048512)) ++ " " ++ U32.show(World.terrain(1048576, 1048576)) ++ " " ++ U32.show(World.terrain(1048600, 1048530)))
-    g0 : Player.Game <- say("start      ", show(supplied(Player.start())))
-    g1 : Player.Game <- say("fall       ", show(ticks(200n, g0)))
-    g2 : Player.Game <- say("jump 1     ", show(Player.step(Player.feed(one(Key{32, True{}}), g1))))
-    g3 : Player.Game <- say("jump 17    ", show(ticks(16n, Player.feed(one(Key{32, False{}}), g2))))
-    g4 : Player.Game <- say("landed     ", show(ticks(60n, g3)))
-    g5 : Player.Game <- say("drag       ", show(Player.step(Player.feed(Con{Mouse{256, 256, 0, True{}}, Con{Move{356, 256}, Con{Move{356, 306}, one(Mouse{356, 306, 0, False{}})}}}, g4))))
-    g6 : Player.Game <- say("aim        ", target(g5))
-    g7 : Player.Game <- say("click      ", show(Player.step(Player.feed(Con{Mouse{256, 256, 0, True{}}, one(Mouse{256, 256, 0, False{}})}, g6))))
-    g8 : Player.Game <- say("aim        ", target(g7))
-    g9 : Player.Game <- say("key 4      ", show(Player.step(Player.feed(Con{Key{52, True{}}, one(Key{52, False{}})}, g8))))
-    g9b : Player.Game <- say("right      ", show(Player.step(Player.feed(one(Mouse{256, 256, 1, True{}}), g9))))
-    g10 : Player.Game <- say("aim        ", target(g9b))
-    g11 : Player.Game <- say("walk W 30  ", show(ticks(30n, Player.feed(one(Key{119, True{}}), g10))))
-    g12 : Player.Game <- say("walk W 300 ", show(ticks(300n, g11)))
-    g13 : Player.Game <- say("walk S 600 ", show(ticks(600n, Player.feed(Con{Key{119, False{}}, one(Key{115, True{}})}, g12))))
+    g0 : Player.Game <- Lib.say("start      ", show(supplied(Player.start())))
+    g1 : Player.Game <- Lib.say("fall       ", show(Lib.ticks(200n, g0)))
+    g2 : Player.Game <- Lib.say("jump 1     ", show(Player.step(Player.feed(Lib.one(Key{32, True{}}), g1))))
+    g3 : Player.Game <- Lib.say("jump 17    ", show(Lib.ticks(16n, Player.feed(Lib.one(Key{32, False{}}), g2))))
+    g4 : Player.Game <- Lib.say("landed     ", show(Lib.ticks(60n, g3)))
+    g5 : Player.Game <- Lib.say("drag       ", show(Player.step(Player.feed(Con{Mouse{256, 256, 0, True{}}, Con{Move{356, 256}, Con{Move{356, 306}, Lib.one(Mouse{356, 306, 0, False{}})}}}, g4))))
+    g6 : Player.Game <- Lib.say("aim        ", target(g5))
+    g7 : Player.Game <- Lib.say("click      ", show(Player.step(Player.feed(Con{Mouse{256, 256, 0, True{}}, Lib.one(Mouse{256, 256, 0, False{}})}, g6))))
+    g8 : Player.Game <- Lib.say("aim        ", target(g7))
+    g9 : Player.Game <- Lib.say("key 4      ", show(Player.step(Player.feed(Con{Key{52, True{}}, Lib.one(Key{52, False{}})}, g8))))
+    g9b : Player.Game <- Lib.say("right      ", show(Player.step(Player.feed(Lib.one(Mouse{256, 256, 1, True{}}), g9))))
+    g10 : Player.Game <- Lib.say("aim        ", target(g9b))
+    g11 : Player.Game <- Lib.say("walk W 30  ", show(Lib.ticks(30n, Player.feed(Lib.one(Key{119, True{}}), g10))))
+    g12 : Player.Game <- Lib.say("walk W 300 ", show(Lib.ticks(300n, g11)))
+    g13 : Player.Game <- Lib.say("walk S 600 ", show(Lib.ticks(600n, Player.feed(Con{Key{119, False{}}, Lib.one(Key{115, True{}})}, g12))))
     IO.print(persist(g13))
-    s0 : Player.Game <- say("dunk       ", show(dunk(Player.start())))
-    s1 : Player.Game <- say("sink 60    ", show(ticks(60n, s0)))
-    s2 : Player.Game <- say("on the bed ", show(ticks(340n, s1)))
-    s3 : Player.Game <- say("swim up 60 ", show(ticks(60n, Player.feed(one(Key{32, True{}}), s2))))
-    s4 : Player.Game <- say("bob 200    ", show(ticks(140n, s3)))
-    s5 : Player.Game <- say("stroke 60  ", show(ticks(60n, Player.feed(Con{Key{32, False{}}, one(Key{119, True{}})}, s4))))
-    s6 : Player.Game <- say("back 300   ", show(ticks(300n, Player.feed(Con{Key{119, False{}}, one(Key{115, True{}})}, s5))))
+    s0 : Player.Game <- Lib.say("dunk       ", show(dunk(Player.start())))
+    s1 : Player.Game <- Lib.say("sink 60    ", show(Lib.ticks(60n, s0)))
+    s2 : Player.Game <- Lib.say("on the bed ", show(Lib.ticks(340n, s1)))
+    s3 : Player.Game <- Lib.say("swim up 60 ", show(Lib.ticks(60n, Player.feed(Lib.one(Key{32, True{}}), s2))))
+    s4 : Player.Game <- Lib.say("bob 200    ", show(Lib.ticks(140n, s3)))
+    s5 : Player.Game <- Lib.say("stroke 60  ", show(Lib.ticks(60n, Player.feed(Con{Key{32, False{}}, Lib.one(Key{119, True{}})}, s4))))
+    s6 : Player.Game <- Lib.say("back 300   ", show(Lib.ticks(300n, Player.feed(Con{Key{119, False{}}, Lib.one(Key{115, True{}})}, s5))))
     IO.pure(Unit, Unit{})

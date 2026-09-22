@@ -1,4 +1,5 @@
 import Base
+import ./lib.bend as Lib
 import ../src/world.bend as World
 
 # Rows of the terrain, to see the noise with your eyes: heights must roll
@@ -24,11 +25,6 @@ def trees(n: Nat, +x: U32, +z: U32, +acc: U32) -> U32:
       acc
     case 1n+k:
       trees(k, (x + 1 : U32), z, trees_z(128n, x, z, acc))
-
-def expect(ok: Bool, name: String) -> IO(Unit):
-  match ok:
-    case True{}: IO.print("ok " ++ name)
-    case False{}: IO.die(Unit, 1, "failed " ++ name)
 
 # Inspect the generated column, including neighbours' canopies. Below the
 # water surface only the ground may be solid; every gap must be water.
@@ -81,13 +77,13 @@ def main() -> IO(Unit):
     IO.print("along x near zero:    " ++ row(40n, 100, 100, 1, 0))
     IO.print("along z near zero:    " ++ row(40n, 100, 100, 0, 1))
     IO.print("trees in the start window: " ++ U32.show(trees(128n, 1048512, 1048512, 0)))
-    expect(scan(16384n, 0, True{}), "generated start window has no submerged trees or grass, and fills gaps with water")
-    expect(World.tree_at(1048543, 1048592) && U32.is_eq(World.terrain(1048543, 1048592), 8)
+    Lib.expect(scan(16384n, 0, True{}), "generated start window has no submerged trees or grass, and fills gaps with water")
+    Lib.expect(World.tree_at(1048543, 1048592) && U32.is_eq(World.terrain(1048543, 1048592), 8)
       && no_tree(World.tree_here(1048543, 1048592, 0, False{}, World.Masks{0, 0}))
       && no_tree(World.tree_here(1048543, 1048592, 1, False{}, World.Masks{0, 0}))
       && no_tree(World.tree_here(1048543, 1048592, 2, False{}, World.Masks{0, 0})), "submerged tree contributes neither trunk nor canopy in neighbouring columns")
-    expect(U32.is_eq(World.terrain(1048512, 1048515), 12) && shore_tree(World.column(1048512, 1048515)), "tree at the dry shoreline keeps its trunk and leaves")
-    expect(saved_tree(World.load(World.W{[0 : U32^18n],
+    Lib.expect(U32.is_eq(World.terrain(1048512, 1048515), 12) && shore_tree(World.column(1048512, 1048515)), "tree at the dry shoreline keeps its trunk and leaves")
+    Lib.expect(saved_tree(World.load(World.W{[0 : U32^18n],
       Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.col6(511, 0, 4, 0, 0, 3584)),
       1048512, 1048512, Nil{}, 0, 0, 0}, 1048543, 1048592)), "saved submerged wood survives generation changes")
     IO.pure(Unit, Unit{})

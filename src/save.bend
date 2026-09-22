@@ -201,13 +201,10 @@ def after_save(quit: Bool, g: Player.Game) -> IO(Maybe<Player.Game>):
     case False{}:
       IO.pure(Maybe<Player.Game>, Some{g})
 
-def saved(path: String, quit: Bool, g: Player.Game) -> IO(Maybe<Player.Game>):
-  IO.bind(Player.Game, Maybe<Player.Game>, save_to(path, g), after_save(quit))
-
 def alive_go(act: Bool, +quit: Bool, path: String, g: Player.Game) -> IO(Maybe<Player.Game>):
   match act:
     case True{}:
-      saved(path, quit, g)
+      IO.bind(Player.Game, Maybe<Player.Game>, save_to(path, g), after_save(quit))
     case False{}:
       IO.pure(Maybe<Player.Game>, Some{g})
 
