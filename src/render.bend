@@ -263,232 +263,11 @@ def blockcol(+what: U32, +side: Bool, +yf: F32) -> U32:
       Bool.pick(U32, U32.is_eq(what, 4), Bool.pick(U32, side, Util.rgb(107, 76, 44), Util.rgb(160, 130, 80)), Util.rgb(58, 125, 42)),
       Bool.pick(U32, U32.is_eq(what, 6), Util.rgb(160, 70, 55), Bool.pick(U32, side, Util.rgb(210, 220, 230), Util.rgb(240, 245, 250)))))
 
-# ---------- a face ----------
-# The hit point p = o + d t lies on a face of the block h; the cell before
-# the face, c, is air: the floor of p, except along the face's axis, where
-# p sits on the boundary and c is the side the ray came from, h the other.
-# u runs along z on an x face and along x otherwise, w along z on a y face
-# and along y otherwise; the face's tone is 0.8 on x, 1.0 on top, 0.7 on
-# z; da is the ray's step along the face's axis, so the face looks at the
-# sun when the ray came against the sun's (`sunny`).
-type Face is Data:
-  Face{px: F32, py: F32, pz: F32, ax: Bool, ay: Bool, hx: F32, hy: F32, hz: F32, cx: F32, cy: F32, cz: F32, da: F32, u: F32, wf: F32, tone: F32}
-
-def face(+axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> Face:
-  +px = (ox + dx * t : F32)
-  +py = (oy + dy * t : F32)
-  +pz = (oz + dz * t : F32)
-  +ax = U32.is_eq(axis, 0)
-  +ay = U32.is_eq(axis, 1)
-  +az = U32.is_eq(axis, 2)
-  +bx = Util.floorf((px + 0.5 : F32))
-  +by = Util.floorf((py + 0.5 : F32))
-  +bz = Util.floorf((pz + 0.5 : F32))
-  +cx = Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), (bx - 1.0 : F32), bx), Util.floorf(px))
-  +cy = Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), (by - 1.0 : F32), by), Util.floorf(py))
-  +cz = Bool.pick(F32, az, Bool.pick(F32, (dz > 0.0 : F32), (bz - 1.0 : F32), bz), Util.floorf(pz))
-  Face{px, py, pz, ax, ay,
-       Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), bx, (bx - 1.0 : F32)), cx),
-       Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), by, (by - 1.0 : F32)), cy),
-       Bool.pick(F32, az, Bool.pick(F32, (dz > 0.0 : F32), bz, (bz - 1.0 : F32)), cz),
-       cx, cy, cz, Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz)),
-       Bool.pick(F32, ax, pz, px), Bool.pick(F32, ay, pz, py), Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7))}
-
-def sunny(+da: F32, ax: Bool, ay: Bool, +lx: F32, +ly: F32, +lz: F32) -> Bool:
-  (ly > 0.0 : F32) && ((da * Bool.pick(F32, ax, lx, Bool.pick(F32, ay, ly, lz)) : F32) < 0.0 : F32)
-
-# the word holding the type of the block h: one read through the handle
-def type_word(w: Array<U32>, +base: U32, +hx: F32, +hy: F32, +hz: F32) -> Array<U32> & U32:
-  Array.get(U32, w, (World.col_at(base, Util.f2u(hx), Util.f2u(hz)) + 1 + Util.f2u(hy) / 8 : U32))
-
-# The shadow uses the primary ray's signed steps and absolute reciprocals.
-# Its fixed 24 steps keep neighbouring GPU lanes on the same loop.
-def shadow_end(got: Bool, r: Array<U32> & U32) -> Array<U32> & Bool:
-  (w, b) = r
-  (w, got)
-
-def shadow(fuel: Nat, +base: U32, +vx: F32, +vy: F32, +vz: F32, +sx: F32, +sy: F32, +sz: F32,
-           +mx: F32, +my: F32, +mz: F32, +ex: F32, +ey: F32, +ez: F32,
-           +ymask: U32, +got: Bool, r: Array<U32> & U32) -> Array<U32> & Bool:
-  match fuel:
-    case 0n:
-      shadow_end(got, r)
-    case 1n+f:
-      (w, +bits) = r
-      +here = got || (World.inside(vx, vy, vz) && Util.on(bits, ymask))
-      +ux = (mx < my : F32) && (mx < mz : F32)
-      +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
-      +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
-      +nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
-      +nvz = Bool.pick(F32, ux, vz, Bool.pick(F32, uy, vz, (vz + sz : F32)))
-      nmx = Bool.pick(F32, ux, (mx + ex : F32), mx)
-      +nmy = Bool.pick(F32, uy, (my + ey : F32), my)
-      nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + ez : F32)))
-      nymask = Bool.pick(U32, uy, Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
-      shadow(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, nymask, here,
-             refetch(Bool.not(uy) && Bool.not(here), w, base, Util.f2u(nvx), Util.f2u(nvz), bits))
-
-def run_shadow(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
-               +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & Bool:
-  +vx = F32.floor(ox)
-  +vy = F32.floor(oy)
-  +vz = F32.floor(oz)
-  +px = (lx > 0.0 : F32)
-  +py = (ly > 0.0 : F32)
-  +pz = (lz > 0.0 : F32)
-  +ex = (1.0 / F32.max(Util.absf(lx), 0.00001) : F32)
-  +ey = (1.0 / F32.max(Util.absf(ly), 0.00001) : F32)
-  +ez = (1.0 / F32.max(Util.absf(lz), 0.00001) : F32)
-  shadow(24n, base, vx, vy, vz,
-         Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
-         Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
-         Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
-         (Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32)) * ex : F32),
-         (Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32)) * ey : F32),
-         (Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32)) * ez : F32), ex, ey, ez,
-         U32.shln(1, F32.to_nat(F32.max(oy, 0.0))), False{},
-         Array.get(U32, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz))))
-
-# a face turned away from the sun is in shadow without a ray; with the
-# shadow flag off every face is lit
-def shadow_if(on: Bool, sunny: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & Bool:
-  match on:
-    case False{}:
-      (w, False{})
-    case True{}:
-      match sunny:
-        case False{}:
-          (w, True{})
-        case True{}:
-          run_shadow(w, base, ox, oy, oz, lx, ly, lz)
-
-# The eight cells around O along the face, as bits of m: 1 +u, 2 -u, 4 +w,
-# 8 -w, 16 +u+w, 32 -u+w, 64 +u-w, 128 -u-w. A vertex of the face is lit by
-# its two sides and its corner: 3 steps of light, none when both sides are
-# solid; the face blends its four vertices.
-def vao(+s1: Bool, +s2: Bool, c: Bool) -> F32:
-  +n = (Bool.pick(U32, s1, 1, 0) + Bool.pick(U32, s2, 1, 0) + Bool.pick(U32, c, 1, 0) : U32)
-  Bool.pick(F32, s1 && s2, 0.4, (1.0 - 0.2 * Util.u2f(n) : F32))
-
-def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +fu: F32, +fw: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  +m8 = Bool.pick(U32, s, (m .|. 128 : U32), m)
-  +pp = vao(Util.on(m8, 1), Util.on(m8, 4), Util.on(m8, 16))
-  +mp = vao(Util.on(m8, 2), Util.on(m8, 4), Util.on(m8, 32))
-  +pm = vao(Util.on(m8, 1), Util.on(m8, 8), Util.on(m8, 64))
-  +mm = vao(Util.on(m8, 2), Util.on(m8, 8), Util.on(m8, 128))
-  +ao = ((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)
-  (w, Util.mix(dim(col, (ao * sun : F32)), v, f))
-
-def ao7(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
-        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-        r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao_fin(v, col, f, sun, Bool.pick(U32, s, (m .|. 64 : U32), m), fu, fw,
-         World.solid(w, base, (ox - ux - ex : F32), (oy - uy - ey : F32), (oz - uz - ez : F32)))
-
-def ao6(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
-        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-        r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao7(v, col, f, sun, base, Bool.pick(U32, s, (m .|. 32 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
-      World.solid(w, base, (ox + ux - ex : F32), (oy + uy - ey : F32), (oz + uz - ez : F32)))
-
-def ao5(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
-        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-        r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao6(v, col, f, sun, base, Bool.pick(U32, s, (m .|. 16 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
-      World.solid(w, base, (ox - ux + ex : F32), (oy - uy + ey : F32), (oz - uz + ez : F32)))
-
-def ao4(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
-        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-        r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao5(v, col, f, sun, base, Bool.pick(U32, s, (m .|. 8 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
-      World.solid(w, base, (ox + ux + ex : F32), (oy + uy + ey : F32), (oz + uz + ez : F32)))
-
-def ao3(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
-        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-        r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao4(v, col, f, sun, base, Bool.pick(U32, s, (m .|. 4 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
-      World.solid(w, base, (ox - ex : F32), (oy - ey : F32), (oz - ez : F32)))
-
-def ao2(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +ox: F32, +oy: F32, +oz: F32,
-        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-        r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao3(v, col, f, sun, base, Bool.pick(U32, s, (m .|. 2 : U32), m), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
-      World.solid(w, base, (ox + ex : F32), (oy + ey : F32), (oz + ez : F32)))
-
-def ao1(+v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32,
-        +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-        r: Array<U32> & Bool) -> Array<U32> & U32:
-  (w, s) = r
-  ao2(v, col, f, sun, base, Bool.pick(U32, s, 1, 0), ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
-      World.solid(w, base, (ox - ux : F32), (oy - uy : F32), (oz - uz : F32)))
-
-# after the sun: the first neighbour read, or none with the occlusion off
-def after_sun(+v: U32, +col: U32, +f: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32,
-              +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-              aon: Bool, r: Array<U32> & Bool) -> Array<U32> & U32:
-  match aon:
-    case True{}:
-      (w, dark) = r
-      ao1(v, col, f, Bool.pick(F32, dark, 0.6, 1.0), base, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
-          World.solid(w, base, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
-    case False{}:
-      (w, dark) = r
-      (w, Util.mix(dim(col, Bool.pick(F32, dark, 0.6, 1.0)), v, f))
-
-def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
-  match on:
-    case True{}:
-      texture(u, wf)
-    case False{}:
-      1.0
-
-# the type read: one word through the handle, then the look
-def typed(+v: U32, +fl: U32, +base: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
-          +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-          +lx: F32, +ly: F32, +lz: F32, +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
-  (w, word) = r
-  +what = World.nib_at(word, hy)
-  +col = dim(blockcol(what, side, yf), (tone * tex_if(Util.on(fl, 4), u, wf) : F32))
-  after_sun(v, col, f, base, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw, Util.on(fl, 2),
-            shadow_if(Util.on(fl, 1), sunny, w, base, sx, sy, sz, lx, ly, lz))
-
-# the look of the block behind the face: its unit steps of u and w in
-# space, where on the face for the blend of the four vertices, and the
-# shadow ray's start a hair before the face, in c
-def shade_face(w: Array<U32>, +base: U32, +v: U32, +oy: F32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, fc: Face) -> Array<U32> & U32:
-  Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, +cx, +cy, +cz, +da, +u, +wf, +tone} = fc
-  +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
-  typed(v, fl, base, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, (tone * (0.18 + 0.82 * Sky.daylight(ly)) : F32), Sky.fog(fl, t, oy, py),
-        cx, cy, cz, Bool.pick(F32, ax, 0.0, 1.0), Bool.pick(F32, ax, 1.0, 0.0), Bool.pick(F32, ay, 0.0, 1.0), Bool.pick(F32, ay, 1.0, 0.0),
-        Util.fracf(u), Util.fracf(wf), lx, ly, lz, sunny(da, ax, ay, lx, ly, lz),
-        Bool.pick(F32, ax, (px + nudge : F32), px),
-        Bool.pick(F32, ay, (py + nudge : F32), py),
-        Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (pz + nudge : F32), pz),
-        type_word(w, base, hx, hy, hz))
-
-def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
-             +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
-  match sky:
-    case True{}:
-      (w, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz))
-    case False{}:
-      shade_face(w, base, v, oy, t, fl, lx, ly, lz, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
-
-# ---------- the mirror: the world seen in the water's top ----------
-# A second walk, as the shadow is one: from where the ray met the water,
-# along its mirrored direction, 32 steps whatever happens, solid bits
-# alone. What it meets gets the block's colour, its texture and its face's
-# tone, with no occlusion and no shadow ray: ripples and fog blur the rest,
-# and it fades into the sky towards the end of the walk's reach.
-# Only a pixel that shows a water top pays for it.
-
+# ---------- the glance: a walk over the solid bits ----------
+# The shadow's walk and the mirror's, as the primary ray's without the
+# water: the fuel's steps whatever happens, the state frozen at the hit,
+# the column read once per crossing (refetch), the hit word as the
+# primary's and t its distance.
 type Glance is Data:
   Glance{col: U32, t: F32}
 
@@ -540,6 +319,161 @@ def run_glance(fuel: Nat, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F3
          (Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32)) * ez : F32), ex, ey, ez,
          1.0, 0, 0.0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
          Array.get(U32, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz))))
+
+# ---------- a face ----------
+# The hit point p = o + d t lies on a face of the block h; the cell before
+# the face, c, is air: the floor of p, except along the face's axis, where
+# p sits on the boundary and c is the side the ray came from, h the other.
+# u runs along z on an x face and along x otherwise, w along z on a y face
+# and along y otherwise; the face's tone is 0.8 on x, 1.0 on top, 0.7 on
+# z; da is the ray's step along the face's axis, so the face looks at the
+# sun when the ray came against the sun's (`sunny`).
+type Face is Data:
+  Face{px: F32, py: F32, pz: F32, ax: Bool, ay: Bool, hx: F32, hy: F32, hz: F32, cx: F32, cy: F32, cz: F32, da: F32, u: F32, wf: F32, tone: F32}
+
+def face(+axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> Face:
+  +px = (ox + dx * t : F32)
+  +py = (oy + dy * t : F32)
+  +pz = (oz + dz * t : F32)
+  +ax = U32.is_eq(axis, 0)
+  +ay = U32.is_eq(axis, 1)
+  +az = U32.is_eq(axis, 2)
+  +bx = Util.floorf((px + 0.5 : F32))
+  +by = Util.floorf((py + 0.5 : F32))
+  +bz = Util.floorf((pz + 0.5 : F32))
+  +cx = Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), (bx - 1.0 : F32), bx), Util.floorf(px))
+  +cy = Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), (by - 1.0 : F32), by), Util.floorf(py))
+  +cz = Bool.pick(F32, az, Bool.pick(F32, (dz > 0.0 : F32), (bz - 1.0 : F32), bz), Util.floorf(pz))
+  Face{px, py, pz, ax, ay,
+       Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), bx, (bx - 1.0 : F32)), cx),
+       Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), by, (by - 1.0 : F32)), cy),
+       Bool.pick(F32, az, Bool.pick(F32, (dz > 0.0 : F32), bz, (bz - 1.0 : F32)), cz),
+       cx, cy, cz, Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz)),
+       Bool.pick(F32, ax, pz, px), Bool.pick(F32, ay, pz, py), Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7))}
+
+def sunny(+da: F32, ax: Bool, ay: Bool, +lx: F32, +ly: F32, +lz: F32) -> Bool:
+  (ly > 0.0 : F32) && ((da * Bool.pick(F32, ax, lx, Bool.pick(F32, ay, ly, lz)) : F32) < 0.0 : F32)
+
+# the word holding the type of the block h: one read through the handle
+def type_word(w: Array<U32>, +base: U32, +hx: F32, +hy: F32, +hz: F32) -> Array<U32> & U32:
+  Array.get(U32, w, (World.col_at(base, Util.f2u(hx), Util.f2u(hz)) + 1 + Util.f2u(hy) / 8 : U32))
+
+# the shadow: a glance of 24 steps towards the sun from a hair before the
+# face; a face turned away from the sun is in shadow without a walk, and
+# with the shadow flag off every face is lit
+def shadow_fin(r: Array<U32> & Glance) -> Array<U32> & Bool:
+  (w, g) = r
+  Glance{c, t} = g
+  (w, (c > 0 : U32))
+
+def shadow_if(on: Bool, sunny: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & Bool:
+  match on:
+    case False{}:
+      (w, False{})
+    case True{}:
+      match sunny:
+        case False{}:
+          (w, True{})
+        case True{}:
+          shadow_fin(run_glance(24n, w, base, ox, oy, oz, lx, ly, lz))
+
+# The eight cells around c along the face, one read each, as bits of m:
+# 1 +u, 2 -u, 4 +w, 8 -w, 16 +u+w, 32 -u+w, 64 +u-w, 128 -u-w, the cell
+# of bit i being c + su(i) u + sw(i) w. A vertex of the face is lit by its
+# two sides and its corner: 3 steps of light, none when both sides are
+# solid; the face blends its four vertices.
+def su(+i: U32) -> F32:
+  Bool.pick(F32, (i < 2 : U32) || (i >= 4 : U32), Bool.pick(F32, U32.is_eq((i % 2 : U32), 0), 1.0, (0.0 - 1.0 : F32)), 0.0)
+
+def sw(+i: U32) -> F32:
+  Bool.pick(F32, (i < 2 : U32), 0.0, Bool.pick(F32, U32.is_eq(i, 2) || U32.is_eq(i, 4) || U32.is_eq(i, 5), 1.0, (0.0 - 1.0 : F32)))
+
+def vao(+s1: Bool, +s2: Bool, c: Bool) -> F32:
+  +n = (Bool.pick(U32, s1, 1, 0) + Bool.pick(U32, s2, 1, 0) + Bool.pick(U32, c, 1, 0) : U32)
+  Bool.pick(F32, s1 && s2, 0.4, (1.0 - 0.2 * Util.u2f(n) : F32))
+
+def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +fu: F32, +fw: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, s) = r
+  +m8 = Bool.pick(U32, s, (m .|. 128 : U32), m)
+  +pp = vao(Util.on(m8, 1), Util.on(m8, 4), Util.on(m8, 16))
+  +mp = vao(Util.on(m8, 2), Util.on(m8, 4), Util.on(m8, 32))
+  +pm = vao(Util.on(m8, 1), Util.on(m8, 8), Util.on(m8, 64))
+  +mm = vao(Util.on(m8, 2), Util.on(m8, 8), Util.on(m8, 128))
+  +ao = ((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)
+  (w, Util.mix(dim(col, (ao * sun : F32)), v, f))
+
+def ao(n: Nat, +v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +m: U32, +bit: U32, +i: U32,
+       +ox: F32, +oy: F32, +oz: F32, +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+       r: Array<U32> & Bool) -> Array<U32> & U32:
+  match n:
+    case 0n:
+      ao_fin(v, col, f, sun, m, fu, fw, r)
+    case 1n+k:
+      (w, s) = r
+      +j = (i + 1 : U32)
+      +sj = su(j)
+      +wj = sw(j)
+      ao(k, v, col, f, sun, base, Bool.pick(U32, s, (m .|. bit : U32), m), (bit * 2 : U32), j, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+         World.solid(w, base, (ox + sj * ux + wj * ex : F32), (oy + sj * uy + wj * ey : F32), (oz + sj * uz + wj * ez : F32)))
+
+# after the sun: the first neighbour read, or none with the occlusion off
+def after_sun(+v: U32, +col: U32, +f: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32,
+              +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+              aon: Bool, r: Array<U32> & Bool) -> Array<U32> & U32:
+  match aon:
+    case True{}:
+      (w, dark) = r
+      ao(7n, v, col, f, Bool.pick(F32, dark, 0.6, 1.0), base, 0, 1, 0, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+         World.solid(w, base, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
+    case False{}:
+      (w, dark) = r
+      (w, Util.mix(dim(col, Bool.pick(F32, dark, 0.6, 1.0)), v, f))
+
+def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
+  match on:
+    case True{}:
+      texture(u, wf)
+    case False{}:
+      1.0
+
+# the type read: one word through the handle, then the look
+def typed(+v: U32, +fl: U32, +base: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
+          +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+          +lx: F32, +ly: F32, +lz: F32, +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, word) = r
+  +what = World.nib_at(word, hy)
+  +col = dim(blockcol(what, side, yf), (tone * tex_if(Util.on(fl, 4), u, wf) : F32))
+  after_sun(v, col, f, base, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw, Util.on(fl, 2),
+            shadow_if(Util.on(fl, 1), sunny, w, base, sx, sy, sz, lx, ly, lz))
+
+# the look of the block behind the face: its unit steps of u and w in
+# space, where on the face for the blend of the four vertices, and the
+# shadow ray's start a hair before the face, in c
+def shade_face(w: Array<U32>, +base: U32, +v: U32, +oy: F32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, fc: Face) -> Array<U32> & U32:
+  Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, +cx, +cy, +cz, +da, +u, +wf, +tone} = fc
+  +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
+  typed(v, fl, base, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, (tone * (0.18 + 0.82 * Sky.daylight(ly)) : F32), Sky.fog(fl, t, oy, py),
+        cx, cy, cz, Bool.pick(F32, ax, 0.0, 1.0), Bool.pick(F32, ax, 1.0, 0.0), Bool.pick(F32, ay, 0.0, 1.0), Bool.pick(F32, ay, 1.0, 0.0),
+        Util.fracf(u), Util.fracf(wf), lx, ly, lz, sunny(da, ax, ay, lx, ly, lz),
+        Bool.pick(F32, ax, (px + nudge : F32), px),
+        Bool.pick(F32, ay, (py + nudge : F32), py),
+        Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (pz + nudge : F32), pz),
+        type_word(w, base, hx, hy, hz))
+
+def shade_go(sky: Bool, w: Array<U32>, +base: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
+             +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+  match sky:
+    case True{}:
+      (w, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz))
+    case False{}:
+      shade_face(w, base, v, oy, t, fl, lx, ly, lz, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
+
+# ---------- the mirror: the world seen in the water's top ----------
+# A glance from where the ray met the water, along its mirrored direction,
+# 32 steps. What it meets gets the block's colour, its texture and its
+# face's tone, with no occlusion and no shadow ray: ripples and fog blur
+# the rest, and it fades into the sky towards the end of the walk's reach.
+# Only a pixel that shows a water top pays for it.
 
 # the block the mirror's ray met: its type's colour, the texture, the
 # face's tone, darker when the face is turned from the sun

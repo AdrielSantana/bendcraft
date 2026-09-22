@@ -22,7 +22,7 @@ def blocked(r: Array<U32> & Bool) -> Bool:
 # of the fixed shadow walk. Reversing the ray must leave it behind.
 def probe(+x: U32, +y: U32, +z: U32, +dx: F32, +dy: F32, +dz: F32) -> Bool:
   w = Array.set(U32, [0 : U32^18n], World.col_at(0, x, z), U32.shln(1, U32.to_nat(y)))
-  blocked(Render.run_shadow(w, 0, 64.5, 10.5, 64.5, dx, dy, dz))
+  blocked(Render.shadow_fin(Render.run_glance(24n, w, 0, 64.5, 10.5, 64.5, dx, dy, dz)))
 
 def clock(g: Player.Game) -> U32:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, t, bag} = g
