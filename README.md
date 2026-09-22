@@ -107,10 +107,16 @@ the bed as well as the ray's way up, so a look straight down doubles it.
 A clear lake showed its bed through every mirror; a dense one leaves the
 surface to the sky, the ripples and the bank. An eye under the water keeps
 the clear tint (0.18 + 0.72 d / (d + 4)), or a diver would see two blocks.
-The tint's colour darkens with the depth under the surface, to a
-near-black blue six blocks down, so a deep lake reads as deep and the
-caustic's threads dim into it; the fog keeps the one colour, since it is
-a length of wet path and not a depth. The tint follows daylight. Distance and height fog use the full solid-hit
+What lies deep is lit by what little light got down to it: the light
+left at a point's depth under the surface (all of it at the level, a
+sixth six blocks down) dims whatever a wet ray meets there, from the air
+or from under the water alike, so a diver at the bed sees the bed as the
+bank does, and the caustic's threads dim with it; the tint's colour
+darkens with that depth to a near-black blue, so a deep lake reads as
+deep; and the fog a submerged eye sees converges to the colour at the
+eye's own depth. Every lake lies at the sea level today, so the depth is
+the level less the height; the water's physics will give each column its
+level. The tint follows daylight. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -174,8 +180,8 @@ function of the image, which a pixel of the fork tree cannot read.
 Placing an inventory block displaces water, and edits survive ring reloads
 and saves. Water cannot be collected with the eight solid-block slots.
 A lake lies west of the initial spawn; `make water` exports daytime,
-dusk, submerged, reflected sun/moon, the caustic from above and each
-surface-look-off view as fourteen PNGs. It also exports `build/water-motion.gif`, a 128-frame ripple cycle
+dusk, submerged, reflected sun/moon, the caustic from above, a diver at
+the deepest bed and each surface-look-off view as fifteen PNGs. It also exports `build/water-motion.gif`, a 128-frame ripple cycle
 with camera and sun fixed, and a contact sheet (requires Pillow).
 This is still water: digging leaves a gap until flow is implemented, and
 movement remains walking/gravity, with swimming left for a later step. Generated trees require dry grass at their origin;
@@ -251,7 +257,7 @@ test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  clock/address packing, stable world noise, normals and wrap continuity
-test/water_view.bend fourteen water views and a fixed-sun ripple cycle for test/water.py
+test/water_view.bend fifteen water views and a fixed-sun ripple cycle for test/water.py
 test/mirror.bend   the mirror's walk over a placed brick, its reach and fade, the byte a miss keeps
 test/mirror_view.bend four views with the world in the mirror and without, for test/mirror.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
@@ -271,7 +277,7 @@ make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
 make profile    # each look off, by size; also night, lake, submerged and night lake
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
-make water      # fourteen PNGs and a ripple animation; Python with Pillow
+make water      # fifteen PNGs and a ripple animation; Python with Pillow
 make mirror     # build/mirror-sheet.png: four views, mirror on and off; Pillow
 make page-test  # the page in headless Chrome, hashes and fps
 ```
@@ -745,9 +751,9 @@ at 1470×796 the lake goes 31.0 → 32.0 ms (caustic off 30.8), the bench's
 view 25.2 → 25.6, the lake at scale 2 8.4 → 8.6; four alternated rounds,
 order swapped. At night its factor is 1.0 and the sun's height is the
 same for every pixel, so the render skips it there with no divergence:
-the night lake stays at 28.2, where paying it read 29.2. The colour that
-darkens with depth is one more mix and costs nothing measurable (lake
-32.2 and 32.2).
+the night lake stays at 28.2, where paying it read 29.2. The light left
+at a depth and the colour that darkens with it are two more mixes and
+cost nothing measurable (lake 32.4 and 31.8, order swapped).
 
 In the original profile, 52% of the rays reached a block after 24 steps
 on average; the rest walked the box's 60. Primary rays took three quarters

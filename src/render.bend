@@ -560,7 +560,7 @@ def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base:
   +hitw = (c % 4 : U32)
   Water.shade(wet, fl, v, oy, dy, lx, ly, lz, Water.top(c), t, (hitw > 0 : U32), tr,
     mirrored(wet && Water.top(c) && Water.reflection_on(fl), fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
-      bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, (ox + dx * t : F32), (oz + dz * t : F32), (0.0 - dy * depth : F32), dy, ly,
+      bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly,
         shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz))))
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,

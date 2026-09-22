@@ -434,7 +434,14 @@ Depth-darkened water, 2026-09-21: the tint's colour goes to a near-black
 blue by six blocks of drop (`Water.ink_at`), the fog's colour unchanged;
 the user asked whether the caustic should darken with depth, and what did
 not darken was the water. No cost. New picture digest
-`bb0a2b5042e9720be30cb2914db01a4a`.
+`bb0a2b5042e9720be30cb2914db01a4a`. Then the light by depth: the user
+found a diver at the bed saw it as bright as from the bank, because the
+depth was the ray's vertical wet extent, near zero for a look along the
+bed. Now `Water.drop(y)` is the point's depth under the level (the sea's,
+until the physics gives columns their own), `Water.light` dims what a
+wet ray meets by it, the ink darkens by it, the caustic fades by it, and
+a submerged eye's fog converges to the colour at its own depth. No cost.
+Picture digest `7f527573609445a1c0238d79accd24b5`; 123 tests.
 
 What is measured today, at 1470×796 on an M5: 25.2 ms a frame (23.0 with
 the mirror off), rays alone 12.4, shadow off 21.6, water off 18.2; a lake
@@ -446,7 +453,7 @@ whether it hits or not, on purpose (README, "What costs what").
 
 - a flag in `Cam.fl` if the look can be turned off, and its line in
   `test/profile.bend`;
-- `make bench`: the md5 of the thirty checksums stays `bb0a2b5042e9720be30cb2914db01a4a` when
+- `make bench`: the md5 of the thirty checksums stays `7f527573609445a1c0238d79accd24b5` when
   the picture did not change (`make bench | grep -o 'checksum=[0-9]*' |
   cut -d= -f2 | md5`); when it did, the new one goes in the commit;
 - uniform control flow in anything a lane runs: a branch that saves work

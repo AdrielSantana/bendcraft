@@ -31,13 +31,20 @@ def motion(n: Nat, +i: U32, g: Player.Game) -> IO(Unit):
 
 # Inspect the real GPU image, above and below the surface and with the
 # look disabled. This camera sits beside the seed's lake west of spawn.
+# a diver at the lake's deepest bed (local 36, 66: terrain 7, water to
+# 11), looking east along it, where the bed climbs to the bank
+def diver(g: Player.Game) -> Player.Game:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, 36.5, 8.3, 66.5, 1.5707963, (0.0 - 0.25 : F32), vy, held, edge, mx, my, sel, res, 300000, bag}
+
 def main() -> IO(Unit):
   do IO<Unit>:
     g : Player.Game = Player.start_at(Player.res_of(512, 288))
     a : Player.Game <- Export.save("build/water-default.tree", Player.view(g))
     b : Player.Game <- Export.save("build/water-lake.tree", Player.view(Profile.lake(a)))
     q0 : Player.Game <- Export.save("build/water-caustic.tree", Player.view(Export.aim(Profile.lake(b), 300000, (0.0 - 1.5707963 : F32), (0.0 - 0.75 : F32))))
-    q : Player.Game <- Export.save("build/water-caustic-off.tree", Player.view_more(q0, Render.looks(), 0, (Render.looks_base() .&. U32.not(268435456) : U32)))
+    q1 : Player.Game <- Export.save("build/water-caustic-off.tree", Player.view_more(q0, Render.looks(), 0, (Render.looks_base() .&. U32.not(268435456) : U32)))
+    q : Player.Game <- Export.save("build/water-bed.tree", Player.view(diver(q1)))
     r : Player.Game <- Export.save("build/water-reflection-off.tree", Player.view_with(q, (Render.looks() .&. U32.not(16777216) : U32)))
     s : Player.Game <- Export.save("build/water-fresnel-off.tree", Player.view_with(r, (Render.looks() .&. U32.not(8388608) : U32)))
     c : Player.Game <- Export.save("build/water-off.tree", Player.view_with(s, (Render.looks() .&. U32.not(2097152) : U32)))

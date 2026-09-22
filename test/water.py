@@ -8,7 +8,7 @@ from sky import picture
 if __name__ == '__main__':
     labels = ['default', 'lake', 'ripples-off', 'reflection-off', 'fresnel-off', 'off',
               'dusk', 'under', 'under-off', 'sunset-reflection', 'night-reflection', 'night-ripples-off',
-              'caustic', 'caustic-off']
+              'caustic', 'caustic-off', 'bed']
     sheet = Image.new('RGB', (1024, 312 * ((len(labels) + 1) // 2)), '#161922')
     for i, label in enumerate(labels):
         path = Path(f'build/water-{label}.tree')

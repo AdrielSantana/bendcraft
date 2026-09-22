@@ -58,11 +58,22 @@ def colour(sun_y: F32) -> U32:
 # 0.35 d)^2 (an exponential's shape without one: a half at one block, 0.85
 # at four), so the bed does not compete with what the surface mirrors. An
 # eye under the water keeps the clear one, or a diver would see two blocks.
-# The water's colour darkens with the depth under the surface, to a
-# near-black blue six blocks down: what lies deep is lit by what little
-# light got down to it, and a deep lake reads as deep, where one colour
-# at every depth made a lake of ten blocks look like one of four. The
-# fog keeps the one colour: it is a length of wet path, not a depth.
+# Every lake lies at the sea level today, so a point's depth under the
+# surface is the level less its height. The water's physics, the next
+# step, gives each column its own level, and this will read it there.
+def level() -> F32: 12.0
+def drop(y: F32) -> F32: F32.max((level() - y : F32), 0.0)
+
+# What lies deep is lit by what little light got down to it. The light
+# left at a depth dims whatever a wet ray meets there, from the air or
+# from under the water alike (a diver at the bed sees the bed as the bank
+# does), and the water's own colour darkens with it to a near-black blue,
+# so a deep lake reads as deep, where one colour at every depth made a
+# lake of ten blocks look like one of four. The fog a submerged eye sees
+# converges to the colour at the eye's own depth.
+def light(+drop: F32) -> F32:
+  (1.0 - 0.85 * F32.clamp((drop / 6.0 : F32), 0.0, 1.0) : F32)
+
 def deep(sun_y: F32) -> U32:
   Sky.mix(Sky.rgb(3, 12, 22), Sky.rgb(5, 30, 48), Sky.daylight(sun_y))
 
@@ -263,7 +274,7 @@ def dry(r: Array<U32> & Mirror) -> Array<U32> & U32:
 
 def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
           sun_x: F32, +sun_y: F32, sun_z: F32, water_top: Bool,
-          +distance: F32, hit: Bool, tr: Trace, r: Array<U32> & Mirror) -> Array<U32> & U32:
+          +distance: F32, +hit: Bool, tr: Trace, r: Array<U32> & Mirror) -> Array<U32> & U32:
   match on:
     case False{}: dry(r)
     case True{}:
@@ -278,7 +289,9 @@ def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
       # Fog the background before tinting it: a hidden block and the sky
       # behind it must pass through the same water. Foreground haze reduces
       # the tint so a lake beyond the air's visibility limit stays hidden.
-      +base = Sky.mix(Sky.mix(bottom, sky, air), ink_at(ink, sun_y, (0.0 - dy * depth : F32)), (opacity((entry > 0.0 : F32), lit_path(depth, dy)) * (1.0 - front) : F32))
+      +down = drop((oy + dy * distance : F32))
+      +lit = Sky.mix(bottom, 0, Bool.pick(F32, hit, (1.0 - light(down) : F32), 0.0))
+      +base = Sky.mix(Sky.mix(lit, sky, air), ink_at(ink, sun_y, down), (opacity((entry > 0.0 : F32), lit_path(depth, dy)) * (1.0 - front) : F32))
       # A lake beyond the air's visibility limit must also fade to sky.
-      (w, surface(water_top && reflection_on(fl), (front >= 1.0 : F32), fl, fog(fog_on(fl), base, ink, sky, front, depth),
+      (w, surface(water_top && reflection_on(fl), (front >= 1.0 : F32), fl, fog(fog_on(fl), base, ink_at(ink, sun_y, drop(oy)), sky, front, depth),
         sky, front, sun_x, sun_y, sun_z, m))
