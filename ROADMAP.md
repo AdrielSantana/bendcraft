@@ -180,6 +180,67 @@ that walks back through kept states (the Map of edits shares its
 structure, so a past state costs little), and two players in lockstep
 without a server deciding who is right.
 
+## Water physics: the design (2026-09-21)
+
+The model is the one chosen above, finite volume with explicit sources,
+made concrete. The picture of the still lake must not change until a
+block moves; that is the first gate of every step below.
+
+- **Units.** A cell holds 0 to 8 units of water; 8 is full. The amount
+  is a nibble, four words a column at slots 6..9, so the column widens
+  from 8 words to 16 (the ring is 2^18 words, a megabyte; slots 10..15
+  are spare, four of them for the light of the blocks later). The water
+  mask at slot 5 stays the truth for "any water here", bit y set exactly
+  when the amount is over zero: the ray walks the mask as it does today
+  and reads nothing new along the way. A save writes the four words after
+  the six it writes now; a six-word column loads with 8 wherever its
+  mask has a bit, so old saves are the same lake.
+- **The surface.** Where a ray first enters water from above, the render
+  reads that cell's nibble once and lowers the surface to y + amount / 8:
+  the entry moves to where the ray meets that plane, the wet depth loses
+  the air above it, and the reflection, the ripples, Fresnel, the mirror
+  and the caustic all happen on the plane. A full cell's plane is its top
+  face, so every picture of today stays bit for bit. A partial cell seen
+  from the side shows its side face whole and its top lowered: the wedge
+  of a stream is its top. The plane is a function of the ray and one
+  read; nothing else changes in the DDA.
+- **The rule.** A simulation tick every 200 ms, whatever the frame rate.
+  For each active cell holding a > 0 units: first down, the cell below,
+  if not solid, takes min(a, 8 - b); then sideways, each of the four
+  neighbours that is not solid and holds less takes floor((a - n) / 2),
+  never more than what is left. Every transfer is one atomic move of k
+  units from a cell to a neighbour, applied at once on the current state:
+  volume is conserved by construction, no cell exceeds 8 or goes under 0,
+  and no traversal order can duplicate water. The order of the four
+  sides alternates with the tick's parity, so the bias of a fixed order
+  cancels over two ticks. A neighbour outside the ring is solid: the
+  loaded window's edge is closed, and a lake that reaches it holds.
+- **Sources.** A source is a cell marked in its column (a bit in a spare
+  word) that refills to 8 at the end of each tick it took part in. The
+  seed's lakes are not sources: dig a channel and they drain. Sources are
+  the only creation of water, and an explicit edit (a solid placed in
+  water, water collected) the only removal; the flow itself neither
+  creates nor removes. The accounting is a law: a tick without sources
+  keeps the world's volume; with sources, the volume grows by exactly
+  what they refilled.
+- **The active set.** A `Map` from a column's key to a mask of the cells
+  to step next tick. A transfer marks both cells' columns; an edit marks
+  the cell and its neighbours; a cell that could not move anything drops
+  out. A tick steps at most a fixed number of columns, the rest wait
+  their turn, so the host's work a tick is bounded whatever the lake; the
+  budget is chosen with a bench of a draining lake, and a test asserts the
+  bound.
+- **The steps.** (1) The levels: the wider column, the save, the surface
+  plane; the digest and the physics hash unchanged; laws on the nibble
+  packing — done 2026-09-21 (eleven laws, 110 in all; the frame costs the
+  same within the noise; the lowered top is subtle until the step's side
+  and side entries render, which go with (2)). (2) The rule, windowless: laws of one transfer (bounds and
+  conservation), tests of a tick (a column drains, a pool spreads and
+  settles, a wall holds, the ring's edge holds), then the tick in the
+  game. (3) Sources, with their accounting law. (4) Edits: what a placed
+  block displaces and what collecting takes, both counted. (5) The
+  player in water: buoyancy, drag, swimming, breath later.
+
 ## The laws
 
 Every rule the game adds gets its law in `LAWS.bend` before the feature is
@@ -442,6 +503,12 @@ until the physics gives columns their own), `Water.light` dims what a
 wet ray meets by it, the ink darkens by it, the caustic fades by it, and
 a submerged eye's fog converges to the colour at its own depth. No cost.
 Picture digest `7f527573609445a1c0238d79accd24b5`; 123 tests.
+
+Water amounts, 2026-09-21 (physics step 1): sixteen-word columns, the
+amounts at slots 6..9, `World.pour`, ten-word save lines, the surface
+lowered at the first top entry (`Water.lowered`, one read). Digest and
+physics unchanged; eleven laws; 128 tests; bench and lake the same within
+the noise (32.4 and 32.8 ms, both orders).
 
 What is measured today, at 1470×796 on an M5: 25.2 ms a frame (23.0 with
 the mirror off), rays alone 12.4, shadow off 21.6, water off 18.2; a lake

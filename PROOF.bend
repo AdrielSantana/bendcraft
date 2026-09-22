@@ -186,6 +186,17 @@ def Laws.draining_water_keeps_solids(): {==}
 def Laws.water_type_reads_back(): {==}
 def Laws.water_cannot_replace_a_bank(): {==}
 
+def Laws.full_levels_follow_the_mask(): {==}
+def Laws.full_levels_of_a_dry_column(): {==}
+def Laws.amount_reads_its_nibble(): {==}
+def Laws.amount_reads_its_nibble_up(): {==}
+def Laws.water_placed_is_a_full_cell(): {==}
+def Laws.solid_placed_holds_no_water(): {==}
+def Laws.pour_sets_the_amount_and_the_bit(): {==}
+def Laws.pour_keeps_the_amount(): {==}
+def Laws.pour_of_nothing_clears_the_bit(): {==}
+def Laws.pour_is_capped_at_eight(): {==}
+def Laws.pour_into_a_solid_is_nothing(): {==}
 def Laws.water_fog_has_its_own_flag(): {==}
 def Laws.water_fog_is_on_by_default(): {==}
 def Laws.readout_keeps_water_fog(): {==}

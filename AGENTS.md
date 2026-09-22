@@ -179,9 +179,12 @@ nothing", and the README):
   share HUD flag 16. Old saves without counts load with an empty bag.
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
   512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
-- The world: a ring of 128x128 columns in one `Array<U32>`, eight words a
-  column (solid mask, four type words, water mask, two spare); edits in a
-  `Map`; terrain from a seeded noise. Solid types 0..7: grass dirt stone
+- The world: a ring of 128x128 columns in one `Array<U32>` of 2^18 words,
+  sixteen words a column (solid mask, four type words, water mask, four
+  words of water amounts 0..8 in nibbles, six spare); the water mask's bit
+  is set exactly when the amount is over zero (`World.pour` keeps both);
+  edits in a `Map`; terrain from a seeded noise; a save line has ten words
+  and loads six-word lines full where wet. Solid types 0..7: grass dirt stone
   sand wood leaves brick snow. Water is type 8, outside the eight inventory
   slots; it is absent from solid collision, picking and shadow masks.
 - `main.bend` runs the window's loop itself (not `App.run`), with a `Stat`

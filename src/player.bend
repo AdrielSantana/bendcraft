@@ -372,7 +372,7 @@ def tick(evs: List<Event>, g: Game) -> IO(Maybe<Game>):
 
 # the world's corner starts far from zero, so walking west never wraps it
 def start_at(+res: U32) -> Game:
-  G{World.load_all(128n, World.W{[0 : U32^17n], Map.new(&2, World.Col), 1048512, 1048512}, 1048512, 1048512),
+  G{World.load_all(128n, World.W{[0 : U32^18n], Map.new(&2, World.Col), 1048512, 1048512}, 1048512, 1048512),
     64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0, 0, res, Day.morning(), Inventory.empty()}
 
 def start() -> Game:

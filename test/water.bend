@@ -17,7 +17,7 @@ def expect(ok: Bool, name: String) -> IO(Unit):
     case False{}: IO.die(Unit, 1, "failed " ++ name)
 
 def empty() -> World.World:
-  World.W{[0 : U32^17n], Map.new(&2, World.Col), 0, 0}
+  World.W{[0 : U32^18n], Map.new(&2, World.Col), 0, 0}
 
 def ray_ok(+axis: U32, top: Bool, +entry: F32, +depth: F32, +distance: F32, r: Array<U32> & Render.Ray) -> Bool:
   (w, hit) = r
@@ -83,8 +83,13 @@ def col(r: Array<U32> & World.Col) -> World.Col:
   c
 
 def same_masks(c: World.Col, +solid: U32, +water: U32) -> Bool:
-  World.Col{m, a, b, cc, d, w} = c
+  World.Col{m, a, b, cc, d, w, lv} = c
   U32.is_eq(m, solid) && U32.is_eq(w, water)
+
+def same_levels(a: World.Levels, b: World.Levels) -> Bool:
+  World.Levels{a0, a1, a2, a3} = a
+  World.Levels{b0, b1, b2, b3} = b
+  U32.is_eq(a0, b0) && U32.is_eq(a1, b1) && U32.is_eq(a2, b2) && U32.is_eq(a3, b3)
 
 def saved_col(g: Player.Game) -> World.Col:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
@@ -121,6 +126,20 @@ def pool(n: Nat, w: World.World, +x: U32, +wet_until: U32) -> World.World:
     case 1n+k:
       pool(k, World.edit(w, x, 64, 10, (x < wet_until : U32), 8), (x + 1 : U32), wet_until)
 
+def snd(r: World.World & U32) -> U32:
+  (w, v) = r
+  v
+
+def amount(w: World.World, +lx: U32, +y: U32, +lz: U32) -> U32:
+  snd(World.amount_at(w, lx, y, lz))
+
+def voxel_of(w: World.World, +lx: U32, +y: U32, +lz: U32) -> U32:
+  snd(World.voxel(w, lx, y, lz))
+
+# a stone at 9 under a water cell at 10, the surface ray's pool
+def surface_pool() -> World.World:
+  World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8)
+
 def pixel(r: Array<U32> & U32) -> U32:
   (w, c) = r
   c
@@ -143,7 +162,7 @@ def emerged_ray_w(+fl: U32, +sun_y: F32, w: World.World) -> U32:
 def emerged_wall(fl: U32, sun_y: F32, wall: U32, w: World.World) -> U32:
   World.W{ring, m, ox, oz} = w
   emerged_ray_w(fl, sun_y, World.W{World.put_col(ring, World.col_at(0, wall, 64),
-    World.Col{4294967295, 572662306, 572662306, 572662306, 572662306, 0}), m, ox, oz})
+    World.col6(4294967295, 572662306, 572662306, 572662306, 572662306, 0)), m, ox, oz})
 
 def emerged_ray(fl: U32, sun_y: F32, wall: U32) -> U32:
   emerged_wall(fl, sun_y, wall, pool(128n, empty(), 0, 128))
@@ -198,6 +217,21 @@ def main() -> IO(Unit):
       && near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9),
         Water.caustic(Water.frame_base((4000000 + 1 : U32), 700), 60.4, 65.7, 1.0, (0.0 - 0.7 : F32), 0.9), 0.0001),
       "a ring shift along either axis cannot drag the caustic")
+    expect(near(Water.entry_of(Water.lowered(8, 10, 14.5, (0.0 - 1.0 : F32), Water.Trace{3.5, 1.0})), 3.5, 0.0)
+      && near(Water.depth_of(Water.lowered(8, 10, 14.5, (0.0 - 1.0 : F32), Water.Trace{3.5, 1.0})), 1.0, 0.0)
+      && near(Water.entry_of(Water.lowered(4, 10, 14.5, (0.0 - 1.0 : F32), Water.Trace{3.5, 1.0})), 4.0, 0.0001)
+      && near(Water.depth_of(Water.lowered(4, 10, 14.5, (0.0 - 1.0 : F32), Water.Trace{3.5, 1.0})), 0.5, 0.0001)
+      && near(Water.depth_of(Water.lowered(1, 10, 14.5, (0.0 - 1.0 : F32), Water.Trace{3.5, 0.2})), 0.0, 0.0001),
+      "a full cell keeps the DDA's entry bit for bit; a half one moves it down to its plane and the wet path loses the air")
+    expect(U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 5), 64, 10, 64), 5)
+      && U32.is_eq(amount(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 13), 64, 10, 64), 8)
+      && U32.is_ne(voxel_of(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 0), 64, 10, 64), 8)
+      && U32.is_eq(voxel_of(World.pour(pool(1n, empty(), 64, 128), 64, 10, 64, 3), 64, 10, 64), 8)
+      && U32.is_eq(amount(World.pour(World.edit(empty(), 64, 64, 10, True{}, 2), 64, 10, 64, 5), 64, 10, 64), 0),
+      "an amount poured reads back, is capped at 8, sets the mask's bit exactly when over zero, and a solid cell holds none")
+    expect(U32.is_ne(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 4)), surface_ray_w(Render.looks(), False{}, surface_pool()))
+      && U32.is_eq(surface_ray_w(Render.looks(), False{}, World.pour(surface_pool(), 64, 10, 64, 8)), surface_ray_w(Render.looks(), False{}, surface_pool())),
+      "a half-full top cell renders another surface; a full one the same")
     expect(F32.is_eq(Water.fresnel(True{}, (0.0 - 1.0 : F32)), 1.0)
       && F32.is_eq(Water.fresnel(True{}, 2.0), 0.02), "Fresnel clamps its angular input")
     expect(U32.is_ne(surface_ray(31457280, False{}, False{}), surface_ray(14680064, False{}, False{})), "reflection colours a real top entry at an edited water height")
@@ -233,7 +267,7 @@ def main() -> IO(Unit):
       && U32.is_eq(Water.fog(False{}, 123, 456, 456, 0.0, 80.0), 123), "wet fog bounds and disable")
     expect(picked(Player.waim(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8),
       64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "picking traverses water and finds the bottom")
-    expect(Bool.not(shadow(Render.run_shadow(World.put_col([0 : U32^17n], World.col_at(0, 64, 64), World.Col{0, 0, 0, 0, 0, 1024}),
+    expect(Bool.not(shadow(Render.run_shadow(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024)),
       0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0))), "water casts no solid shadow")
     expect(U32.is_eq(material(World.voxel(World.shift_xn(World.shift_xp(World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
     expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
@@ -242,7 +276,13 @@ def main() -> IO(Unit):
       (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n]))), "placing spends one brick and displaces water")
     expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
     expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 0), "save preserves displacement")
-    expect(same_masks(col(World.get_col(World.put_col([0 : U32^17n], World.col_at(0, 64, 64), World.Col{256, 1, 2, 3, 4, 3584}), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
+    expect(same_masks(col(World.get_col(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
     expect(U32.is_eq(Save.water_of([], "0,0", 0), World.flood(World.terrain(0, 0), 0)), "old saves restore natural water")
     expect(U32.is_eq(Save.water_of(["0"], "0,0", 0), 0), "explicit dry edits stay dry")
+    expect(same_levels(Save.levels_of(["1056"], 1056), World.Levels{8388608, 2048, 0, 0})
+      && same_levels(Save.levels_of([], 1056), World.Levels{8388608, 2048, 0, 0})
+      && same_levels(Save.levels_of(["1056", "1", "2", "3", "4"], 1056), World.Levels{1, 2, 3, 4}),
+      "a six-word column loads full where it is wet; a ten-word one keeps its amounts")
+    expect(same_levels(World.levels(restored(Save.text(fixture(World.pour(surface_pool(), 64, 10, 64, 5))))), World.Levels{0, 1280, 0, 0}),
+      "a poured amount survives a save and a load")
     expect(U32.is_eq(Save.water_of(["1024"], "0,0", 1024), 0), "loaded solids displace overlapping water")

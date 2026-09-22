@@ -38,8 +38,10 @@ def num(s: String) -> U32:
 
 def col_line(kv: Sigma<&2, &2, String, _ => World.Col>) -> String:
   (k, c) = kv
-  World.Col{m, a, b, cc, d, water} = c
+  World.Col{m, a, b, cc, d, water, lv} = c
+  World.Levels{la, lb, lc, ld} = lv
   k ++ " " ++ U32.show(m) ++ " " ++ U32.show(a) ++ " " ++ U32.show(b) ++ " " ++ U32.show(cc) ++ " " ++ U32.show(d) ++ " " ++ U32.show(water)
+    ++ " " ++ U32.show(la) ++ " " ++ U32.show(lb) ++ " " ++ U32.show(lc) ++ " " ++ U32.show(ld)
 
 def col_lines(kvs: List<&2, Sigma<&2, &2, String, _ => World.Col>>) -> String:
   match kvs:
@@ -111,10 +113,21 @@ def water_of(fs: List<&2, String>, k: String, +solid: U32) -> U32:
     case Nil{}: legacy_water(String.split(k, ','), solid)
     case Con{w, rest}: (num(w) .&. U32.not(solid) : U32)
 
+# The four amount words follow the water word; a column saved before
+# them is full wherever it is wet.
+def levels_of(fs: List<&2, String>, +water: U32) -> World.Levels:
+  match fs:
+    case Con{w, Con{la, Con{lb, Con{lc, Con{ld, rest}}}}}: World.Levels{num(la), num(lb), num(lc), num(ld)}
+    case Con{w, rest}: World.full_levels(water)
+    case Nil{}: World.full_levels(water)
+
+def col_with(+k: String, +ms: U32, a: U32, b: U32, c: U32, d: U32, +water: U32, fs: List<&2, String>, m: Map<&2, World.Col>) -> Map<&2, World.Col>:
+  Map.set(&2, World.Col, m, k, World.Col{ms, a, b, c, d, water, levels_of(fs, water)})
+
 def col_of(fs: List<&2, String>, m: Map<&2, World.Col>) -> Map<&2, World.Col>:
   match fs:
-    case Con{+k, Con{+ms, Con{a, Con{b, Con{c, Con{d, rest}}}}}}:
-      Map.set(&2, World.Col, m, k, World.Col{num(ms), num(a), num(b), num(c), num(d), water_of(rest, k, num(ms))})
+    case Con{+k, Con{+ms, Con{a, Con{b, Con{c, Con{d, +rest}}}}}}:
+      col_with(k, num(ms), num(a), num(b), num(c), num(d), water_of(rest, k, num(ms)), rest, m)
     case Con{k, rest}:
       m
     case Nil{}:
@@ -163,7 +176,7 @@ def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Gam
     case Con{tag, Con{ver, Con{ox, Con{oz, Con{px, Con{py, Con{pz, Con{yaw, Con{pit, Con{sel, +rest}}}}}}}}}}:
       +cx = num(ox)
       +cz = num(oz)
-      Player.G{World.load_all(128n, World.W{[0 : U32^17n], cols_of(ls, Map.new(&2, World.Col)), cx, cz}, cx, cz),
+      Player.G{World.load_all(128n, World.W{[0 : U32^18n], cols_of(ls, Map.new(&2, World.Col)), cx, cz}, cx, cz),
                dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, (num(sel) % 8 : U32), res, clock_of(rest), inventory_of(rest)}
     case Con{tag, rest}:
       Player.start_at(res)

@@ -21,7 +21,7 @@ def blocked(r: Array<U32> & Bool) -> Bool:
 # Each blocker is five cells away, beyond the initial cell and in range
 # of the fixed shadow walk. Reversing the ray must leave it behind.
 def probe(+x: U32, +y: U32, +z: U32, +dx: F32, +dy: F32, +dz: F32) -> Bool:
-  w = Array.set(U32, [0 : U32^17n], World.col_at(0, x, z), U32.shln(1, U32.to_nat(y)))
+  w = Array.set(U32, [0 : U32^18n], World.col_at(0, x, z), U32.shln(1, U32.to_nat(y)))
   blocked(Render.run_shadow(w, 0, 64.5, 10.5, 64.5, dx, dy, dz))
 
 def clock(g: Player.Game) -> U32:
@@ -33,7 +33,7 @@ def restored(r: Player.Game & String) -> U32:
   clock(Save.parse(String.lines(text), Player.res512()))
 
 def fixture(t: U32) -> Player.Game:
-  Player.G{World.W{[0 : U32^17n], Map.new(&2, World.Col), 1048512, 1048512},
+  Player.G{World.W{[0 : U32^18n], Map.new(&2, World.Col), 1048512, 1048512},
     64.5, 30.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, Player.res512(), t, Inventory.empty()}
 
 def main() -> IO(Unit):

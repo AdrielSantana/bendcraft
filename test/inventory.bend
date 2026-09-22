@@ -29,7 +29,7 @@ def bag(g: Player.Game) -> List<&2, Nat>:
   xs
 
 def empty_world() -> World.World:
-  World.W{[0 : U32^17n], Map.new(&2, World.Col), 1048512, 1048512}
+  World.W{[0 : U32^18n], Map.new(&2, World.Col), 1048512, 1048512}
 
 # A sand cell, followed by a brick, is straight ahead. The selected type
 # need not agree with either; a break must read the cell before clearing it.

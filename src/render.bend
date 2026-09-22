@@ -551,9 +551,25 @@ def bed(on: Bool, +base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, +ly: F32, 
       (w, c) = r
       (w, dim(c, Water.caustic(base, x, z, drop, dy, ly)))
 
-def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-          ct: Ray) -> Array<U32> & U32:
-  Ray{+c, +t, +tr} = ct
+# the cell under the ray's first entry into water from above: its amount,
+# read once, lowers the surface to its level (Water.lowered)
+def surface_fin(+cy: U32, +oy: F32, +dy: F32, tr: Water.Trace, r: Array<U32> & U32) -> Array<U32> & Water.Trace:
+  (w, word) = r
+  (w, Water.lowered(World.nib_at(word, cy), cy, oy, dy, tr))
+
+def surface(top: Bool, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+            tr: Water.Trace) -> Array<U32> & Water.Trace:
+  match top:
+    case False{}:
+      (w, tr)
+    case True{}:
+      Water.Trace{+entry, depth} = tr
+      +cy = Util.f2u((oy + dy * entry - 0.5 : F32))
+      surface_fin(cy, oy, dy, tr, Array.get(U32, w, (World.col_at(base, Util.f2u((ox + dx * entry : F32)), Util.f2u((oz + dz * entry : F32))) + 6 + cy / 8 : U32)))
+
+def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+              +c: U32, +t: F32, r: Array<U32> & Water.Trace) -> Array<U32> & U32:
+  (w, tr) = r
   Water.Trace{+entry, +depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
@@ -562,6 +578,13 @@ def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base:
     mirrored(wet && Water.top(c) && Water.reflection_on(fl), fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
       bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly,
         shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz))))
+
+def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+          ct: Ray) -> Array<U32> & U32:
+  Ray{+c, +t, tr} = ct
+  +top = Water.top(c) && Bool.not(Util.on(fl, 96))
+  shade_fin(v, fl, lx, ly, lz, base, ox, oy, oz, dx, dy, dz, c, t,
+    surface(top, w, base, ox, oy, oz, dx, dy, dz, tr))
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
            r: Array<U32> & Ray) -> Array<U32> & U32:

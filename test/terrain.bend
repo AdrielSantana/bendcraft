@@ -33,14 +33,14 @@ def expect(ok: Bool, name: String) -> IO(Unit):
 # Inspect the generated column, including neighbours' canopies. Below the
 # water surface only the ground may be solid; every gap must be water.
 def dry_roots(+h: U32, c: World.Col) -> Bool:
-  World.Col{m, a, b, cc, d, water} = c
+  World.Col{m, a, b, cc, d, water, lv} = c
   +ground = (U32.shln(1, U32.to_nat(h)) - 1 : U32)
   U32.is_eq((m .&. 4095 : U32), (ground .&. 4095 : U32))
     && U32.is_eq(water, (4095 .&. U32.not(ground) : U32))
 
 # Read the packed surface material, rather than repeating tnib's rule.
 def lake_floor(+h: U32, c: World.Col) -> Bool:
-  World.Col{m, a, b, cc, d, water} = c
+  World.Col{m, a, b, cc, d, water, lv} = c
   (h >= 12 : U32) || U32.is_eq(World.nib_get(Bool.pick(U32, (h <= 8 : U32), a, b), (h - 1 : U32)),
     Bool.pick(U32, (h <= 6 : U32), 3, 1))
 
@@ -59,13 +59,13 @@ def no_tree(m: World.Masks) -> Bool:
   U32.is_eq(wood, 0) && U32.is_eq(leaf, 0)
 
 def shore_tree(c: World.Col) -> Bool:
-  World.Col{m, a, b, cc, d, water} = c
+  World.Col{m, a, b, cc, d, water, lv} = c
   U32.is_eq((m .&. 258048 : U32), 258048) && U32.is_eq(water, 0)
     && U32.is_eq(World.nib_get(b, 12), 4) && U32.is_eq(World.nib_get(cc, 16), 5)
 
 def old_tree(r: Array<U32> & World.Col) -> Bool:
   (ring, c) = r
-  World.Col{m, a, b, cc, d, water} = c
+  World.Col{m, a, b, cc, d, water, lv} = c
   U32.is_eq(m, 511) && U32.is_eq(b, 4) && U32.is_eq(water, 3584)
 
 # Existing edited columns are authoritative, even if the new generator
@@ -87,7 +87,7 @@ def main() -> IO(Unit):
       && no_tree(World.tree_here(1048543, 1048592, 1, False{}, World.Masks{0, 0}))
       && no_tree(World.tree_here(1048543, 1048592, 2, False{}, World.Masks{0, 0})), "submerged tree contributes neither trunk nor canopy in neighbouring columns")
     expect(U32.is_eq(World.terrain(1048512, 1048515), 12) && shore_tree(World.column(1048512, 1048515)), "tree at the dry shoreline keeps its trunk and leaves")
-    expect(saved_tree(World.load(World.W{[0 : U32^17n],
-      Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.Col{511, 0, 4, 0, 0, 3584}),
+    expect(saved_tree(World.load(World.W{[0 : U32^18n],
+      Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.col6(511, 0, 4, 0, 0, 3584)),
       1048512, 1048512}, 1048543, 1048592)), "saved submerged wood survives generation changes")
     IO.pure(Unit, Unit{})

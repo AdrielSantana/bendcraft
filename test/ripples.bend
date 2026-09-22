@@ -40,7 +40,7 @@ def addresses(n: Nat, +i: U32) -> Bool:
     case 0n: True{}
     case 1n+k:
       +b = Water.frame_base(Render.stat_base(i, 255), 8191)
-      U32.is_eq((World.col_at(b, 127, 127) % 131072 : U32), (World.col_at(i, 127, 127) % 131072 : U32))
+      U32.is_eq((World.col_at(b, 127, 127) % 262144 : U32), (World.col_at(i, 127, 127) % 262144 : U32))
         && U32.is_eq((b % 16384 : U32), i) && U32.is_eq(Water.clock(b), 8191)
         && addresses(k, (i + 1 : U32))
 

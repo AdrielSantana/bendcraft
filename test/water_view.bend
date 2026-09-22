@@ -37,6 +37,16 @@ def diver(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
   Player.G{w, 36.5, 8.3, 66.5, 1.5707963, (0.0 - 0.25 : F32), vy, held, edge, mx, my, sel, res, 300000, bag}
 
+# a stair of amounts 1 to 7 in the lake's top cells (y 11) across the
+# lake view's middle, and one of 4 beside the near bank: the surface
+# lowered to each level
+def stair(n: Nat, g: Player.Game, +i: U32) -> Player.Game:
+  match n:
+    case 0n: g
+    case 1n+k:
+      Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+      stair(k, Player.G{World.pour(w, (38 + i * 2 : U32), 11, 66, (i + 1 : U32)), px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, (i + 1 : U32))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     g : Player.Game = Player.start_at(Player.res_of(512, 288))
@@ -44,7 +54,8 @@ def main() -> IO(Unit):
     b : Player.Game <- Export.save("build/water-lake.tree", Player.view(Profile.lake(a)))
     q0 : Player.Game <- Export.save("build/water-caustic.tree", Player.view(Export.aim(Profile.lake(b), 300000, (0.0 - 1.5707963 : F32), (0.0 - 0.75 : F32))))
     q1 : Player.Game <- Export.save("build/water-caustic-off.tree", Player.view_more(q0, Render.looks(), 0, (Render.looks_base() .&. U32.not(268435456) : U32)))
-    q : Player.Game <- Export.save("build/water-bed.tree", Player.view(diver(q1)))
+    q2 : Player.Game <- Export.save("build/water-bed.tree", Player.view(diver(q1)))
+    q : Player.Game <- Export.save("build/water-levels.tree", Player.view(Export.aim(stair(7n, Profile.lake(q2), 0), 300000, (0.0 - 1.5707963 : F32), (0.0 - 0.5 : F32))))
     r : Player.Game <- Export.save("build/water-reflection-off.tree", Player.view_with(q, (Render.looks() .&. U32.not(16777216) : U32)))
     s : Player.Game <- Export.save("build/water-fresnel-off.tree", Player.view_with(r, (Render.looks() .&. U32.not(8388608) : U32)))
     c : Player.Game <- Export.save("build/water-off.tree", Player.view_with(s, (Render.looks() .&. U32.not(2097152) : U32)))

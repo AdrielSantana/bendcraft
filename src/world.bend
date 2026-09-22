@@ -6,14 +6,16 @@ import ./util.bend as Util
 # `Array` in Bend is a `Type`: one owner. Since Bend 2.0.22 an `@unsafe` def
 # may hand one array to both sides of a fork anyway (two handles to one
 # block, `Array.join` gives it back), so the columns around the player live
-# in an `Array<U32>`: eight words a column, the first a mask whose bit y
-# says "there is a solid at height y", the next four the types of the 32
-# blocks, four bits each, then a non-solid water mask at slot + 5. Every
-# primary ray with water enabled reads both masks through its handle, once
-# per column it crosses, and the type once, at the hit; an edit is a few
-# `Array.set` on the host; a built world costs what an untouched one does.
-# 32 heights in one word is what makes this cheap: the ray reads a column
-# as a machine word, and break/place is one bit.
+# in an `Array<U32>`: sixteen words a column, the first a mask whose bit
+# y says "there is a solid at height y", the next four the types of the
+# 32 blocks, four bits each, then a non-solid water mask at slot + 5, and
+# at slots 6..9 the amount of water in each cell, 0 to 8 units in a
+# nibble (10..15 are spare). Every primary ray with water enabled reads
+# both masks through its handle, once per column it crosses, the type
+# once, at the hit, and the amount once, where it first enters water; an
+# edit is a few `Array.set` on the host; a built world costs what an
+# untouched one does. 32 heights in one word is what makes this cheap:
+# the ray reads a column as a machine word, and break/place is one bit.
 
 # The terrain's noise. Its hash mixes its bits: a product is a ramp along
 # each axis at any distance (the texture's hash, in render.bend, is a
@@ -43,14 +45,15 @@ def tnoise(+u: F32, +v: F32) -> F32:
 # around the player. Everything the renderer and the physics see is local
 # to the ring's corner (ox, oz), which follows the player one column at a
 # time, loading the row that came into view. World column (x, z) sits at
-# slot (x * 128 + z) * 8, and Array.get wraps the index, so the loaded
+# slot (x * 128 + z) * 16, and Array.get wraps the index, so the loaded
 # window is one-to-one with the slots and local column (lx, lz) is at
-# (base + lx * 128 + lz) * 8, base = ox * 128 + oz: the one word a reader
+# (base + lx * 128 + lz) * 16, base = ox * 128 + oz: the one word a reader
 # carries. Slot + 0 is the mask, + 1 + y / 8 the word with the type of
-# height y, in its nibble y % 8. Slot + 5 holds water occupancy.
+# height y, in its nibble y % 8. Slot + 5 holds water occupancy, and
+# + 6 + y / 8 the amount of water at height y, in its nibble.
 
 def col_at(+base: U32, +x: U32, +z: U32) -> U32:
-  ((base + x * 128 + z) * 8 : U32)
+  ((base + x * 128 + z) * 16 : U32)
 
 # the block types: 0 grass, 1 dirt, 2 stone, 3 sand, 4 wood, 5 leaves,
 # 6 brick, 7 snow; 8 is water, held in a separate non-solid mask
@@ -157,34 +160,89 @@ def types_word(+k: U32, +h: U32, +wood: U32, +leaf: U32) -> U32:
 def flood(+h: U32, +solid: U32) -> U32:
   ((U32.shln(1, U32.to_nat(sea())) - 1) .&. U32.not(((U32.shln(1, U32.to_nat(h)) - 1) .|. solid : U32)) : U32)
 
+# The amount of water in each cell, 0 to 8 units in a nibble: the water
+# mask's bit y is set exactly when the amount at y is over zero, so the
+# ray keeps walking the mask. A column is born full wherever its mask has
+# a bit, as is one from a save that predates the amounts.
+type Levels is Data:
+  Levels{a: U32, b: U32, c: U32, d: U32}
+
+# the eight nibbles of an octet, 8 under each of its mask bits
+def full_word(n: Nat, +bits: U32, +acc: U32) -> U32:
+  match n:
+    case 0n:
+      acc
+    case 1n+k:
+      full_word(k, (bits * 2 : U32), (acc * 16 + Bool.pick(U32, Util.on(bits, 128), 8, 0) : U32))
+
+def full_levels(+water: U32) -> Levels:
+  Levels{full_word(8n, (water % 256 : U32), 0), full_word(8n, (water / 256 % 256 : U32), 0),
+         full_word(8n, (water / 65536 % 256 : U32), 0), full_word(8n, (water / 16777216 : U32), 0)}
+
+def level_word(+lv: Levels, +k: U32) -> U32:
+  Levels{a, b, c, d} = lv
+  Bool.pick(U32, (k < 2 : U32), Bool.pick(U32, U32.is_eq(k, 0), a, b), Bool.pick(U32, U32.is_eq(k, 2), c, d))
+
+def amount(+lv: Levels, +y: U32) -> U32:
+  nib_get(level_word(lv, (y / 8 : U32)), y)
+
 type Col is Data:
-  Col{mask: U32, t0: U32, t1: U32, t2: U32, t3: U32, water: U32}
+  Col{mask: U32, t0: U32, t1: U32, t2: U32, t3: U32, water: U32, lv: Levels}
+
+# a column from its six words, full wherever there is water
+def col6(m: U32, a: U32, b: U32, c: U32, d: U32, +water: U32) -> Col:
+  Col{m, a, b, c, d, water, full_levels(water)}
 
 def masks(c: Col) -> U32 & U32:
-  Col{m, a, b, cc, d, water} = c
+  Col{m, a, b, cc, d, water, lv} = c
   (m, water)
+
+def levels(c: Col) -> Levels:
+  Col{m, a, b, cc, d, water, lv} = c
+  lv
 
 def column_fin(+h: U32, m: Masks) -> Col:
   Masks{+wood, +leaf} = m
   +solid = ((U32.shln(1, U32.to_nat(h)) - 1) .|. wood .|. leaf : U32)
-  Col{solid,
-      types_word(0, h, wood, leaf), types_word(1, h, wood, leaf), types_word(2, h, wood, leaf), types_word(3, h, wood, leaf), flood(h, solid)}
+  col6(solid,
+       types_word(0, h, wood, leaf), types_word(1, h, wood, leaf), types_word(2, h, wood, leaf), types_word(3, h, wood, leaf), flood(h, solid))
 
 def column(+x: U32, +z: U32) -> Col:
   column_fin(terrain(x, z), canopy(25n, x, z, 0, Masks{0, 0}))
 
-def put_col(ring: Array<U32>, +slot: U32, c: Col) -> Array<U32>:
-  Col{+m, +a, +b, +cc, +d, +water} = c
-  Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring, slot, m),
-    (slot + 1 : U32), a), (slot + 2 : U32), b), (slot + 3 : U32), cc), (slot + 4 : U32), d), (slot + 5 : U32), water)
+def put_levels(ring: Array<U32>, +slot: U32, lv: Levels) -> Array<U32>:
+  Levels{+la, +lb, +lc, +ld} = lv
+  Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring, (slot + 6 : U32), la),
+    (slot + 7 : U32), lb), (slot + 8 : U32), lc), (slot + 9 : U32), ld)
 
-def get5(m: U32, a: U32, b: U32, c: U32, d: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+def put_col(ring: Array<U32>, +slot: U32, c: Col) -> Array<U32>:
+  Col{+m, +a, +b, +cc, +d, +water, lv} = c
+  put_levels(Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring, slot, m),
+    (slot + 1 : U32), a), (slot + 2 : U32), b), (slot + 3 : U32), cc), (slot + 4 : U32), d), (slot + 5 : U32), water), slot, lv)
+
+def get9(m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, la: U32, lb: U32, lc: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, ld) = r
+  (ring, Col{m, a, b, c, d, water, Levels{la, lb, lc, ld}})
+
+def get8(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, la: U32, lb: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, lc) = r
+  get9(m, a, b, c, d, water, la, lb, lc, Array.get(U32, ring, (slot + 9 : U32)))
+
+def get7(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, la: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, lb) = r
+  get8(slot, m, a, b, c, d, water, la, lb, Array.get(U32, ring, (slot + 8 : U32)))
+
+def get6(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, water: U32, r: Array<U32> & U32) -> Array<U32> & Col:
+  (ring, la) = r
+  get7(slot, m, a, b, c, d, water, la, Array.get(U32, ring, (slot + 7 : U32)))
+
+def get5(+slot: U32, m: U32, a: U32, b: U32, c: U32, d: U32, r: Array<U32> & U32) -> Array<U32> & Col:
   (ring, water) = r
-  (ring, Col{m, a, b, c, d, water})
+  get6(slot, m, a, b, c, d, water, Array.get(U32, ring, (slot + 6 : U32)))
 
 def get4(+slot: U32, m: U32, a: U32, b: U32, c: U32, r: Array<U32> & U32) -> Array<U32> & Col:
   (ring, d) = r
-  get5(m, a, b, c, d, Array.get(U32, ring, (slot + 5 : U32)))
+  get5(slot, m, a, b, c, d, Array.get(U32, ring, (slot + 5 : U32)))
 
 def get3(+slot: U32, +m: U32, +a: U32, +b: U32, r: Array<U32> & U32) -> Array<U32> & Col:
   (ring, c) = r
@@ -220,9 +278,9 @@ def load_put(ring: Array<U32>, +ox: U32, +oz: U32, +slot: U32, r: Map<&2, Col> &
 def load_had(had: Bool, ring: Array<U32>, m: Map<&2, Col>, +ox: U32, +oz: U32, +x: U32, +z: U32) -> World:
   match had:
     case True{}:
-      load_put(ring, ox, oz, ((x * 128 + z) * 8 : U32), Map.get(Col, Col{0, 0, 0, 0, 0, 0}, m, key(x, z)))
+      load_put(ring, ox, oz, ((x * 128 + z) * 16 : U32), Map.get(Col, col6(0, 0, 0, 0, 0, 0), m, key(x, z)))
     case False{}:
-      W{put_col(ring, ((x * 128 + z) * 8 : U32), column(x, z)), m, ox, oz}
+      W{put_col(ring, ((x * 128 + z) * 16 : U32), column(x, z)), m, ox, oz}
 
 def load_go(ring: Array<U32>, +ox: U32, +oz: U32, +x: U32, +z: U32, r: Map<&2, Col> & Bool) -> World:
   (m, had) = r
@@ -304,32 +362,62 @@ def setbit(+b: U32, +ybit: U32, set: Bool) -> U32:
   Bool.pick(U32, set, (b .|. ybit : U32), (b .&. U32.not(ybit) : U32))
 
 # an edit: the height's bit in the mask, its type in the nibble, and the
-# column is remembered
+# column is remembered; water placed is a full cell, and a cell that
+# stops being water holds no amount
+def edit_levels(+lv: Levels, +y: U32, +k: U32, +amt: U32) -> Levels:
+  Levels{+la, +lb, +lc, +ld} = lv
+  Levels{Bool.pick(U32, U32.is_eq(k, 0), nib_set(la, y, amt), la),
+         Bool.pick(U32, U32.is_eq(k, 1), nib_set(lb, y, amt), lb),
+         Bool.pick(U32, U32.is_eq(k, 2), nib_set(lc, y, amt), lc),
+         Bool.pick(U32, U32.is_eq(k, 3), nib_set(ld, y, amt), ld)}
+
 def edit_col(c: Col, +y: U32, +set: Bool, +what: U32) -> Col:
-  Col{+m, +a, +b, +cc, +d, +water} = c
+  Col{+m, +a, +b, +cc, +d, +water, +lv} = c
   +k = (y / 8 : U32)
   +bit = U32.shln(1, U32.to_nat(y))
   +wet = U32.is_eq(what, 8)
   +blocked = set && wet && Util.on(m, bit)
+  +poured = set && wet && Bool.not(blocked)
   # Water cannot erase a bank; a solid placement can displace water.
   Col{Bool.pick(U32, blocked, m, setbit(m, bit, set && Bool.not(wet))),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 0), nib_set(a, y, what), a),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 1), nib_set(b, y, what), b),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 2), nib_set(cc, y, what), cc),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 3), nib_set(d, y, what), d),
-      setbit(water, bit, set && wet && Bool.not(blocked))}
+      setbit(water, bit, poured),
+      Bool.pick(Levels, blocked, lv, edit_levels(lv, y, k, Bool.pick(U32, poured, 8, 0)))}
 
 def edit_fin(m: Map<&2, Col>, +ox: U32, +oz: U32, +x: U32, +z: U32, +y: U32, set: Bool, +what: U32,
              r: Array<U32> & Col) -> World:
   (ring, c) = r
   +nc = edit_col(c, y, set, what)
-  W{put_col(ring, ((x * 128 + z) * 8 : U32), nc), Map.set(&2, Col, m, key(x, z), nc), ox, oz}
+  W{put_col(ring, ((x * 128 + z) * 16 : U32), nc), Map.set(&2, Col, m, key(x, z), nc), ox, oz}
 
 def edit(w: World, +lx: U32, +lz: U32, +y: U32, set: Bool, +what: U32) -> World:
   W{ring, m, +ox, +oz} = w
   +x = (ox + lx : U32)
   +z = (oz + lz : U32)
-  edit_fin(m, ox, oz, x, z, y, set, what, get_col(ring, ((x * 128 + z) * 8 : U32)))
+  edit_fin(m, ox, oz, x, z, y, set, what, get_col(ring, ((x * 128 + z) * 16 : U32)))
+
+# The amount at a cell, set, the mask's bit following it (set exactly
+# when the amount is over zero); a solid cell holds none, and 8 is the
+# most a cell holds. The flow's one write.
+def pour_col(c: Col, +y: U32, +a: U32) -> Col:
+  Col{+m, ta, tb, tc, td, +water, +lv} = c
+  +bit = U32.shln(1, U32.to_nat(y))
+  +amt = Bool.pick(U32, Util.on(m, bit), 0, U32.min(a, 8))
+  Col{m, ta, tb, tc, td, setbit(water, bit, (amt > 0 : U32)), edit_levels(lv, y, (y / 8 : U32), amt)}
+
+def pour_fin(m: Map<&2, Col>, +ox: U32, +oz: U32, +x: U32, +z: U32, +y: U32, +a: U32, r: Array<U32> & Col) -> World:
+  (ring, c) = r
+  +nc = pour_col(c, y, a)
+  W{put_col(ring, ((x * 128 + z) * 16 : U32), nc), Map.set(&2, Col, m, key(x, z), nc), ox, oz}
+
+def pour(w: World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World:
+  W{ring, m, +ox, +oz} = w
+  +x = (ox + lx : U32)
+  +z = (oz + lz : U32)
+  pour_fin(m, ox, oz, x, z, y, a, get_col(ring, ((x * 128 + z) * 16 : U32)))
 
 def inside(+vx: F32, +vy: F32, +vz: F32) -> Bool:
   (vx > (0.0 - 0.5) : F32) && (vx < 127.5 : F32) &&
@@ -359,16 +447,33 @@ def wsolid(w: World, +x: F32, +y: F32, +z: F32) -> World & Bool:
   W{ring, m, +ox, +oz} = w
   wsolid_fin(m, ox, oz, solid(ring, (ox * 128 + oz : U32), x, y, z))
 
-# the type of the block at a local cell (for the tests and the tools)
-def voxel_fin(m: Map<&2, Col>, ox: U32, oz: U32, +y: U32, water: U32, r: Array<U32> & U32) -> World & U32:
+# the type of the block at a local cell (for the tests and the tools):
+# 8 where the water mask has the bit, the type's nibble where the solid
+# mask has it, 0 (air) where neither, whatever the nibble holds from
+# before
+def voxel_fin(m: Map<&2, Col>, ox: U32, oz: U32, +y: U32, +solid: U32, water: U32, r: Array<U32> & U32) -> World & U32:
   (ring, word) = r
-  (W{ring, m, ox, oz}, Bool.pick(U32, Util.on(water, U32.shln(1, U32.to_nat(y))), 8, nib_get(word, y)))
+  +bit = U32.shln(1, U32.to_nat(y))
+  (W{ring, m, ox, oz}, Bool.pick(U32, Util.on(water, bit), 8, Bool.pick(U32, Util.on(solid, bit), nib_get(word, y), 0)))
 
-def voxel_water(m: Map<&2, Col>, ox: U32, oz: U32, +y: U32, +slot: U32, r: Array<U32> & U32) -> World & U32:
+def voxel_water(m: Map<&2, Col>, ox: U32, oz: U32, +y: U32, +slot: U32, +solid: U32, r: Array<U32> & U32) -> World & U32:
   (ring, water) = r
-  voxel_fin(m, ox, oz, y, water, Array.get(U32, ring, (slot + 1 + y / 8 : U32)))
+  voxel_fin(m, ox, oz, y, solid, water, Array.get(U32, ring, (slot + 1 + y / 8 : U32)))
+
+def voxel_solid(m: Map<&2, Col>, ox: U32, oz: U32, +y: U32, +slot: U32, r: Array<U32> & U32) -> World & U32:
+  (ring, solid) = r
+  voxel_water(m, ox, oz, y, slot, solid, Array.get(U32, ring, (slot + 5 : U32)))
 
 def voxel(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
   W{ring, m, +ox, +oz} = w
   +slot = col_at((ox * 128 + oz : U32), lx, lz)
-  voxel_water(m, ox, oz, y, slot, Array.get(U32, ring, (slot + 5 : U32)))
+  voxel_solid(m, ox, oz, y, slot, Array.get(U32, ring, slot))
+
+# the amount of water at a local cell, 0 to 8 (for the tests and the flow)
+def amount_fin(m: Map<&2, Col>, ox: U32, oz: U32, +y: U32, r: Array<U32> & U32) -> World & U32:
+  (ring, word) = r
+  (W{ring, m, ox, oz}, nib_get(word, y))
+
+def amount_at(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
+  W{ring, m, +ox, +oz} = w
+  amount_fin(m, ox, oz, y, Array.get(U32, ring, (col_at((ox * 128 + oz : U32), lx, lz) + 6 + y / 8 : U32)))

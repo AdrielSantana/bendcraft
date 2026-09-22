@@ -2,7 +2,7 @@ import Base
 import ./sky.bend as Sky
 import ./util.bend as Util
 
-# Array indices wrap at 2^17 words: only 14 column-address bits matter.
+# Array indices wrap at 2^18 words: only 14 column-address bits matter.
 # The next 13 carry milliseconds in an 8.192-second ripple loop; bits
 # 27..30 are looks the flags word has no room for, put there by the camera
 # (27: the world in the water's mirror, 28: the caustic on its bed); bit
@@ -24,6 +24,26 @@ def lattice(base: U32, x: U32, z: U32) -> U32:
 # cannot stand in for the whole ray's distance when computing fog.
 type Trace is Data:
   Trace{entry: F32, depth: F32}
+
+# A cell holding a units has its surface a / 8 up its height. Where a
+# ray first enters water from above, the entry moves down the ray to
+# that plane and the wet path loses the air over it; the reflection, the
+# ripples, Fresnel, the mirror and the caustic then happen on the plane.
+# A full cell's plane is its top face, and its entry stays as the DDA
+# found it, bit for bit.
+def lowered(+a: U32, +cy: U32, +oy: F32, +dy: F32, tr: Trace) -> Trace:
+  Trace{+entry, +depth} = tr
+  +plane = ((Util.u2f(cy) + Util.u2f(a) / 8.0 - oy) / dy : F32)
+  +e = Bool.pick(F32, (a < 8 : U32), F32.max(entry, plane), entry)
+  Trace{e, F32.max((depth - (e - entry) : F32), 0.0)}
+
+def entry_of(tr: Trace) -> F32:
+  Trace{entry, depth} = tr
+  entry
+
+def depth_of(tr: Trace) -> F32:
+  Trace{entry, depth} = tr
+  depth
 
 # The primary ray uses six bits for its 60-step count. Bit six records
 # entry through the first water top, without widening the DDA state.

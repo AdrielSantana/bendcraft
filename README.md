@@ -53,12 +53,15 @@ make publish                                   # the same onto the gh-pages bran
 **The world is one array, shared by every pixel.** `Array` in Bend has one
 owner. Since 2.0.22 an `@unsafe` def may hand one array to both sides of a
 fork anyway, two handles to one block that `Array.join` gives back, so the
-columns around the player live in an `Array<U32>`: eight words a column,
-the first a mask whose bit `y` says "there is a block at height `y`", the
-next four the types of its 32 solid blocks, four bits each. Word six is a
-separate water mask; two words remain spare. A primary ray with water on
-reads both masks once per column it crosses and the solid type once, at the
-hit; an edit is a few `Array.set` on the host; a built world costs what an
+columns around the player live in an `Array<U32>`: sixteen words a
+column, the first a mask whose bit `y` says "there is a block at height
+`y`", the next four the types of its 32 solid blocks, four bits each. Word
+six is a separate water mask; words seven to ten hold the amount of water
+in each cell, 0 to 8 units in a nibble, the mask's bit set exactly when
+the amount is over zero; six words remain spare. A primary ray with water
+on reads both masks once per column it crosses, the solid type once, at
+the hit, and the amount once, where it first enters water from above; an
+edit is a few `Array.set` on the host; a built world costs what an
 untouched one does. Thirty-two heights in one word is what makes it cheap:
 the ray sees a column as a machine word, and break or place is one bit.
 
@@ -116,7 +119,22 @@ darkens with that depth to a near-black blue, so a deep lake reads as
 deep; and the fog a submerged eye sees converges to the colour at the
 eye's own depth. Every lake lies at the sea level today, so the depth is
 the level less the height; the water's physics will give each column its
-level. The tint follows daylight. Distance and height fog use the full solid-hit
+level. The tint follows daylight.
+
+The amounts are the first step of the water's physics (the design is in
+ROADMAP.md): a cell holds 0 to 8 units, `World.pour` sets one (the mask's
+bit follows, a solid cell holds none), a save writes the four amount
+words after its six and loads a six-word column full wherever it is wet,
+and where a ray first enters water from above the render reads the
+cell's amount once and lowers the surface to y + amount / 8: the entry
+moves to that plane, the wet path loses the air over it, and the
+reflection, the ripples, Fresnel, the mirror and the caustic happen on
+it. A full cell's plane is its top face, so the picture of a still lake
+is the same bit for bit, and the frame costs the same. What a partial
+cell does not show yet is its side: the step between a full cell and a
+lower one, and a ray entering a partial cell through a side face, are
+the flow step's rendering work. `make water` renders a stair of amounts
+1 to 7 in the lake's top row (`build/water-levels.png`). Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
@@ -181,7 +199,8 @@ Placing an inventory block displaces water, and edits survive ring reloads
 and saves. Water cannot be collected with the eight solid-block slots.
 A lake lies west of the initial spawn; `make water` exports daytime,
 dusk, submerged, reflected sun/moon, the caustic from above, a diver at
-the deepest bed and each surface-look-off view as fifteen PNGs. It also exports `build/water-motion.gif`, a 128-frame ripple cycle
+the deepest bed, a stair of amounts and each surface-look-off view as
+sixteen PNGs. It also exports `build/water-motion.gif`, a 128-frame ripple cycle
 with camera and sun fixed, and a contact sheet (requires Pillow).
 This is still water: digging leaves a gap until flow is implemented, and
 movement remains walking/gravity, with swimming left for a later step. Generated trees require dry grass at their origin;
@@ -257,7 +276,7 @@ test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves
 test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  clock/address packing, stable world noise, normals and wrap continuity
-test/water_view.bend fifteen water views and a fixed-sun ripple cycle for test/water.py
+test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
 test/mirror.bend   the mirror's walk over a placed brick, its reach and fade, the byte a miss keeps
 test/mirror_view.bend four views with the world in the mirror and without, for test/mirror.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
@@ -277,7 +296,7 @@ make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
 make profile    # each look off, by size; also night, lake, submerged and night lake
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
-make water      # fifteen PNGs and a ripple animation; Python with Pillow
+make water      # sixteen PNGs and a ripple animation; Python with Pillow
 make mirror     # build/mirror-sheet.png: four views, mirror on and off; Pillow
 make page-test  # the page in headless Chrome, hashes and fps
 ```
@@ -838,8 +857,12 @@ it is off unless asked for, and the ring address, the ripple clock and
 the readout's bit pass through it untouched. Windowless tests walk the
 mirror's ray to a placed brick along an axis and across, past its reach,
 and to the sky, and check the fade and the byte a miss leaves alone.
-Two more keep the caustic's look in bit 28. There are 99 laws: eight
-universal claims and 91 concrete checks. Integration tests exercise the actual ring edits, all eight types,
+Two more keep the caustic's look in bit 28. Eleven amount laws: a column
+born of the terrain or a save is full where it is wet, an amount reads
+its nibble, water placed is a full cell, a solid placed holds none, and
+a pour sets the amount and the bit, clears the bit at zero, caps at
+eight and does nothing to a solid. There are 110 laws: eight universal
+claims and 102 concrete checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;
 its output hash stays unchanged, while the inventory tests check an empty

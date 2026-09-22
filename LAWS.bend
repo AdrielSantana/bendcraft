@@ -43,10 +43,10 @@ law pick_inside_z:
 # columns are the 16384 column slots, each once
 
 law ring_window_spans_the_slots:
-  {(World.col_at((1048512 * 128 + 1048512 : U32), 127, 127) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 0) : U32) == (16383 * 8 : U32) : U32}
+  {(World.col_at((1048512 * 128 + 1048512 : U32), 127, 127) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 0) : U32) == (16383 * 16 : U32) : U32}
 
 law ring_rows_are_consecutive:
-  {(World.col_at((1048512 * 128 + 1048512 : U32), 1, 0) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 127) : U32) == 8 : U32}
+  {(World.col_at((1048512 * 128 + 1048512 : U32), 1, 0) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 127) : U32) == 16 : U32}
 
 # --- an edit is one bit ----------------------------------------------------
 
@@ -277,22 +277,59 @@ law water_generation_skips_solids:
   {World.flood(10, 1024) == 2048 : U32}
 
 law water_place_is_not_solid:
-  {World.masks(World.edit_col(World.Col{0, 0, 0, 0, 0, 0}, 31, True{}, 8)) == (0, 2147483648) : U32 & U32}
+  {World.masks(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 31, True{}, 8)) == (0, 2147483648) : U32 & U32}
 
 law solid_displaces_water:
-  {World.masks(World.edit_col(World.Col{0, 0, 0, 0, 0, 1024}, 10, True{}, 6)) == (1024, 0) : U32 & U32}
+  {World.masks(World.edit_col(World.col6(0, 0, 0, 0, 0, 1024), 10, True{}, 6)) == (1024, 0) : U32 & U32}
 
 law water_edit_keeps_neighbors:
-  {World.masks(World.edit_col(World.Col{16, 0, 0, 0, 0, 32}, 10, True{}, 8)) == (16, 1056) : U32 & U32}
+  {World.masks(World.edit_col(World.col6(16, 0, 0, 0, 0, 32), 10, True{}, 8)) == (16, 1056) : U32 & U32}
 
 law draining_water_keeps_solids:
-  {World.masks(World.edit_col(World.Col{16, 0, 0, 0, 0, 1056}, 10, False{}, 0)) == (16, 32) : U32 & U32}
+  {World.masks(World.edit_col(World.col6(16, 0, 0, 0, 0, 1056), 10, False{}, 0)) == (16, 32) : U32 & U32}
 
 law water_type_reads_back:
   {World.nib_get(World.nib_set(0, 7, 8), 7) == 8 : U32}
 
 law water_cannot_replace_a_bank:
-  {World.edit_col(World.Col{1024, 0, 1536, 0, 0, 2048}, 10, True{}, 8) == World.Col{1024, 0, 1536, 0, 0, 2048} : World.Col}
+  {World.edit_col(World.col6(1024, 0, 1536, 0, 0, 2048), 10, True{}, 8) == World.col6(1024, 0, 1536, 0, 0, 2048) : World.Col}
+
+# --- the amount of water in a cell: a nibble, 0 to 8 -----------------------
+# A column born of the terrain or of an edit is full wherever its mask
+# has a bit; the mask's bit follows the amount; a solid cell holds none.
+
+law full_levels_follow_the_mask:
+  {World.full_levels(1056) == World.Levels{8388608, 2048, 0, 0} : World.Levels}
+
+law full_levels_of_a_dry_column:
+  {World.full_levels(0) == World.Levels{0, 0, 0, 0} : World.Levels}
+
+law amount_reads_its_nibble:
+  {World.amount(World.Levels{0, 8, 0, 0}, 10) == 0 : U32}
+
+law amount_reads_its_nibble_up:
+  {World.amount(World.Levels{0, 8, 0, 0}, 8) == 8 : U32}
+
+law water_placed_is_a_full_cell:
+  {World.levels(World.edit_col(World.col6(0, 0, 0, 0, 0, 0), 10, True{}, 8)) == World.Levels{0, 2048, 0, 0} : World.Levels}
+
+law solid_placed_holds_no_water:
+  {World.levels(World.edit_col(World.col6(0, 0, 0, 0, 0, 1024), 10, True{}, 6)) == World.Levels{0, 0, 0, 0} : World.Levels}
+
+law pour_sets_the_amount_and_the_bit:
+  {World.masks(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 3)) == (0, 1024) : U32 & U32}
+
+law pour_keeps_the_amount:
+  {World.levels(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 3)) == World.Levels{0, 768, 0, 0} : World.Levels}
+
+law pour_of_nothing_clears_the_bit:
+  {World.masks(World.pour_col(World.col6(0, 0, 0, 0, 0, 1024), 10, 0)) == (0, 0) : U32 & U32}
+
+law pour_is_capped_at_eight:
+  {World.levels(World.pour_col(World.col6(0, 0, 0, 0, 0, 0), 10, 13)) == World.Levels{0, 2048, 0, 0} : World.Levels}
+
+law pour_into_a_solid_is_nothing:
+  {World.pour_col(World.col6(1024, 0, 1536, 0, 0, 0), 10, 5) == World.col6(1024, 0, 1536, 0, 0, 0) : World.Col}
 
 law water_fog_has_its_own_flag:
   {Water.fog_on(2097152) == False{} : Bool}
@@ -347,7 +384,7 @@ law ripple_clock_reads_back:
   {(Water.clock(Water.frame_base(4294967295, 0)), Water.clock(Water.frame_base(4294967295, 8191))) == (0, 8191) : U32 & U32}
 
 law ripple_address_keeps_the_ring:
-  {(World.col_at(Water.frame_base(4294967295, 8191), 127, 127) % 131072 : U32) == (World.col_at(4294967295, 127, 127) % 131072 : U32) : U32}
+  {(World.col_at(Water.frame_base(4294967295, 8191), 127, 127) % 262144 : U32) == (World.col_at(4294967295, 127, 127) % 262144 : U32) : U32}
 
 law ripple_lattice_follows_recentering:
   {(Water.lattice(Water.frame_base(16383, 8191), 65, 64), Water.lattice(Water.frame_base((16383 + 129 : U32), 0), 64, 63)) == (8383, 8383) : U32 & U32}
@@ -382,7 +419,7 @@ law mirror_look_is_off_unasked:
   {Water.mirror_on(Water.with_looks(Water.frame_base(4294967295, 8191), 0)) == False{} : Bool}
 
 law mirror_look_keeps_the_ring:
-  {(World.col_at(Water.with_looks(Water.frame_base(4294967295, 8191), 4294967295), 127, 127) % 131072 : U32) == (World.col_at(4294967295, 127, 127) % 131072 : U32) : U32}
+  {(World.col_at(Water.with_looks(Water.frame_base(4294967295, 8191), 4294967295), 127, 127) % 262144 : U32) == (World.col_at(4294967295, 127, 127) % 262144 : U32) : U32}
 
 law mirror_look_keeps_the_clock:
   {Water.clock(Water.with_looks(Water.frame_base(16383, 5000), 4294967295)) == 5000 : U32}
