@@ -54,7 +54,8 @@ make publish                                   # the same onto the gh-pages bran
 **The world is one array, shared by every pixel.** `Array` in Bend has one
 owner. Since 2.0.22 an `@unsafe` def may hand one array to both sides of a
 fork anyway, two handles to one block that `Array.join` gives back, so the
-columns around the player live in an `Array<U32>`: sixteen words a
+columns around the player live in the low 2^18 words of an `Array<U32>`
+of 2^19 (above them, the far map below): sixteen words a
 column, the first a mask whose bit `y` says "there is a block at height
 `y`", the next four the types of its 32 solid blocks, four bits each. Word
 six is a separate water mask; words seven to fourteen hold the amount of
@@ -90,7 +91,20 @@ you come back.
 
 **The render** is a DDA through the ring, one ray per pixel, 60 steps. The
 loop returns the solid hit and its distance, plus the first wet entry and
-total wet distance; the look is a `match` after it:
+total wet distance. A ray that met nothing goes on over the far map, a
+word a column for 256x256 columns around the window: the column's run
+from the floor, its ground, a trunk or the sea over it, and the canopy
+over that, and the highest top of the column's 4x4 cell. The second walk
+(`Render.run_far`) takes 128 steps at most: a step crosses a cell where
+the ray stays over the cell's highest top, a column elsewhere, and it
+stops at its hit, at the map's edge, over the world's top and where the
+fog is whole. What it meets is shaded as the window's blocks are, colour,
+texture and the face's tone, without the corners' occlusion and the
+shadow's walk, then fogged into the sky: the ground and its trees go on
+to the horizon, block for block. A far map of 4x4 cells, each its
+highest block, came first and looked wrong: a tree made a pillar of
+leaves four wide, and a cell showed four times a block's size where the
+window's walk ends. The look is a `match` after the walk:
 a second DDA toward the sun for shadows, a pixel-art tile of four shades per
 face, ambient occlusion per vertex from the eight cells around the hit, distance haze and low mist into the sky along the ray. The `!` runs a binary tree down to 4×4 tiles: a
 square splits into its two rows, a row into its two squares, as many levels
@@ -219,10 +233,9 @@ is the bucket above. Distance and height fog use the full solid-hit
 path, including air after leaving the lake, so entering water never resets
 visibility to zero. Fog colours the background before the water tints it:
 a distant block hidden by fog must match the sky seen through the same
-wet path. Foreground air haze attenuates that tint to keep distant lakes
-hidden. A separate water-fog flag fades to the water colour by
-24 wet blocks, before the 60-step ray limit. Foreground air fog also fades
-that colour, keeping distant lakes hidden. Sky rays keep their celestial
+wet path. Foreground air haze attenuates that tint, and a top the haze hides
+whole is the exact sky. A separate water-fog flag fades to the water
+colour by 24 wet blocks, before the 60-step ray limit. Sky rays keep their celestial
 discs through short wet paths and converge to the same water colour on
 long ones.
 This works from below and through vertical sides as well as from above.
@@ -302,8 +315,8 @@ The default starts in the morning. A world-direction sky gradient follows
 the sun's height, with a warm glow toward dawn and dusk, a sun disc, fixed
 stars fading in at night and a moon opposite the sun. Fog takes the gradient
 and glow's colour, without celestial discs; its distance term reaches the
-sky at 34 blocks, before the 60-step ray budget ends even on a diagonal.
-A separate height term thickens in the low ground.
+sky at 120 blocks (`Sky.reach`), where the far walk stops; its map ends
+128 blocks from the window's centre on an axis. A separate height term thickens in the low ground.
 
 **Collecting and building** use eight natural counts in `Game`. A successful
 break reads the cell's actual type and credits that slot; a successful
@@ -378,7 +391,8 @@ test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
-test/terrain.bend  noise rows, lake floor materials, dry roots, canopies and saved columns
+test/terrain.bend  noise rows, lake floor materials, dry roots, canopies, saved columns, the far map
+test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea, the look
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -905,7 +919,8 @@ and not around the wait for the screen; twice a second it publishes the
 mean since. The two numbers ride to the GPU in a word of their own,
 `Cam.stat` (they rode in spare bits of the flags, the inventory and the
 ring-address words while the camera was kept at 14 words; the fifteenth
-word measured free, so the splices and their 22 laws went, 2026-09-22).
+word measured free, so the splices and their 22 laws went, 2026-09-22;
+the sixteenth, `Cam.far`, the far map's address, measured free too).
 Only 14 low address bits affect the ring's wrapping array reads; bits
 14..26 carry the ripple clock.
 The HUD draws the readout with glyphs of 3 × 5 picked by divisions
@@ -966,8 +981,12 @@ full cell or a solid, the bucket is the ninth slot and the HUD shows its
 full cells above the readout's numbers. Seven shove
 laws: what fits is the room, all of less, nothing in full or in a
 solid; a solid placed on water shoves its amount, water placed and a
-break shove nothing. There are 122 laws:
-eight universal claims and 114 concrete
+break shove nothing. Nine far-map laws: the window wraps under the far map,
+its columns live above it, the render reads the word the host wrote, a
+column is its run and its canopy, its top is the higher of the two,
+leaves inside the run are the run's, and a far column's types are the
+window's for the ground, the trunk and the sea. There are 131 laws:
+eight universal claims and 123 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

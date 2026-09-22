@@ -98,7 +98,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `ea93527f7e15be4e76a3051151159054` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `6c06c2d7e24c9af269745efff4131319` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `26eafd3e7eb6...`; same rule.
@@ -153,6 +153,22 @@ slowest lane. Keep leaves equal in cost.
 rays made the frame slower: lanes of a SIMD group that part ways are run
 one case at a time. The DDA walks its 60 steps whatever happens, on
 purpose.
+- The far walk is the exception, measured (2026-09-22): with its cell
+skip, 64 fixed steps read 47 ms at 1470x796 and stopping at the hit, the
+map's edge and the world's top 40. Its lanes part by kind, open sky or
+far ground, not by a few steps, so a SIMD group of open sky leaves
+together.
+- A division in a walk's step is dear, even in a pick's unused side: the
+far walk's three a step took 9 of its 31 ms. Multiply by an inverse
+computed once.
+- An A/B script keeps each run's rounds apart. One that read every round
+file left in /tmp took older fast rounds for new ones and showed a far
+walk free that cost 31 ms; the level view, whose sections were new, told
+the truth.
+- A walk that finds its column again from the distance stalls where the
+ray runs along an axis: the float's step over the map's coordinates is
+larger than the ray's advance over a hair of distance, and the pixel
+shows a crack of sky. Step the column's index by the axis crossed.
 - The frame tree is binary, and a half past the screen's edge is never a
 task. A four-way tree, a pruned four-way tree, 8x8 leaves: all tried, all
 slower. Do not change `fork`'s shape without the bench.
@@ -168,9 +184,10 @@ this game (ROADMAP.md).
 - What every lane shares must be flat (`Cam`: scalars, copied by words) or
 the one array (`w`, read at a plain load). A `+` tree read by every lane
 costs a count a node a pixel, on every node of that type.
-- A new parameter rides in every task. A fifteenth camera word (the
-readout's, `Cam.stat`, 2026-09-22) measured free, so a number with a
-meaning of its own gets a word, not spare bits of another; measure.
+- A new parameter rides in every task. A fifteenth and a sixteenth
+camera word (the readout's `Cam.stat` and the far map's `Cam.far`,
+2026-09-22) each measured free, so a number with a meaning of its own
+gets a word, not spare bits of another; measure.
 
 ## The code's fixed points
 
@@ -178,6 +195,9 @@ meaning of its own gets a word, not spare bits of another; measure.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
 horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
+- `Cam.far`: the far map's corner mod 256, x's over z's
+(`World.far_cam`); the device walks the map in the window's coordinates
+plus 64, plus those remainders, plus 256 (`Render.run_far`).
 - `Cam.base`: low 14 bits address the ring; bits 14..26 hold the ripple
 clock modulo 8192 ms. The array wraps addresses, so the clock's bits
 cannot affect world reads. Bits 27..30 are the
@@ -201,8 +221,8 @@ counts load with an empty bag.
 count).
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
 512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
-- The world: a ring of 128x128 columns in one `Array<U32>` of 2^18 words,
-sixteen words a column (solid mask, four type words, water mask, eight
+- The world: a ring of 128x128 columns in the low 2^18 words of one
+`Array<U32>` of 2^19, sixteen words a column (solid mask, four type words, water mask, eight
 words of water amounts 0..255 in bytes, the flow's marks at slot 14,
 the partial mask at 15, none spare); the water mask's bit is set
 exactly when the amount is over zero (`World.pour` keeps both), the
@@ -213,6 +233,25 @@ noise; a save line has fourteen words, and nothing else loads. `World.W` is the 
 corner's word); the meta also carries the flow's
 queue of marked slots (`World.mark`; marks are on slots, so a mark on a
 column that left the window is spent harmlessly on the one at its slot).
+- The far map (`World.far_at`): above the ring's 2^18 words, 256x256
+columns, world column (x, z) at (x mod 256, z mod 256), one word each
+(bits 0..4 the ground's height, 5..9 the top of the solid run from the
+floor: the ground, the trunk's wood over it or the sea's plane over a
+bed; 10..14 and 15..19 the canopy's bottom and top, none when equal,
+`World.far_fin`; 20..24 the highest top of the column's 4x4 cell, from a
+multiple of four, `World.load_cell`), types from `World.far_type`, from
+the noise alone: an edit does not reach it, so past the near walk the
+far walk shows the noise's ground. Its corner is the window's less 64
+on each axis (`World.far_corner`); every shift of the window loads the
+far map's line of 256 that came into view, then the 64 cells it
+touches. A cell at the map's edge shares its slots with the one 256
+columns across, so its top is the higher of both: never under a
+column's, which is all the skip needs. A column's word agrees with the window's own column block
+for block in all but 14 of the start window's 16384 (test/terrain.bend).
+The first far map was 64x64 cells of 4x4 columns, each its highest
+block: a tree made a pillar of leaves, and a cell near the window's edge
+looked four blocks wide. A coarser level belongs where its cell is a
+few pixels, not where the window's walk ends.
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
 queued columns' marked cells, bottom up; `Flow.advance` runs it from
 `Player.advance` every 256 ms of the day's clock (4096 a turn, so the

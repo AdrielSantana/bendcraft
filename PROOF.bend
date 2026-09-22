@@ -200,6 +200,15 @@ def Laws.a_pour_into_a_full_cell_is_nothing(): {==}
 def Laws.a_pour_into_a_solid_is_nothing(): {==}
 def Laws.the_bucket_is_the_ninth_slot(): {==}
 def Laws.the_bucket_shows_its_full_cells(): {==}
+def Laws.the_window_wraps_under_the_far_map(): {==}
+def Laws.far_columns_live_above_the_window(): {==}
+def Laws.the_render_reads_what_the_host_wrote(): {==}
+def Laws.a_far_column_is_its_run_and_its_canopy(): {==}
+def Laws.a_column_s_top_is_its_run_s_or_its_canopy_s(): {==}
+def Laws.leaves_inside_the_run_are_the_run_s(): {==}
+def Laws.a_far_ground_is_grass_dirt_and_stone(): {==}
+def Laws.a_far_trunk_is_wood_under_its_leaves(): {==}
+def Laws.the_far_sea_is_water_over_its_bed(): {==}
 def Laws.what_fits_is_the_room(): {==}
 def Laws.what_fits_is_all_of_less(): {==}
 def Laws.nothing_fits_in_full(): {==}

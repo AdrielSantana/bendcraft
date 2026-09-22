@@ -12,7 +12,7 @@ import ../src/util.bend as Util
 # the answers as a list. `bend test/flow.bend`.
 
 def empty() -> World.World:
-  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
+  World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
 
 # ---------- building ----------
 
@@ -322,7 +322,7 @@ def main() -> IO(Unit):
     Lib.expect(same(query(ticks(200n, 0, 2n, pool()), over(60, 10, 60) <> Gone{} <> Queued{} <> Nil{}), 249 <> 6 <> 0 <> Nil{}),
       "two columns a tick, the same pool settles the same, nothing lost or made but the six that dried")
     # the load marks
-    Lib.expect(same(query(World.load(World.W{[0 : U32^18n], World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
+    Lib.expect(same(query(World.load(World.W{[0 : U32^19n], World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "50,50",
           World.col6(1023, 0, 0, 0, 0, 3072)), 0, 0, Nil{}, 0, 0}}, 50, 50),
         Marks{50, 50} <> Marks{51, 50} <> Marks{50, 49} <> Queued{} <> Nil{}), 3072 <> 4294967295 <> 4294967295 <> 5 <> Nil{}),
       "a saved column loads marked where it is wet, its sides marked whole")

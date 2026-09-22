@@ -13,7 +13,7 @@ def near(a: F32, b: F32, epsilon: F32) -> Bool:
   (F32.abs((a - b : F32)) <= epsilon : F32)
 
 def empty() -> World.World:
-  World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
+  World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
 
 def ray_ok(+axis: U32, top: Bool, +entry: F32, +depth: F32, +distance: F32, r: Array<U32> & Render.Ray) -> Bool:
   (w, hit) = r
@@ -123,11 +123,14 @@ def shadow(r: Array<U32> & Bool) -> Bool:
 
 # A horizontal strip lets a real ray either stay wet until the DDA limit
 # or leave water after half a block and meet a distant wall in air.
-def pool(n: Nat, w: World.World, +x: U32, +wet_until: U32) -> World.World:
+def pool_at(n: Nat, w: World.World, +x: U32, +y: U32, +wet_until: U32) -> World.World:
   match n:
     case 0n: w
     case 1n+k:
-      pool(k, World.edit(w, x, 64, 10, (x < wet_until : U32), 8), (x + 1 : U32), wet_until)
+      pool_at(k, World.edit(w, x, 64, y, (x < wet_until : U32), 8), (x + 1 : U32), y, wet_until)
+
+def pool(n: Nat, w: World.World, +x: U32, +wet_until: U32) -> World.World:
+  pool_at(n, w, x, 10, wet_until)
 
 def snd(r: World.World & U32) -> U32:
   (w, v) = r
@@ -187,20 +190,24 @@ def pixel(r: Array<U32> & U32) -> U32:
   (w, c) = r
   c
 
-def fog_ray_w(+fl: U32, w: World.World) -> U32:
+def fog_ray_w(+fl: U32, +oy: F32, w: World.World) -> U32:
   World.W{ring, meta} = w
-  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 1.5, 10.5, 64.5,
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 0, 1.5, oy, 64.5,
     1.0, 0.0, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
 
+# a level ray through a pool of cells at height y, to a wall at that height
+def fog_ray_y(fl: U32, +y: U32, wet_until: U32, wall: U32) -> U32:
+  fog_ray_w(fl, (U32.to_f32(y) + 0.5 : F32), World.edit(pool_at(128n, empty(), 0, y, wet_until), wall, 64, y, True{}, 2))
+
 def fog_ray(fl: U32, wet_until: U32, wall: U32) -> U32:
-  fog_ray_w(fl, World.edit(pool(128n, empty(), 0, wet_until), wall, 64, 10, True{}, 2))
+  fog_ray_y(fl, 10, wet_until, wall)
 
 # The same shallow wet path sees either a wall beyond the air fog or sky.
 # It rises through the water surface before reaching either background.
 def emerged_ray_w(+fl: U32, +sun_y: F32, w: World.World) -> U32:
   World.W{ring, meta} = w
-  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 1.5, 10.5, 64.5,
-    0.99277389, 0.12, 0.0, Sky.gradient(True{}, 0.12, sun_y), fl, 0.48, sun_y, 0.36))
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 0, 1.5, 2.5, 64.5,
+    0.99875, 0.05, 0.0, Sky.gradient(True{}, 0.05, sun_y), fl, 0.48, sun_y, 0.36))
 
 def emerged_wall(fl: U32, sun_y: F32, wall: U32, w: World.World) -> U32:
   World.W{ring, +meta} = w
@@ -209,11 +216,11 @@ def emerged_wall(fl: U32, sun_y: F32, wall: U32, w: World.World) -> U32:
     World.col6(4294967295, 572662306, 572662306, 572662306, 572662306, 0), np)))
 
 def emerged_ray(fl: U32, sun_y: F32, wall: U32) -> U32:
-  emerged_wall(fl, sun_y, wall, pool(128n, empty(), 0, 128))
+  emerged_wall(fl, sun_y, wall, pool_at(128n, empty(), 0, 2, 128))
 
 def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
   +sky = emerged_ray(fl, sun_y, 100)
-  U32.is_eq(emerged_ray(fl, sun_y, 40), sky)
+  U32.is_eq(emerged_ray(fl, sun_y, 54), sky)
     && U32.is_ne(emerged_ray(fl, sun_y, 12), sky)
 
 # Water at an arbitrary edited height, not the natural sea plane. The
@@ -222,17 +229,21 @@ def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
 def surface_ray_w(+fl: U32, +under: Bool, w: World.World) -> U32:
   World.W{ring, meta} = w
   World.Meta{m, ox, oz, q, +np, gone} = meta
-  pixel(Render.run_water(Util.on(fl, 2097152), ring, Render.with_partial(0, (np > 0 : U32)), 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, Render.with_partial(0, (np > 0 : U32)), 0, 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
     0.0, (0.0 - 1.0 : F32), 0.0, Util.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36))
 
 def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
   surface_ray_w(fl, under, World.edit(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2),
     64, 64, 10, True{}, 8), 64, 64, 12, blocked, 2))
 
-def far_surface_w(w: World.World) -> U32:
+# a ray from the window's west edge, east and a little down, over a pool
+def far_surface_w(w: World.World, +fl: U32, +oy: F32, +dy: F32) -> U32:
   World.W{ring, meta} = w
-  pixel(Render.run_water(True{}, ring, 0, 1.5, 15.5, 64.5,
-    0.9949874, (0.0 - 0.1 : F32), 0.0, Util.rgb(100, 140, 180), Render.looks(), 0.48, 0.8, 0.36))
+  pixel(Render.run_water(True{}, ring, 0, 0, 1.5, oy, 64.5,
+    0.9949874, dy, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
+
+def low_pool() -> World.World:
+  pool_at(2n, empty(), 51, 2, 53)
 
 def main() -> IO(Unit):
   do IO<Unit>:
@@ -301,14 +312,17 @@ def main() -> IO(Unit):
     Lib.expect(U32.is_eq(surface_ray(Render.looks(), True{}, False{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), True{}, False{}))
       && U32.is_eq(surface_ray(Render.looks(), False{}, True{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), False{}, True{})),
       "ripples preserve submerged eyes and foreground banks")
-    Lib.expect(U32.is_eq(far_surface_w(pool(88n, empty(), 40, 128)), Util.rgb(100, 140, 180)), "air fog hides a distant reflecting water top")
-    Lib.expect(no_silhouette(6291464, 0.8) && no_silhouette(6291464, 0.0)
-      && no_silhouette(6291464, (0.0 - 1.0 : F32)), "emerged ray hides distant silhouettes in daytime, twilight and night but keeps a nearby wall")
-    Lib.expect(no_silhouette(2097160, 0.8) && no_silhouette(2153775112, 0.8), "background agrees with sky with water fog off and height fog on")
-    Lib.expect(U32.is_eq(fog_ray(2097160, 2, 40), fog_ray(2097160, 2, 100))
-      && U32.is_ne(fog_ray(2097160, 2, 40), Util.rgb(100, 140, 180)), "distance fog through a wet side exit reaches the same tinted sky")
-    Lib.expect(U32.is_eq(fog_ray_w(6291464, World.edit(pool(88n, empty(), 40, 128), 56, 64, 10, True{}, 2)),
-      Util.rgb(100, 140, 180)), "distant water stays hidden by foreground air fog")
+    Lib.expect(U32.is_ne(far_surface_w(pool(88n, empty(), 40, 128), Render.looks(), 15.5, (0.0 - 0.1 : F32)), far_surface_w(pool(88n, empty(), 40, 128), (Render.looks() .&. U32.not(8) : U32), 15.5, (0.0 - 0.1 : F32)))
+      && U32.is_ne(far_surface_w(pool(88n, empty(), 40, 128), Render.looks(), 15.5, (0.0 - 0.1 : F32)), Util.rgb(100, 140, 180)),
+      "air fog dims a reflecting water top 45 blocks off and leaves it in view")
+    Lib.expect(U32.is_eq(far_surface_w(low_pool(), Render.looks(), 5.5, (0.0 - 0.05 : F32)), Util.rgb(100, 140, 180)), "the mist hides a reflecting water top 50 blocks off in low ground: the exact sky")
+    Lib.expect(no_silhouette(2157969416, 0.8) && no_silhouette(2157969416, 0.0)
+      && no_silhouette(2157969416, (0.0 - 1.0 : F32)), "an emerged ray in low ground: the mist hides a wall 54 blocks off whole, the sky through the same water, in daytime, twilight and night, and keeps a nearby wall")
+    Lib.expect(no_silhouette(2153775112, 0.8), "the same with the water fog off")
+    Lib.expect(U32.is_eq(fog_ray_y(2149580808, 2, 2, 50), fog_ray_y(2149580808, 2, 2, 100))
+      && U32.is_ne(fog_ray_y(2149580808, 2, 2, 50), Util.rgb(100, 140, 180)), "the mist through a wet side exit reaches the same tinted sky")
+    Lib.expect(U32.is_eq(fog_ray_w(2157969416, 2.5, World.edit(pool_at(78n, empty(), 50, 2, 128), 58, 64, 2, True{}, 2)),
+      Util.rgb(100, 140, 180)), "water past the mist's reach stays hidden, the wall behind it too: the exact sky")
     Lib.expect(U32.is_eq(fog_ray(6291464, 128, 40), Water.ink_at(Water.colour(0.8), 0.8, 1.5))
       && U32.is_eq(fog_ray(6291464, 128, 100), Water.ink_at(Water.colour(0.8), 0.8, 1.5))
       && (fog_ray(6291464, 128, 40) < Water.colour(0.8) : U32), "underwater wall and ray limit converge to the same fog colour, the water's at the eye's depth")
@@ -316,14 +330,14 @@ def main() -> IO(Unit):
     Lib.expect(F32.is_eq(Water.light(0.0), 1.0) && near(Water.light(3.0), 0.575, 0.0001) && near(Water.light(6.0), 0.15, 0.0001)
       && near(Water.light(30.0), 0.15, 0.0001) && F32.is_eq(Water.drop(12.0), 0.0) && F32.is_eq(Water.drop(14.0), 0.0)
       && F32.is_eq(Water.drop(9.5), 2.5), "the light left under the surface: all of it at the level, a sixth six blocks down")
-    Lib.expect(U32.is_eq(fog_ray(4194312, 128, 40), Util.rgb(100, 140, 180)), "water off keeps ordinary fog")
+    Lib.expect(U32.is_eq(fog_ray_y(2151677960, 2, 128, 50), Util.rgb(100, 140, 180)), "water off keeps the air fog and the mist: a wall in the mist is the exact sky")
     Lib.expect(U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 0.0), 123)
       && U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 24.0), 456)
       && U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 80.0), 456)
       && U32.is_eq(Water.fog(False{}, 123, 456, 456, 0.0, 80.0), 123), "wet fog bounds and disable")
     Lib.expect(picked(Player.waim(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8),
       64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "picking traverses water and finds the bottom")
-    Lib.expect(Bool.not(shadow(Render.shadow_fin(Render.run_glance(24n, ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
+    Lib.expect(Bool.not(shadow(Render.shadow_fin(Render.run_glance(24n, ring_of(World.put_col([0 : U32^19n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
       0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)))), "water casts no solid shadow")
     Lib.expect(U32.is_eq(material(World.voxel(World.shift_x(False{}, World.shift_x(True{}, World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
     Lib.expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
@@ -332,6 +346,6 @@ def main() -> IO(Unit):
       (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n, 0n]))), "placing spends one brick and shoves the water up onto it")
     Lib.expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
     Lib.expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 2048), "save preserves displacement, the water above the brick")
-    Lib.expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^18n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
+    Lib.expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^19n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
     Lib.expect(same_levels(World.levels(restored(Save.text(fixture(World.pour(surface_pool(), 64, 10, 64, 5))))), World.Levels{0, 0, 327680, 0, 0, 0, 0, 0}),
       "a poured amount survives a save and a load")

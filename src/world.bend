@@ -46,9 +46,10 @@ def tnoise(+u: F32, +v: F32) -> F32:
 # around the player. Everything the renderer and the physics see is local
 # to the ring's corner (ox, oz), which follows the player one column at a
 # time, loading the row that came into view. World column (x, z) sits at
-# slot (x * 128 + z) * 16, and Array.get wraps the index, so the loaded
-# window is one-to-one with the slots and local column (lx, lz) is at
-# (base + lx * 128 + lz) * 16, base = ox * 128 + oz: the one word a reader
+# slot (x * 128 + z) * 16 mod 2^18 (the array's low 2^18 words; the far
+# ring lives above them), so the loaded window is one-to-one with the
+# slots and local column (lx, lz) is at (base + lx * 128 + lz) * 16, base
+# = ox * 128 + oz: the one word a reader
 # carries. Slot + 0 is the mask, + 1 + y / 8 the word with the type of
 # height y, in its nibble y % 8. Slot + 5 holds water occupancy, and
 # + 6 + y / 4 the amount of water at height y, in its byte. Slot + 14
@@ -59,7 +60,7 @@ def tnoise(+u: F32, +v: F32) -> F32:
 # and a frame with none walks the ray as if every wet cell were full.
 
 def col_at(+base: U32, +x: U32, +z: U32) -> U32:
-  ((base + x * 128 + z) * 16 : U32)
+  (((base + x * 128 + z) * 16) .&. 262143 : U32)
 
 # the block types: 0 grass, 1 dirt, 2 stone, 3 sand, 4 wood, 5 leaves,
 # 6 brick, 7 snow; 8 is water, held in a separate non-solid mask
@@ -378,7 +379,7 @@ def load_put(ring: Array<U32>, meta: Meta, +x: U32, +z: U32, r: Map<&2, Col> & C
   Col{sm, ta, tb, tc, td, +water, lv} = c
   +lx = (x - ox : U32)
   +lz = (z - oz : U32)
-  mark(mark(mark(mark(mark(put_fin(Meta{m, ox, oz, q, np, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), Col{sm, ta, tb, tc, td, water, lv}, np)),
+  mark(mark(mark(mark(mark(put_fin(Meta{m, ox, oz, q, np, gone}, put_col(ring, col_at(0, x, z), Col{sm, ta, tb, tc, td, water, lv}, np)),
     lx, lz, water), (lx + 1 : U32), lz, 4294967295), (lx - 1 : U32), lz, 4294967295),
     lx, (lz + 1 : U32), 4294967295), lx, (lz - 1 : U32), 4294967295)
 
@@ -388,7 +389,7 @@ def load_had(had: Bool, ring: Array<U32>, m: Map<&2, Col>, meta: Meta, +x: U32, 
       load_put(ring, meta, x, z, Map.get(Col, col6(0, 0, 0, 0, 0, 0), m, key(x, z)))
     case False{}:
       Meta{old, ox, oz, q, +np, gone} = meta
-      put_fin(Meta{m, ox, oz, q, np, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), column(x, z), np))
+      put_fin(Meta{m, ox, oz, q, np, gone}, put_col(ring, col_at(0, x, z), column(x, z), np))
 
 def load_go(ring: Array<U32>, meta: Meta, +x: U32, +z: U32, r: Map<&2, Col> & Bool) -> World:
   (m, had) = r
@@ -413,19 +414,156 @@ def load_all(n: Nat, w: World, +x: U32, +z: U32) -> World:
     case 1n+k:
       load_all(k, load_line(128n, w, x, z, 0, 1), (x + 1 : U32), z)
 
+# ---------- the far map: the terrain beyond the window, a word a column ----------
+# Past the window a ray goes on over a map of 256 x 256 columns around
+# it, at the array's word 2^18 and on (Render.run_far): a column's shape,
+# as Distant Horizons keeps its nearest level, not its blocks. A word:
+# bits 0..4 the ground's height h, the types under it as tnib gives them;
+# bits 5..9 the top of the solid run from the floor, h, or the trunk's
+# wood over it, or the sea's plane over a bed under it; bits 10..14 and
+# 15..19 the bottom and the top of the leaves over that run, none when
+# equal; bits 20..24 the highest top of the column's cell, the 4 x 4
+# columns from a multiple of four, so a ray over it skips the cell. World
+# column (x, z) sits at 2^18 + (x mod 256) * 256 + z mod 256: the map's
+# corner is the window's less 64 on each axis, and the render finds a
+# column from the corner's remainders by 256 (far_cam). Edits do not
+# reach it.
+def far_corner(+o: U32) -> U32:
+  (o - 64 : U32)
+
+def far_at(+x: U32, +z: U32) -> U32:
+  (262144 + x % 256 * 256 + z % 256 : U32)
+
+def far_word(+h: U32, +run: U32, +lb: U32, +lt: U32) -> U32:
+  (h + 32 * run + 1024 * lb + 32768 * lt : U32)
+
+# the highest solid top of a column: its run's or its canopy's
+def far_top(+word: U32) -> U32:
+  U32.max((word / 32 % 32 : U32), (word / 32768 % 32 : U32))
+
+# the type at height y of a far column: leaves in the canopy, the sea or
+# the trunk above the ground, the ground's own under it
+def far_type(+word: U32, +y: U32) -> U32:
+  +h = (word % 32 : U32)
+  Bool.pick(U32, (y >= word / 1024 % 32 : U32) && (y < word / 32768 % 32 : U32), 5,
+    Bool.pick(U32, (y >= h : U32), Bool.pick(U32, (h < sea() : U32), 8, 4), tnib(y, h)))
+
+# the lowest set bit of a mask and one past the highest, lo + 64 * hi;
+# 32 for none
+def span(n: Nat, +m: U32, +y: U32, +lo: U32, +hi: U32) -> U32:
+  match n:
+    case 0n:
+      (lo + 64 * hi : U32)
+    case 1n+k:
+      +on = Util.on(m, U32.shln(1, U32.to_nat(y)))
+      span(k, m, (y + 1 : U32), Bool.pick(U32, on, U32.min(lo, y), lo), Bool.pick(U32, on, (y + 1 : U32), hi))
+
+# a column's word from its height and its trees: the trunk is the only
+# wood, four over the ground; leaves inside the run are the run's
+def far_fin(+h: U32, m: Masks) -> U32:
+  Masks{+wood, +leaf} = m
+  +run = Bool.pick(U32, (h < sea() : U32), sea(), Bool.pick(U32, (wood > 0 : U32), (h + 4 : U32), h))
+  +s = span(32n, leaf, 0, 32, 0)
+  +lb = U32.max((s % 64 : U32), run)
+  +lt = (s / 64 : U32)
+  +slab = (lt > lb : U32)
+  far_word(h, run, Bool.pick(U32, slab, lb, 0), Bool.pick(U32, slab, lt, 0))
+
+def far_col(+x: U32, +z: U32) -> U32:
+  far_fin(terrain(x, z), canopy(25n, x, z, 0, Masks{0, 0}))
+
+# a line of n columns from (x, z) a step of (dx, dz) apart, and the map
+def load_far_line(n: Nat, ring: Array<U32>, +x: U32, +z: U32, +dx: U32, +dz: U32) -> Array<U32>:
+  match n:
+    case 0n:
+      ring
+    case 1n+k:
+      load_far_line(k, Array.set(U32, ring, far_at(x, z), far_col(x, z)), (x + dx : U32), (z + dz : U32), dx, dz)
+
+# a cell: the highest top of its sixteen columns, from (x, z) a multiple
+# of four, then that top into each column's bits 20..24. A cell at the
+# map's edge shares its slots with the one 256 columns across, whose
+# columns fill the ones it lacks: its top is the highest of both, never
+# under a column's
+def cell_top(n: Nat, +x: U32, +z: U32, +i: U32, +best: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+  match n:
+    case 0n:
+      (w, +word) = r
+      (w, U32.max(best, far_top(word)))
+    case 1n+k:
+      (w, +word) = r
+      cell_top(k, x, z, (i + 1 : U32), U32.max(best, far_top(word)), Array.get(U32, w, far_at((x + (i + 1) / 4 : U32), (z + (i + 1) % 4 : U32))))
+
+def cell_set(+slot: U32, +top: U32, r: Array<U32> & U32) -> Array<U32>:
+  (w, +word) = r
+  Array.set(U32, w, slot, (word % 1048576 + 1048576 * top : U32))
+
+def cell_put(n: Nat, ring: Array<U32>, +x: U32, +z: U32, +i: U32, +top: U32) -> Array<U32>:
+  match n:
+    case 0n:
+      ring
+    case 1n+k:
+      +slot = far_at((x + i / 4 : U32), (z + i % 4 : U32))
+      cell_put(k, cell_set(slot, top, Array.get(U32, ring, slot)), x, z, (i + 1 : U32), top)
+
+def cell_fin(+x: U32, +z: U32, r: Array<U32> & U32) -> Array<U32>:
+  (w, +top) = r
+  cell_put(16n, w, x, z, 0, top)
+
+def load_cell(ring: Array<U32>, +x: U32, +z: U32) -> Array<U32>:
+  cell_fin(x, z, cell_top(15n, x, z, 0, 0, Array.get(U32, ring, far_at(x, z))))
+
+# n cells from the one at (x, z), a step of (dx, dz) cells apart
+def load_cells(n: Nat, ring: Array<U32>, +x: U32, +z: U32, +dx: U32, +dz: U32) -> Array<U32>:
+  match n:
+    case 0n:
+      ring
+    case 1n+k:
+      load_cells(k, load_cell(ring, x, z), (x + 4 * dx : U32), (z + 4 * dz : U32), dx, dz)
+
+# the whole map, its columns then its cells
+def load_far(n: Nat, ring: Array<U32>, +x: U32, +z: U32) -> Array<U32>:
+  match n:
+    case 0n:
+      ring
+    case 1n+k:
+      load_far(k, load_far_line(256n, ring, x, z, 0, 1), (x + 1 : U32), z)
+
+def load_grid(n: Nat, ring: Array<U32>, +x: U32) -> Array<U32>:
+  match n:
+    case 0n:
+      ring
+    case 1n+k:
+      load_grid(k, load_cells(64n, ring, x, 0, 0, 1), (x + 4 : U32))
+
+# the window and the far map around it, from a corner
+def load_world(w: World, +x: U32, +z: U32) -> World:
+  W{ring, meta} = w
+  load_all(128n, W{load_grid(64n, load_far(256n, ring, far_corner(x), far_corner(z)), 0), meta}, x, z)
+
+# the far map for the render: its corner's remainders by 256, x's over z's
+def far_cam(meta: Meta) -> U32:
+  Meta{m, +ox, +oz, q, np, gone} = meta
+  (far_corner(ox) % 256 * 256 + far_corner(oz) % 256 : U32)
+
 # the corner moves one column along an axis, up (pos) or down, and the
-# row that came into view loads
+# row that came into view loads, the window's, and the far map's with
+# its line of cells
 def shift_x(+pos: Bool, w: World) -> World:
   W{ring, meta} = w
   Meta{m, +ox, +oz, q, np, gone} = meta
   +nox = Bool.pick(U32, pos, (ox + 1 : U32), (ox - 1 : U32))
-  load_line(128n, W{ring, Meta{m, nox, oz, q, np, gone}}, Bool.pick(U32, pos, (ox + 128 : U32), nox), oz, 0, 1)
+  +fx = (far_corner(nox) + Bool.pick(U32, pos, 255, 0) : U32)
+  load_line(128n, W{load_cells(64n, load_far_line(256n, ring, fx, far_corner(oz), 0, 1), (fx - fx % 4 : U32), 0, 0, 1), Meta{m, nox, oz, q, np, gone}},
+    Bool.pick(U32, pos, (ox + 128 : U32), nox), oz, 0, 1)
 
 def shift_z(+pos: Bool, w: World) -> World:
   W{ring, meta} = w
   Meta{m, +ox, +oz, q, np, gone} = meta
   +noz = Bool.pick(U32, pos, (oz + 1 : U32), (oz - 1 : U32))
-  load_line(128n, W{ring, Meta{m, ox, noz, q, np, gone}}, ox, Bool.pick(U32, pos, (oz + 128 : U32), noz), 1, 0)
+  +fz = (far_corner(noz) + Bool.pick(U32, pos, 255, 0) : U32)
+  load_line(128n, W{load_cells(64n, load_far_line(256n, ring, far_corner(ox), fz, 1, 0), 0, (fz - fz % 4 : U32), 1, 0), Meta{m, ox, noz, q, np, gone}},
+    ox, Bool.pick(U32, pos, (oz + 128 : U32), noz), 1, 0)
 
 def shift(along_x: Bool, pos: Bool, w: World) -> World:
   match along_x:
@@ -489,14 +627,14 @@ def pour_fin(meta: Meta, +x: U32, +z: U32, +y: U32, +a: U32, r: Array<U32> & Col
   Meta{m, ox, oz, q, +np, gone} = meta
   (ring, c) = r
   +nc = pour_col(c, y, a)
-  put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), nc, np))
+  put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, gone}, put_col(ring, col_at(0, x, z), nc, np))
 
 def pour(w: World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World:
   W{ring, +meta} = w
   Meta{m, +ox, +oz, q, np, gone} = meta
   +x = (ox + lx : U32)
   +z = (oz + lz : U32)
-  pour_fin(meta, x, z, y, a, get_col(ring, ((x * 128 + z) * 16 : U32)))
+  pour_fin(meta, x, z, y, a, get_col(ring, col_at(0, x, z)))
 
 def inside(+vx: F32, +vy: F32, +vz: F32) -> Bool:
   (vx > (0.0 - 0.5) : F32) && (vx < 127.5 : F32) &&
@@ -653,7 +791,7 @@ def edit_put(meta: Meta, +x: U32, +z: U32, +y: U32, set: Bool, +what: U32, ring:
   Meta{m, +ox, +oz, q, +np, gone} = meta
   (c, +out) = r
   +nc = edit_col(c, y, set, what)
-  shove(mark_around(put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, gone}, put_col(ring, ((x * 128 + z) * 16 : U32), nc, np)), (x - ox : U32), y, (z - oz : U32)),
+  shove(mark_around(put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, gone}, put_col(ring, col_at(0, x, z), nc, np)), (x - ox : U32), y, (z - oz : U32)),
     (x - ox : U32), y, (z - oz : U32), out)
 
 def edit_fin(meta: Meta, +x: U32, +z: U32, +y: U32, +set: Bool, +what: U32, r: Array<U32> & Col) -> World:
@@ -665,7 +803,7 @@ def edit(w: World, +lx: U32, +lz: U32, +y: U32, set: Bool, +what: U32) -> World:
   Meta{m, +ox, +oz, q, np, gone} = meta
   +x = (ox + lx : U32)
   +z = (oz + lz : U32)
-  edit_fin(meta, x, z, y, set, what, get_col(ring, ((x * 128 + z) * 16 : U32)))
+  edit_fin(meta, x, z, y, set, what, get_col(ring, col_at(0, x, z)))
 
 # ---------- a point in water ----------
 # whether a point is in water: its cell holds some, and the point is under

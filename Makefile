@@ -39,6 +39,7 @@ check:
 	$(BEND) test/bench.bend --check-only
 	$(BEND) test/profile.bend --check-only
 	$(BEND) test/readout.bend --check-only
+	$(BEND) test/far.bend --check-only
 	$(BEND) PROOF.bend
 
 # the game without a window: events through feed and step
@@ -54,6 +55,7 @@ test:
 	$(BEND) test/mirror.bend
 	$(BEND) test/terrain.bend
 	$(BEND) test/readout.bend
+	$(BEND) test/far.bend
 
 # five frames on the GPU, untouched and with 300 blocks placed, with checksums
 bench: test/bench.bend src/*.bend

@@ -55,22 +55,43 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    last frame"). It is the dearest look so far, 6 to 7 ms of a lake's frame
    at 1470×796 and 1.6 at scale 2, because a step costs what it costs
    anywhere (README, "What costs what"). Two ways to make it cheaper, for
-   when the budget asks: walk the far horizon's ring of 4-block cells once
-   it exists (8 steps for the same reach), or let the mirror ride the
+   when the budget asks: walk the far map instead (a step a column and
+   one word a step, where the window's walk steps every block's face and
+   reads a column and its types), or let the mirror ride the
    primary walk's idle steps, since a ray that met the lake's bed walks
    the rest of its 60 with its state frozen. The view from above, where
    the mirror is 2% of the colour, has its false caustic (2026-09-21): the
    ripples' noise read at the bed, two octaves, thin threads, bit 28. The
    shader is done; what is left of the water is its physics.
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
-   them: next to the ring of 128² columns at one block, a ring of 128²
-   cells of 4 blocks and one of 16, each cell its highest block and its
-   top's type, a word a cell, filled from the noise as the rings shift. A
-   ray that leaves the near ring goes on in the next level with steps four
-   times as long, against flat-topped prisms. About thirty steps a level:
-   a kilometre for twice the steps of today. The same levels let a near
-   ray skip open air above the ground. Measure the steps with flag 32
-   before and after.
+   them. The first is in (2026-09-22): above the ring's 2^18 words, a far
+   map of 256² columns around the window, a word a column (its ground,
+   the run from the floor with a trunk's wood or the sea over it, the
+   canopy over that, and the highest top of its 4x4 cell), from the
+   noise, a line of 256 each time the window shifts (`World.load_far`,
+   `shift_x`, `shift_z`); the device finds it through a sixteenth camera
+   word (`Cam.far`). A ray that met nothing in its 60 steps goes on over
+   the map (`Render.run_far`), 128 steps at most: a step crosses a cell
+   where the ray stays over the cell's top, a column elsewhere, and the
+   walk stops at its hit, the map's edge, over the world's top and at the
+   fog's reach, 120 blocks (was 34). What it meets is shaded by the
+   window's own functions (colour, texture, the face's tone, the sun's
+   side), so the seam does not show; it lacks the corners' occlusion and
+   the shadow walk. The cost, five alternated rounds with the game
+   closed, against the bucket's commit: 24 → 35 ms at 1470×796, 46 → 67
+   at 1920×1080, 7 → 9 at scale 2; the level view 21 → 29, 6 → 9 at
+   scale 2. The first try was a ring of 64² cells of 4x4 columns, each
+   its highest block and the type of its top, 32 steps: 2 ms less at
+   1470×796, and it looked wrong (a tree a pillar of leaves four wide,
+   the walls the grass's green, a cell four blocks wide where the
+   window's walk ends); its first A/B read "free" from a script that took
+   old rounds for new ones. The tests of a wall hidden whole by the air
+   fog moved into the mist: within the near walk the distance term no
+   longer reaches 1. What the map does not carry: edits (a placed tower
+   past 60 blocks shows as the noise's ground) and the water's amounts (a
+   lake is its plane). Next, when a farther horizon is wanted: a coarser
+   level where its cell is a few pixels, and the fog farther out; then
+   the same cells let a near ray skip the open air above the ground.
 4. **Clouds with volume.** A slab between two heights, a 3D noise moved by
    the wind, a short march of 8 to 16 steps for the rays that reach it,
    lit by the sun's side. And their shadows on the ground: one lookup of
@@ -401,11 +422,11 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 92 laws include day and ripple periods for every `U32` clock word
+Today's 131 laws include day and ripple periods for every `U32` clock word
 and six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 84 laws are concrete checks, including water surface packing,
-lake floors, dry tree roots, HUD packing and save/quit
-edges. Floats stay in the windowless tests: the checker does not compute them.
+The other 123 laws are concrete checks, including water surface packing,
+lake floors, dry tree roots, HUD packing, the bucket, the far map's
+addresses and types, and save/quit edges. Floats stay in the windowless tests: the checker does not compute them.
 
 ## The order
 
@@ -415,7 +436,8 @@ since it is what a visitor sees:
 1. sky, sun, fog and the day cycle — done, 2026-09-21
 2. collecting and the inventory, with laws stated for every count — done, 2026-09-21
 3. water: still water and its shader done, 2026-09-21; then its physics
-4. the far horizon
+4. the far horizon: its first level, a word a column to 128 blocks, done
+   2026-09-22; coarser levels past it wait on the reach wanted
 5. survival and crafting
 6. clouds and their shadows; vegetation
 7. mobs and entities; light of the blocks

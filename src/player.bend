@@ -36,7 +36,7 @@ def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
   view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, meta,
-           Render.frame(Render.camera(px, py, pz, yaw, pit, World.base(meta), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), Render.with_pail(stat, Inventory.hud_pail(bag)), fl, rw, rh, clock), ring, rw, rh))
+           Render.frame(Render.camera(px, py, pz, yaw, pit, World.base(meta), World.far_cam(meta), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), Render.with_pail(stat, Inventory.hud_pail(bag)), fl, rw, rh, clock), ring, rw, rh))
 
 # the frame with the render's flags (Render.Cam), all looks on for the game;
 # `more` holds the looks the flags word has no room for (Render.looks_base),
@@ -385,7 +385,7 @@ def step(g: Game) -> Game:
 
 # the world's corner starts far from zero, so walking west never wraps it
 def start_at(+res: U32) -> Game:
-  G{World.load_all(128n, World.W{[0 : U32^18n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}}, 1048512, 1048512),
+  G{World.load_world(World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}}, 1048512, 1048512),
     64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, 0, 0, res, Day.morning(), Inventory.empty()}
 
 def start() -> Game:

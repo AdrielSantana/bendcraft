@@ -83,8 +83,8 @@ def bodies(+fl: U32, +c: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, 
   moon(Util.on(fl, 1073741824) && (sy < 0.0 : F32), sunlit, dot, dx, dy, dz, sy)
 
 # The average endpoint density approximates a low mist layer. Its amount
-# and distance haze compose as transmittances, staying in [0,1]. A 34-block
-# fade hides the 60-step primary limit even on a three-axis diagonal.
+# and distance haze compose as transmittances, staying in [0,1]. A 120-block
+# fade hides the far walk's end: the walk stops there (Render.far).
 def height_fog(on: Bool, +t: F32, +oy: F32, +hy: F32) -> F32:
   match on:
     case False{}:
@@ -93,7 +93,10 @@ def height_fog(on: Bool, +t: F32, +oy: F32, +hy: F32) -> F32:
       +low = (F32.clamp(((24.0 - oy) / 20.0 : F32), 0.0, 1.0) + F32.clamp(((24.0 - hy) / 20.0 : F32), 0.0, 1.0) : F32)
       F32.clamp((t * low / 90.0 : F32), 0.0, 1.0)
 
+# the distance at which the fog is whole: a far walk ends there
+def reach() -> F32: 120.0
+
 def fog(+fl: U32, +t: F32, +oy: F32, +hy: F32) -> F32:
-  +d = Bool.pick(F32, Util.on(fl, 8), F32.clamp((t / 34.0 : F32), 0.0, 1.0), 0.0)
+  +d = Bool.pick(F32, Util.on(fl, 8), F32.clamp((t / reach() : F32), 0.0, 1.0), 0.0)
   +h = height_fog(Util.on(fl, 2147483648), t, oy, hy)
   (1.0 - (1.0 - d * d) * (1.0 - h) : F32)

@@ -38,13 +38,14 @@ law pick_inside_z:
   {Player.ix_z(Player.pk_u(64, 19, 65)) == 65 : U32}
 
 # --- the ring: a 128x128 window falls one-to-one on the 16384 columns ------
-# world column (x, z) at slot (x * 128 + z) * 8, read mod 2^17 by the array;
-# the far corner of a window is 16383 columns after the near one, and the
-# column after the end of a row is the next one, so the window's 16384
-# columns are the 16384 column slots, each once
+# world column (x, z) at slot (x * 128 + z) * 16 mod 2^18 (the ring is the
+# low 2^18 words; the far map is above it); the far corner of a window is
+# 16383 columns after the near one, and the column after the end of a row
+# is the next one, so the window's 16384 columns are the 16384 column
+# slots, each once
 
 law ring_window_spans_the_slots:
-  {(World.col_at((1048512 * 128 + 1048512 : U32), 127, 127) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 0) : U32) == (16383 * 16 : U32) : U32}
+  {((World.col_at((1048512 * 128 + 1048512 : U32), 127, 127) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 0)) .&. 262143 : U32) == (16383 * 16 : U32) : U32}
 
 law ring_rows_are_consecutive:
   {(World.col_at((1048512 * 128 + 1048512 : U32), 1, 0) - World.col_at((1048512 * 128 + 1048512 : U32), 0, 127) : U32) == 16 : U32}
@@ -347,6 +348,46 @@ law the_bucket_is_the_ninth_slot:
 
 law the_bucket_shows_its_full_cells:
   {(Inventory.hud_pail(List.set(&2, Nat, Inventory.empty(), 8n, 765n)), Render.stat_pail(Render.with_pail(Render.stat_of(164, 60), 99)), Render.stat_fps(Render.with_pail(Render.stat_of(164, 60), 99))) == (3, 99, 60) : U32 & (U32 & U32)}
+
+# --- the far map: a word a column past the window ----------------------------
+# The window's slots wrap in the array's low 2^18 words; the far map's
+# columns live above them, at their coordinates mod 256; its corner is
+# the window's less 64, so the render's read of a window column, in the
+# map's coordinates over far_cam's remainders, is the host's write of
+# that world column. A column's word is its run from the floor and the
+# canopy over it, leaves inside the run being the run's, and its top the
+# higher of the two, the cell's skip's measure; its types are the
+# window's: the ground's by depth, the trunk's wood, the sea over its
+# bed, the canopy's leaves.
+
+law the_window_wraps_under_the_far_map:
+  {(World.col_at(16383, 127, 127), World.col_at(16383, 0, 0)) == (262112, 262128) : U32 & U32}
+
+law far_columns_live_above_the_window:
+  {(World.far_at(0, 0), World.far_at(255, 255), World.far_at(259, 511)) == (262144, 327679, 263167) : U32 & (U32 & U32)}
+
+law the_render_reads_what_the_host_wrote:
+  {World.far_at((World.far_cam(World.Meta{Map.new(&2, World.Col), 1048513, 1048514, Nil{}, 0, 0}) / 256 + 256 + 5 + 64 : U32),
+                (World.far_cam(World.Meta{Map.new(&2, World.Col), 1048513, 1048514, Nil{}, 0, 0}) % 256 + 256 + 127 + 64 : U32))
+     == World.far_at((1048513 + 5 : U32), (1048514 + 127 : U32)) : U32}
+
+law a_far_column_is_its_run_and_its_canopy:
+  {(World.far_fin(12, World.Masks{0, 0}), World.far_fin(14, World.Masks{245760, 786432}), World.far_fin(8, World.Masks{0, 0})) == (World.far_word(12, 12, 0, 0), World.far_word(14, 18, 18, 20), World.far_word(8, 12, 0, 0)) : U32 & (U32 & U32)}
+
+law a_column_s_top_is_its_run_s_or_its_canopy_s:
+  {(World.far_top(World.far_word(12, 16, 16, 18)), World.far_top(World.far_word(20, 20, 0, 0)), World.far_top(World.far_word(12, 12, 14, 17))) == (18, 20, 17) : U32 & (U32 & U32)}
+
+law leaves_inside_the_run_are_the_run_s:
+  {(World.far_fin(16, World.Masks{0, 245760}), World.far_fin(18, World.Masks{0, 114688})) == (World.far_word(16, 16, 16, 18), World.far_word(18, 18, 0, 0)) : U32 & U32}
+
+law a_far_ground_is_grass_dirt_and_stone:
+  {(World.far_type(World.far_word(20, 20, 0, 0), 19), World.far_type(World.far_word(20, 20, 0, 0), 16), World.far_type(World.far_word(20, 20, 0, 0), 15)) == (0, 1, 2) : U32 & (U32 & U32)}
+
+law a_far_trunk_is_wood_under_its_leaves:
+  {(World.far_type(World.far_word(20, 24, 24, 26), 21), World.far_type(World.far_word(20, 24, 24, 26), 25), World.far_type(World.far_word(12, 12, 14, 17), 14)) == (4, 5, 5) : U32 & (U32 & U32)}
+
+law the_far_sea_is_water_over_its_bed:
+  {(World.far_type(World.far_word(9, 12, 0, 0), 11), World.far_type(World.far_word(9, 12, 0, 0), 8)) == (8, 1) : U32 & U32}
 
 # --- a solid placed in water shoves the water up ------------------------------
 # What a cell holding b takes of a is what fits, and the shove's probe says
