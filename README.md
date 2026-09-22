@@ -284,7 +284,11 @@ make page-test  # the page in headless Chrome, hashes and fps
 
 ## Numbers
 
-Apple M5, Bend 2.0.24. The historical tree comparison below predates the
+Apple M5, Bend 2.0.25 (the same thirty checksums and the same times as
+2.0.24, four alternated rounds: 24 and 25 ms at 1470×796, 46 and 47 at
+1920×1080, the small sizes equal; the kernel trace still reads the
+runtime's text: grow1 0.5 ms, grow128 1.7, work 23.5, pack 0.3 at
+1470×796). The historical tree comparison below predates the
 day cycle; the current measurements follow it. The bench times
 the `!` only, five frames with the camera turning; the thirty checksums are the same on every build that
 changes nothing visible. The first column is the binary tree, the second

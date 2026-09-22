@@ -465,7 +465,11 @@ their fastest frames.
 
 **The routine, for every `bend update`:** `make check test bench profile`,
 rebuild the page with the rebased fork, run `test/trace.py` once (its
-snippets match the runtime's text and may need an update).
+snippets match the runtime's text and may need an update). 2.0.25
+(2026-09-21): the gate passes as it did, the thirty checksums and the
+physics hash are the same, the frames are the same within a millisecond
+(order-swapped rounds), the trace's snippets still match. The page stays
+on the fork's 2.0.24 head until the PR's rebase is pushed.
 
 **Work that is ours, when a feature asks for it:**
 
