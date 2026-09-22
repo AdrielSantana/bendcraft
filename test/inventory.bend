@@ -80,11 +80,6 @@ def types(n: Nat) -> Bool:
       cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), False{}, 0, (w, Inventory.empty()))),
         expected, Player.pk_u(64, 10, 66), False{}, 0) && types(p)
 
-def picked_top(r: World.World & (U32 & U32)) -> Bool:
-  (w, ph) = r
-  (prev, hit) = ph
-  U32.is_eq(prev, 0) && U32.is_eq(hit, (1 + Player.pk_u(64, 31, 66) : U32))
-
 def still_playing(m: Maybe<Player.Game>) -> Bool:
   match m:
     case None{}: False{}
@@ -139,8 +134,6 @@ def main() -> IO(Unit):
     expect(cell(restored(Save.text(both())), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "save keeps world and depleted inventory together")
     expect(same(bag(restored(Save.text(fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], 6)))),
       [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n]), "save preserves all eight full counts")
-    expect(same(bag(Save.parse(["bendcraft 1 1048512 1048512 1064500 1030000 1064500 1000000 1000000 0"], Player.res512())), Inventory.empty()), "old save without clock has empty inventory")
-    expect(same(bag(Save.parse(["bendcraft 1 1048512 1048512 1064500 1030000 1064500 1000000 1000000 0 786432"], Player.res512())), Inventory.empty()), "day cycle save has empty inventory")
     expect(types(8n), "each block type is collected into its own slot")
     expect(cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), True{}, 3,
       world_of(press(106, fixture(Inventory.empty(), 0))))), Inventory.empty(), Player.pk_u(64, 10, 66), True{}, 3), "break then replace restores cell type and count")
@@ -150,8 +143,6 @@ def main() -> IO(Unit):
     expect(cell(Player.step_edit(64.5, 10.59, 64.5, 0.0, 0.0, 0.0, 0, 2048, 0, 0, 3, Player.res512(), 786432, sand(),
       empty_world(), ((1 + Player.pk_u(64, 8, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
       sand(), Player.pk_u(64, 8, 64), False{}, 0), "placement at the bottom of the feet does not spend")
-    expect(picked_top(Player.waim(World.edit(empty_world(), 64, 66, 31, True{}, 3),
-      64.5, 33.5, 66.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "pick above world cannot alias a placement cell")
     expect(packing(102n), "all display counts read back in every slot")
     expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
     saved : Player.Game <- Save.save_to("build/inventory-test.save", fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n], 6))

@@ -148,8 +148,10 @@ def feed(evs: List<Event>, g: Game) -> Game:
       feed(rest, quit_now(g))
 
 # ---------- picking the block under the crosshair ----------
-# A voxel is a word, 1 + (lx * 32 + y) * 128 + lz, 0 for none; the pick
-# returns the one hit and the one before it.
+# The glance's walk from the eye, 40 steps (Render.run_glance): the block
+# hit and the air cell before it (Render.face), as words 1 + (lx * 32 +
+# y) * 128 + lz, 0 for none; a cell past the window is none, so nothing
+# is placed there.
 
 def pk_u(+x: U32, +y: U32, +z: U32) -> U32:
   ((x * 32 + y) * 128 + z : U32)
@@ -157,55 +159,24 @@ def pk_u(+x: U32, +y: U32, +z: U32) -> U32:
 def pk(+x: F32, +y: F32, +z: F32) -> U32:
   pk_u(Util.f2u(x), Util.f2u(y), Util.f2u(z))
 
-def pick_end(+prev: U32, +hit: U32, r: Array<U32> & Bool) -> Array<U32> & (U32 & U32):
-  (w, s) = r
-  (w, (prev, hit))
+def cell(+x: F32, +y: F32, +z: F32) -> U32:
+  Bool.pick(U32, World.inside(x, y, z), (1 + pk(x, y, z) : U32), 0)
 
-def pick(fuel: Nat, +base: U32,
-         +vx: F32, +vy: F32, +vz: F32,
-         +sx: F32, +sy: F32, +sz: F32,
-         +mx: F32, +my: F32, +mz: F32,
-         +ex: F32, +ey: F32, +ez: F32,
-         +last: U32, +prev: U32, +hit: U32, r: Array<U32> & Bool) -> Array<U32> & (U32 & U32):
-  match fuel:
-    case 0n:
-      pick_end(prev, hit, r)
-    case 1n+f:
-      (w, sol) = r
-      +take = sol && (hit < 1 : U32)
-      +here = Bool.pick(U32, World.inside(vx, vy, vz), (1 + pk(vx, vy, vz) : U32), 0)
-      +ux = (mx < my : F32) && (mx < mz : F32)
-      +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
-      +nvx = Bool.pick(F32, ux, (vx + sx : F32), vx)
-      +nvy = Bool.pick(F32, uy, (vy + sy : F32), vy)
-      +nvz = Bool.pick(F32, ux, vz, Bool.pick(F32, uy, vz, (vz + sz : F32)))
-      nmx = Bool.pick(F32, ux, (mx + ex : F32), mx)
-      nmy = Bool.pick(F32, uy, (my + ey : F32), my)
-      nmz = Bool.pick(F32, ux, mz, Bool.pick(F32, uy, mz, (mz + ez : F32)))
-      pick(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, here,
-           Bool.pick(U32, take, last, prev), Bool.pick(U32, take, here, hit),
-           World.solid(w, base, nvx, nvy, nvz))
+def aim_face(got: Bool, w: Array<U32>, fc: Render.Face) -> Array<U32> & (U32 & U32):
+  match got:
+    case False{}:
+      (w, (0, 0))
+    case True{}:
+      Render.Face{px, py, pz, ax, ay, hx, hy, hz, cx, cy, cz, da, u, wf, tone} = fc
+      (w, (cell(cx, cy, cz), cell(hx, hy, hz)))
+
+def aim_fin(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, r: Array<U32> & Render.Glance) -> Array<U32> & (U32 & U32):
+  (w, g) = r
+  Render.Glance{+c, t} = g
+  aim_face((c > 0 : U32), w, Render.face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
 
 def aim(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> Array<U32> & (U32 & U32):
-  +vx = Util.floorf(F32.max(ox, 0.0))
-  +vy = Util.floorf(F32.max(oy, 0.0))
-  +vz = Util.floorf(F32.max(oz, 0.0))
-  +px = (dx > 0.0 : F32)
-  +py = (dy > 0.0 : F32)
-  +pz = (dz > 0.0 : F32)
-  +ax = F32.max(Util.absf(dx), 0.00001)
-  +ay = F32.max(Util.absf(dy), 0.00001)
-  +az = F32.max(Util.absf(dz), 0.00001)
-  +nx = Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32))
-  +ny = Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32))
-  +nz = Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32))
-  pick(40n, base, vx, vy, vz,
-       Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
-       Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
-       Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
-       (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
-       (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-       0, 0, 0, World.solid(w, base, vx, vy, vz))
+  aim_fin(ox, oy, oz, dx, dy, dz, Render.run_glance(40n, w, base, ox, oy, oz, dx, dy, dz))
 
 def waim_fin(m: Map<&2, World.Col>, ox: U32, oz: U32, q: List<&2, U32>, np: U32, made: U32, gone: U32, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
   (ring, ph) = r

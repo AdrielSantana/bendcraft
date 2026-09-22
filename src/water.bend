@@ -63,7 +63,7 @@ def crossed(on: Bool, +wet: Bool, +t: F32, +next: F32, tr: Trace) -> Trace:
 
 # Depth absorption and the reflected sky take no second world ray.
 def colour(sun_y: F32) -> U32:
-  Sky.mix(Sky.rgb(7, 28, 43), Sky.rgb(18, 84, 112), Sky.daylight(sun_y))
+  Util.mix(Util.rgb(7, 28, 43), Util.rgb(18, 84, 112), Sky.daylight(sun_y))
 
 # How much of the water's colour a wet path of `depth` blocks leaves over
 # what is behind it. Seen from the air the water is dense, 1 - 0.88 / (1 +
@@ -86,10 +86,10 @@ def light(+drop: F32) -> F32:
   (1.0 - 0.85 * F32.clamp((drop / 6.0 : F32), 0.0, 1.0) : F32)
 
 def deep(sun_y: F32) -> U32:
-  Sky.mix(Sky.rgb(3, 12, 22), Sky.rgb(5, 30, 48), Sky.daylight(sun_y))
+  Util.mix(Util.rgb(3, 12, 22), Util.rgb(5, 30, 48), Sky.daylight(sun_y))
 
 def ink_at(+ink: U32, sun_y: F32, +drop: F32) -> U32:
-  Sky.mix(ink, deep(sun_y), F32.clamp((drop / 6.0 : F32), 0.0, 1.0))
+  Util.mix(ink, deep(sun_y), F32.clamp((drop / 6.0 : F32), 0.0, 1.0))
 
 def opacity(from_air: Bool, +depth: F32) -> F32:
   +k = (1.0 + 0.35 * depth : F32)
@@ -246,13 +246,13 @@ def reach(t: F32, dx: F32, dy: F32, dz: F32) -> F32:
 def in_mirror(hit: Bool, behind: U32, colour: U32, f: F32) -> U32:
   match hit:
     case False{}: behind
-    case True{}: Sky.mix(colour, behind, f)
+    case True{}: Util.mix(colour, behind, f)
 
 def reflected_colour(+fl: U32, c: U32, sky: U32, front: F32,
                      +sx: F32, +sy: F32, +sz: F32, m: Mirror) -> U32:
   Mirror{bottom, r, hit, colour, f} = m
   Reflection{+rx, +ry, +rz, cosine} = r
-  Sky.mix(c, Sky.mix(in_mirror(hit, Sky.bodies(fl, Sky.atmosphere(fl, rx, ry, rz, sx, sy, sz), rx, ry, rz, sx, sy, sz), colour, f), sky, front),
+  Util.mix(c, Util.mix(in_mirror(hit, Sky.bodies(fl, Sky.atmosphere(fl, rx, ry, rz, sx, sy, sz), rx, ry, rz, sx, sy, sz), colour, f), sky, front),
     fresnel(fresnel_on(fl), cosine))
 
 # A surface hidden by full haze is the exact sky: mixing identical byte
@@ -276,7 +276,7 @@ def fog(on: Bool, c: U32, ink: U32, sky: U32, front: F32, depth: F32) -> U32:
     case False{}: c
     case True{}:
       +d = F32.clamp((depth / 24.0 : F32), 0.0, 1.0)
-      Sky.mix(c, Sky.mix(ink, sky, front), (d * d : F32))
+      Util.mix(c, Util.mix(ink, sky, front), (d * d : F32))
 
 def dry(r: Array<U32> & Mirror) -> Array<U32> & U32:
   (w, m) = r
@@ -301,7 +301,7 @@ def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
       +front = Sky.fog(fl, entry, oy, (oy + dy * entry : F32))
       +air = Bool.pick(F32, hit, Sky.fog(fl, distance, oy, (oy + dy * distance : F32)), front)
       +down = drop((oy + dy * distance : F32))
-      +lit = Sky.mix(bottom, 0, Bool.pick(F32, hit, (1.0 - light(down) : F32), 0.0))
-      +base = Sky.mix(Sky.mix(lit, sky, air), ink_at(ink, sun_y, down), (opacity((entry > 0.0 : F32), lit_path(depth, dy)) * (1.0 - front) : F32))
+      +lit = Util.mix(bottom, 0, Bool.pick(F32, hit, (1.0 - light(down) : F32), 0.0))
+      +base = Util.mix(Util.mix(lit, sky, air), ink_at(ink, sun_y, down), (opacity((entry > 0.0 : F32), lit_path(depth, dy)) * (1.0 - front) : F32))
       (w, surface(water_top && reflection_on(fl), (front >= 1.0 : F32), fl, fog(fog_on(fl), base, ink_at(ink, sun_y, drop(oy)), sky, front, depth),
         sky, front, sun_x, sun_y, sun_z, m))

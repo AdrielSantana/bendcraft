@@ -207,7 +207,7 @@ def pixel(r: Array<U32> & U32) -> U32:
 def fog_ray_w(+fl: U32, w: World.World) -> U32:
   World.W{ring, m, ox, oz, q, np, made, gone} = w
   pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 1.5, 10.5, 64.5,
-    1.0, 0.0, 0.0, Render.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
+    1.0, 0.0, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
 
 def fog_ray(fl: U32, wet_until: U32, wall: U32) -> U32:
   fog_ray_w(fl, World.edit(pool(128n, empty(), 0, wet_until), wall, 64, 10, True{}, 2))
@@ -238,7 +238,7 @@ def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
 def surface_ray_w(+fl: U32, +under: Bool, w: World.World) -> U32:
   World.W{ring, m, ox, oz, q, +np, made, gone} = w
   pixel(Render.run_water(Util.on(fl, 2097152), ring, Render.with_partial(0, (np > 0 : U32)), 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
-    0.0, (0.0 - 1.0 : F32), 0.0, Sky.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36))
+    0.0, (0.0 - 1.0 : F32), 0.0, Util.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36))
 
 def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
   surface_ray_w(fl, under, World.edit(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2),
@@ -247,7 +247,7 @@ def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
 def far_surface_w(w: World.World) -> U32:
   World.W{ring, m, ox, oz, q, np, made, gone} = w
   pixel(Render.run_water(True{}, ring, 0, 1.5, 15.5, 64.5,
-    0.9949874, (0.0 - 0.1 : F32), 0.0, Sky.rgb(100, 140, 180), Render.looks(), 0.48, 0.8, 0.36))
+    0.9949874, (0.0 - 0.1 : F32), 0.0, Util.rgb(100, 140, 180), Render.looks(), 0.48, 0.8, 0.36))
 
 def main() -> IO(Unit):
   do IO<Unit>:
@@ -316,14 +316,14 @@ def main() -> IO(Unit):
     expect(U32.is_eq(surface_ray(Render.looks(), True{}, False{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), True{}, False{}))
       && U32.is_eq(surface_ray(Render.looks(), False{}, True{}), surface_ray((Render.looks() .&. U32.not(1048576) : U32), False{}, True{})),
       "ripples preserve submerged eyes and foreground banks")
-    expect(U32.is_eq(far_surface_w(pool(88n, empty(), 40, 128)), Sky.rgb(100, 140, 180)), "air fog hides a distant reflecting water top")
+    expect(U32.is_eq(far_surface_w(pool(88n, empty(), 40, 128)), Util.rgb(100, 140, 180)), "air fog hides a distant reflecting water top")
     expect(no_silhouette(6291464, 0.8) && no_silhouette(6291464, 0.0)
       && no_silhouette(6291464, (0.0 - 1.0 : F32)), "emerged ray hides distant silhouettes in daytime, twilight and night but keeps a nearby wall")
     expect(no_silhouette(2097160, 0.8) && no_silhouette(2153775112, 0.8), "background agrees with sky with water fog off and height fog on")
     expect(U32.is_eq(fog_ray(2097160, 2, 40), fog_ray(2097160, 2, 100))
-      && U32.is_ne(fog_ray(2097160, 2, 40), Render.rgb(100, 140, 180)), "distance fog through a wet side exit reaches the same tinted sky")
+      && U32.is_ne(fog_ray(2097160, 2, 40), Util.rgb(100, 140, 180)), "distance fog through a wet side exit reaches the same tinted sky")
     expect(U32.is_eq(fog_ray_w(6291464, World.edit(pool(88n, empty(), 40, 128), 56, 64, 10, True{}, 2)),
-      Render.rgb(100, 140, 180)), "distant water stays hidden by foreground air fog")
+      Util.rgb(100, 140, 180)), "distant water stays hidden by foreground air fog")
     expect(U32.is_eq(fog_ray(6291464, 128, 40), Water.ink_at(Water.colour(0.8), 0.8, 1.5))
       && U32.is_eq(fog_ray(6291464, 128, 100), Water.ink_at(Water.colour(0.8), 0.8, 1.5))
       && (fog_ray(6291464, 128, 40) < Water.colour(0.8) : U32), "underwater wall and ray limit converge to the same fog colour, the water's at the eye's depth")
@@ -331,7 +331,7 @@ def main() -> IO(Unit):
     expect(F32.is_eq(Water.light(0.0), 1.0) && near(Water.light(3.0), 0.575, 0.0001) && near(Water.light(6.0), 0.15, 0.0001)
       && near(Water.light(30.0), 0.15, 0.0001) && F32.is_eq(Water.drop(12.0), 0.0) && F32.is_eq(Water.drop(14.0), 0.0)
       && F32.is_eq(Water.drop(9.5), 2.5), "the light left under the surface: all of it at the level, a sixth six blocks down")
-    expect(U32.is_eq(fog_ray(4194312, 128, 40), Render.rgb(100, 140, 180)), "water off keeps ordinary fog")
+    expect(U32.is_eq(fog_ray(4194312, 128, 40), Util.rgb(100, 140, 180)), "water off keeps ordinary fog")
     expect(U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 0.0), 123)
       && U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 24.0), 456)
       && U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 80.0), 456)
