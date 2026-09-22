@@ -728,3 +728,20 @@ def edit(w: World, +lx: U32, +lz: U32, +y: U32, set: Bool, +what: U32) -> World:
   +x = (ox + lx : U32)
   +z = (oz + lz : U32)
   edit_fin(m, ox, oz, x, z, y, set, what, q, np, made, gone, get_col(ring, ((x * 128 + z) * 16 : U32)))
+
+# ---------- a point in water ----------
+# whether a point is in water: its cell holds some, and the point is under
+# the cell's plane (the player's physics, at the waist)
+def wet_fin(+y: F32, r: World & U32) -> World & Bool:
+  (w, +a) = r
+  (w, (a > 0 : U32) && (Util.fracf(y) * 255.0 < Util.u2f(a) : F32))
+
+def wet_in(ok: Bool, w: World, +x: F32, +y: F32, +z: F32) -> World & Bool:
+  match ok:
+    case False{}:
+      (w, False{})
+    case True{}:
+      wet_fin(y, amount_at(w, Util.f2u(x), Util.f2u(y), Util.f2u(z)))
+
+def wet_at(w: World, +x: F32, +y: F32, +z: F32) -> World & Bool:
+  wet_in(inside(x, y, z), w, x, y, z)

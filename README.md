@@ -6,7 +6,7 @@ on the GPU through Metal, or on every core of your machine as WebAssembly.
 
 **Play it in the browser:** https://adrielsantana.github.io/bendcraft/
 
-`W A S D` walk · `space` jumps · drag the mouse to look (or the arrows) ·
+`W A S D` walk · `space` jumps, and swims up in water · drag the mouse to look (or the arrows) ·
 click breaks · right click places (or `J` / `L`) · `1`–`8` choose the block
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
 spring, a source of water · `P` saves · `F` shows the frame's time · `Esc`
@@ -334,7 +334,15 @@ old excavations stay dry, and an explicit zero water word stays zero. Both `P` a
 
 **The player** is 1.8 blocks tall with the eye at 1.6. Walking tests the
 feet and the head per axis and stops at walls; gravity pulls, landing snaps
-the feet onto the block, space pushes off it. A block is never placed on
+the feet onto the block, space pushes off it. In water at the waist the
+player swims (`Player.step_swim`, `World.wet_at`: the cell holds water and
+the waist is under its plane): the water's lift nearly balances gravity, so
+they sink at a fiftieth of a block a tick and drag; space swims up, to a
+bob at the surface with the eye eight tenths over it; a stroke is half a
+step, and there is no jump off the bed. Out of water nothing changed: the
+old fixture's lines are the same, and eight swim lines follow them
+(`bend test/physics.bend | md5` is `6a91573e0b1efe2a3dba840c26b83540`).
+A block is never placed on
 the player. The hotbar along the bottom shows the eight block types and
 the spring and frames the chosen one, with the available count below
 each block's swatch; the spring has no count.

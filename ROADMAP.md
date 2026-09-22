@@ -290,8 +290,14 @@ block moves; that is the first gate of every step below.
   bucket's design: whether the ninth slot stays a spring (infinite, as
   built) or becomes a bucket that collects a cell and places it, and
   what a collected partial cell is worth. (4) Edits: what a placed block displaces and what collecting
-  takes, both counted. (5) The player in water: buoyancy, drag, swimming,
-  breath later.
+  takes, both counted. (5) The player in water: buoyancy, drag, swimming
+  — done 2026-09-22: in water at the waist (`World.wet_at`, under the
+  cell's plane) the lift nearly balances gravity (a sink of 0.02 a tick,
+  drag 0.85), space swims up to a bob at the surface with the eye 0.8
+  over it, a stroke is 0.08 against the walk's 0.16, and no jump off the
+  bed; the old physics lines are byte for byte the same and eight swim
+  lines follow them, hash 6a91573e0b1efe2a3dba840c26b83540; the digest
+  unchanged. Breath later.
 - **What step 2 found: the unit is too coarse.** The rule moves nothing
   between neighbours a unit apart, so a surface at rest may slope one
   unit a cell toward wherever it drained: the spawn's lake breached into

@@ -90,6 +90,13 @@ def supplied(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n]}
 
+# the player set down in the lake west of the spawn (local 45.5, 66.5 at
+# the start's corner: full water at heights 8 to 11, the surface at 12),
+# the eye half a block over the surface, facing +z
+def dunk(g: Player.Game) -> Player.Game:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, 45.5, 12.5, 66.5, 0.0, 0.0, 0.0, held, edge, mx, my, sel, res, clock, bag}
+
 def main() -> IO(Unit):
   do IO<Unit>:
     IO.print("terrain at the corner: " ++ U32.show(World.terrain(1048512, 1048512)) ++ " " ++ U32.show(World.terrain(1048576, 1048576)) ++ " " ++ U32.show(World.terrain(1048600, 1048530)))
@@ -109,4 +116,11 @@ def main() -> IO(Unit):
     g12 : Player.Game <- say("walk W 300 ", show(ticks(300n, g11)))
     g13 : Player.Game <- say("walk S 600 ", show(ticks(600n, Player.feed(Con{Key{119, False{}}, one(Key{115, True{}})}, g12))))
     IO.print(persist(g13))
+    s0 : Player.Game <- say("dunk       ", show(dunk(Player.start())))
+    s1 : Player.Game <- say("sink 60    ", show(ticks(60n, s0)))
+    s2 : Player.Game <- say("on the bed ", show(ticks(340n, s1)))
+    s3 : Player.Game <- say("swim up 60 ", show(ticks(60n, Player.feed(one(Key{32, True{}}), s2))))
+    s4 : Player.Game <- say("bob 200    ", show(ticks(140n, s3)))
+    s5 : Player.Game <- say("stroke 60  ", show(ticks(60n, Player.feed(Con{Key{32, False{}}, one(Key{119, True{}})}, s4))))
+    s6 : Player.Game <- say("back 300   ", show(ticks(300n, Player.feed(Con{Key{119, False{}}, one(Key{115, True{}})}, s5))))
     IO.pure(Unit, Unit{})

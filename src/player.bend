@@ -316,7 +316,7 @@ def step_aim(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
   (w, ph) = r
   step_edit(npx, npy, npz, nvy, nyaw, npit, held, edge, mx, my, sel, res, clock, bag, w, ph)
 
-def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool,
+def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool, +swim: Bool,
               +nyaw: F32, +npit: F32, +held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
               r: World.World & Bool) -> Game:
   (w, above) = r
@@ -324,7 +324,7 @@ def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool,
   +feet = (ty - eye() : F32)
   +npy = F32.clamp(Bool.pick(F32, land, (Util.floorf(feet) + 1.0 + eye() : F32),
                              Bool.pick(F32, bump, py, ty)), eye(), 31.5)
-  +nvy = Bool.pick(F32, land && Util.on(held, 8192), 0.2,
+  +nvy = Bool.pick(F32, land && Util.on(held, 8192) && Bool.not(swim), 0.2,
                    Bool.pick(F32, land || bump, 0.0, vy1))
   # the corner follows: back to local column 64
   +cx = Util.f2u(npx)
@@ -336,41 +336,53 @@ def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool,
                 World.follow_x(U32.to_nat(Bool.pick(U32, (cx > 64 : U32), (cx - 64 : U32), (64 - cx : U32))), (cx > 64 : U32), w)),
                 lx, npy, lz, Render.look_x(nyaw, npit), Render.look_y(npit), Render.look_z(nyaw, npit)))
 
-def step_land(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32,
+def step_land(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, swim: Bool,
               nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
               r: World.World & Bool) -> Game:
   (w, below) = r
-  step_bump(npx, py, npz, ty, vy1, (vy1 < 0.0 : F32) && below, nyaw, npit, held, edge, mx, my, sel, res, clock, bag,
+  step_bump(npx, py, npz, ty, vy1, (vy1 < 0.0 : F32) && below, swim, nyaw, npit, held, edge, mx, my, sel, res, clock, bag,
             World.wsolid(w, npx, (ty + 0.2 : F32), npz))
 
-def step_z(+npx: F32, +py: F32, +pz: F32, +tz: F32, +vy1: F32,
+def step_z(+npx: F32, +py: F32, +pz: F32, +tz: F32, +vy1: F32, swim: Bool,
            nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
            r: World.World & Bool) -> Game:
   (w, bz) = r
   +npz = Bool.pick(F32, bz, pz, tz)
   +ty = (py + vy1 : F32)
-  step_land(npx, py, npz, ty, vy1, nyaw, npit, held, edge, mx, my, sel, res, clock, bag,
+  step_land(npx, py, npz, ty, vy1, swim, nyaw, npit, held, edge, mx, my, sel, res, clock, bag,
             World.wsolid(w, npx, (ty - eye() : F32), npz))
 
-def step_x(+px: F32, +py: F32, +pz: F32, +tx: F32, +tz: F32, +vy1: F32,
+def step_x(+px: F32, +py: F32, +pz: F32, +tx: F32, +tz: F32, +vy1: F32, swim: Bool,
            nyaw: F32, npit: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
            r: World.World & Bool) -> Game:
   (w, bx) = r
   +npx = Bool.pick(F32, bx, px, tx)
-  step_z(npx, py, pz, tz, vy1, nyaw, npit, held, edge, mx, my, sel, res, clock, bag, blocked(w, npx, py, tz))
+  step_z(npx, py, pz, tz, vy1, swim, nyaw, npit, held, edge, mx, my, sel, res, clock, bag, blocked(w, npx, py, tz))
 
-def step(g: Game) -> Game:
-  G{w, +px, +py, +pz, yaw, pit, vy, +held, edge, mx, my, sel, res, clock, bag} = g
+# In water at the waist the player swims: the water's lift nearly balances
+# gravity, so they sink slowly and the water drags; space swims up, to a
+# bob at the surface with the eye over it; a stroke is half a step; and
+# there is no jump off the bed. Out of water, the walk and the fall.
+def step_swim(+px: F32, +py: F32, +pz: F32, yaw: F32, pit: F32, +vy: F32, +held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
+              r: World.World & Bool) -> Game:
+  (w, +swim) = r
   +nyaw = (yaw + 0.055 * ax2(held, 64, 128) : F32)
   +npit = F32.clamp((pit + 0.045 * ax2(held, 32, 16) : F32), (0.0 - 1.45 : F32), 1.45)
   +sy = F32.sin(nyaw)
   +cy = F32.cos(nyaw)
   +fw = ax2(held, 4, 1)
   +st = ax2(held, 2, 8)
-  +tx = (px + 0.16 * (fw * sy + st * cy) : F32)
-  +tz = (pz + 0.16 * (fw * cy - st * sy) : F32)
-  +vy1 = F32.max((vy - 0.012 : F32), (0.0 - 0.9 : F32))
-  step_x(px, py, pz, tx, tz, vy1, nyaw, npit, held, edge, mx, my, sel, res, clock, bag, blocked(w, tx, py, pz))
+  +stride = Bool.pick(F32, swim, 0.08, 0.16)
+  +tx = (px + stride * (fw * sy + st * cy) : F32)
+  +tz = (pz + stride * (fw * cy - st * sy) : F32)
+  +vy1 = Bool.pick(F32, swim,
+    F32.clamp((vy * 0.85 + Bool.pick(F32, Util.on(held, 8192), 0.008, (0.0 - 0.003 : F32)) : F32), (0.0 - 0.08 : F32), 0.06),
+    F32.max((vy - 0.012 : F32), (0.0 - 0.9 : F32)))
+  step_x(px, py, pz, tx, tz, vy1, swim, nyaw, npit, held, edge, mx, my, sel, res, clock, bag, blocked(w, tx, py, pz))
+
+def step(g: Game) -> Game:
+  G{w, +px, +py, +pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  step_swim(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, World.wet_at(w, px, (py - 0.8 : F32), pz))
 
 def alive(g: Game) -> IO(Maybe<Game>):
   G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res, clock, bag} = g
