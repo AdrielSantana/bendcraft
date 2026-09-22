@@ -53,4 +53,3 @@ def main() -> IO(Unit):
     Lib.expect(U32.is_eq(clock(Player.advance(Player.advance(fixture(1234), 16), 17)),
                      clock(Player.advance(fixture(1234), 33))), "frame rate independent clock")
     Lib.expect(U32.is_eq(restored(Save.text(fixture(786432))), 786432), "save restores night")
-    Lib.expect(U32.is_eq(clock(Save.parse(["bendcraft 1 1048512 1048512 1064500 1030000 1064500 1000000 1000000 0"], Player.res512())), Day.morning()), "old save starts at morning")

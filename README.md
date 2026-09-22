@@ -364,10 +364,11 @@ src/save.bend      the save file, and the tick that writes it
 LAWS.bend          the rules the checker proves; PROOF.bend closes them
 AGENTS.md          for an agent (or a person) about to write Bend here: the gate, the rules
 ROADMAP.md         the vision and what comes next: the look, the game, the laws, what waits on Bend
+test/lib.bend      what every windowless test needs: expect, ticks, one event, say
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
-test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, old and new saves
+test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, the clock's save
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  clock/address packing, stable world noise, normals and wrap continuity
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
