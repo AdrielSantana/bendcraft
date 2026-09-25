@@ -63,6 +63,18 @@ def met(r: Array<U32> & Render.Far, +hit: U32, +word: U32, t: F32) -> Bool:
 def dry() -> Water.Trace:
   Water.Trace{0.0, 0.0}
 
+def walked(r: Array<U32> & Render.Ray) -> F32:
+  (w, ray) = r
+  Render.Ray{c, t, tr} = ray
+  t
+
+# where the window's walk from (x, 10.5, 64.5) along x through empty
+# columns stops, the distance the far walk goes on from
+def walked_to(+x: F32) -> F32:
+  walked(Render.dda(~False{}, ~False{}, 60n, 0, Util.floorf(x), 10.0, 64.0, 1.0, 1.0, 1.0,
+    (Util.floorf(x) + 1.0 - x : F32), 50000.0, 50000.0, 1.0, 100000.0, 100000.0, 1.0, 0, 0.0, 0, 1024, Water.Trace{0.0, 0.0},
+    Render.column_words(~False{}, ~False{}, map(), World.col_at(0, Util.f2u(x), 64), 1024, 10, 1.0, 50000.0, 100000.0)))
+
 def run(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t0: F32, tr: Water.Trace) -> Array<U32> & Render.Far:
   Render.run_far(128n, map(), 0, ox, oy, oz, dx, dy, dz, t0, Sky.reach(), True{}, tr)
 
@@ -133,6 +145,8 @@ def main() -> IO(Unit):
     Lib.expect(walk(64.0, 10.3, 64.5, 1.0, 0.0, 0.0, 0.0, 1, flat(), 0.001) && walk(64.3, 10.0, 64.5, 0.6, (0.0 - 0.8 : F32), 0.0, 0.0, 2, flat(), 0.001),
       "a walk that starts inside a block meets it at once, on the face whose plane it starts on: the window's walk ends on the plane it last crossed")
     Lib.expect(walk(64.5, 16.5, 64.5, 1.0, 0.0, 0.0, 10.0, 1, tall(), 31.5), "the walk picks up at the distance the window's walk stopped at, and the hit's distance is the same")
+    Lib.expect(F32.is_eq(walked_to(120.5), 7.5) && F32.is_eq(walked_to(20.5), 59.5),
+      "the window's walk stops where the ray leaves the window, 7.5 blocks from 120.5, so the far walk misses none of the columns past its edge; inside, it walks its 60 steps")
     Lib.expect(walk((0.0 - 35.5 : F32), 16.5, 64.5, 1.0, 0.0, 0.0, 100.0, 0, 0, 0.0), "the walk ends where the fog is whole: the tall column 131.5 blocks off is not met")
     Lib.expect(U32.is_eq(look(0, flat(), 1, 16.5, 0.0, (0.0 - 0.1 : F32), 1.0, 45.0), Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)))
       && U32.is_eq(look(0, tall(), 0, 16.5, 1.0, 0.0, 0.0, 31.5), Render.dim(Render.blockcol(2, True{}, 0.5), day(0.8)))

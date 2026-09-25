@@ -91,7 +91,8 @@ you come back.
 
 **The render** is a DDA through the ring, one ray per pixel, 60 steps. The
 loop returns the solid hit and its distance, plus the first wet entry and
-total wet distance. A ray that met nothing goes on over the far map, a
+total wet distance; its distance stops where the ray leaves the
+window, whose columns end there. A ray that met nothing goes on from there over the far map, a
 word a column for 256x256 columns around the window: the column's run
 from the floor, its ground, a trunk or the sea over it, and the canopy
 over that, and the highest top of the column's 4x4 cell. The second walk

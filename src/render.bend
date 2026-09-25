@@ -184,7 +184,9 @@ def dda_end(+col: U32, +n: U32, t: F32, tr: Water.Trace, r: Array<U32> & Column)
   (w, Ray{(col + n * 4 : U32), t, tr})
 
 # The loop walks its 60 steps whatever happens, the state frozen after the
-# hit (t stops moving there): an exit at the hit (or on leaving the box)
+# hit and once the ray left the window (t stops moving there, so the far
+# walk goes on from the window's edge, not from past the columns the
+# window does not hold): an exit at the hit (or on leaving the box)
 # walked a third of the steps and made the frame slower, 15 -> 17 ms at
 # 1470 x 796 and 28 -> 32 at 1920 x 1080 (2026-09-21, the same checksums),
 # since the lanes of a SIMD group then leave the loop at different steps
@@ -216,7 +218,7 @@ def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
       naxis = Bool.pick(F32, ux, 0.0, Bool.pick(F32, uy, 1.0, 2.0))
       +nymask = Bool.pick(U32, uy,
         Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
-      +nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
+      +nt = Bool.pick(F32, (ncol < 1 : U32) && inside, Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
       +ws = seg_start(partial, t, lo)
       +we = seg_end(partial, nt, hi)
       +wet = inside && (ncol < 1 : U32) && Util.on(wetbits, ymask) && (ws < we : F32)
