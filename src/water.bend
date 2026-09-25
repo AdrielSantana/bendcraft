@@ -277,6 +277,11 @@ def fog(on: Bool, c: U32, ink: U32, sky: U32, front: F32, depth: F32) -> U32:
       +d = F32.clamp((depth / 24.0 : F32), 0.0, 1.0)
       Util.mix(c, Util.mix(ink, sky, front), (d * d : F32))
 
+# whether anything shows through the water a ray crossed
+def clear(tr: Trace) -> Bool:
+  Trace{entry, depth} = tr
+  (depth < 24.0 : F32)
+
 def dry(r: Array<U32> & Mirror) -> Array<U32> & U32:
   (w, m) = r
   Mirror{bottom, x, hit, colour, f} = m

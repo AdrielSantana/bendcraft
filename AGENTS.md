@@ -98,7 +98,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `7d3b7352a690f6efa1b78905895df4da` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `af620871df272a7a35e7d53de3e258c7` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `26eafd3e7eb6...`; same rule.
@@ -253,10 +253,17 @@ for block in all but 14 of the start window's 16384 (test/terrain.bend).
 The render shades a far block through the window's look with `distant`
 set (`Render.shade_face`, `typed`, `after_sun`, `shadow_if`, the mirror's
 `glance_face`): the reads go to the far map (`Render.solid_in`,
-`far_solid`: a far cell is solid under the run, under the ground alone
-where the sea is, and in the canopy), and the far sea goes through
-`Water.shade` (`Render.far_water`). A change to the window's look is a
-change to the far one; the parity test in test/terrain.bend says so.
+`far_solid`: a far cell is solid under `World.far_solid_top`, its ground
+alone where the sea is over it, and in the canopy). The sea is the run's
+plane over a lower ground (`World.far_sea`), so a test's map of zeros
+holds none. The far walk takes the window's wet trace and adds its own
+path under the sea to it (`Water.crossed`), and one `Render.seen` shades
+both walks' hits. It starts on the plane the window's walk last crossed,
+often inside a block, and names the face by that plane (`run_far`). A
+change to the window's look is a change to the far one; the parity test
+in test/terrain.bend says so. To judge the seam, a window walk of 80
+steps is the truth; its step count must stop at 63, or it spills into
+the water-top bit.
 The first far map was 64x64 cells of 4x4 columns, each its highest
 block: a tree made a pillar of leaves, and a cell near the window's edge
 looked four blocks wide. A coarser level belongs where its cell is a

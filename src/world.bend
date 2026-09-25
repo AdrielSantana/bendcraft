@@ -441,12 +441,23 @@ def far_word(+h: U32, +run: U32, +lb: U32, +lt: U32) -> U32:
 def far_top(+word: U32) -> U32:
   U32.max((word / 32 % 32 : U32), (word / 32768 % 32 : U32))
 
+# a far column the sea is over: its run is the sea's plane over its
+# ground, so a map of zeros, never loaded, holds no sea
+def far_sea(+word: U32) -> Bool:
+  +h = (word % 32 : U32)
+  (h < sea() : U32) && (h < (word / 32 % 32 : U32) : U32)
+
+# the top of a far column's solid run: its ground under the sea, whose
+# water is not solid, its run elsewhere
+def far_solid_top(+word: U32) -> U32:
+  Bool.pick(U32, far_sea(word), (word % 32 : U32), (word / 32 % 32 : U32))
+
 # the type at height y of a far column: leaves in the canopy, the sea or
 # the trunk above the ground, the ground's own under it
 def far_type(+word: U32, +y: U32) -> U32:
   +h = (word % 32 : U32)
   Bool.pick(U32, (y >= word / 1024 % 32 : U32) && (y < word / 32768 % 32 : U32), 5,
-    Bool.pick(U32, (y >= h : U32), Bool.pick(U32, (h < sea() : U32), 8, 4), tnib(y, h)))
+    Bool.pick(U32, (y >= h : U32), Bool.pick(U32, far_sea(word), 8, 4), tnib(y, h)))
 
 # the lowest set bit of a mask and one past the highest, lo + 64 * hi;
 # 32 for none

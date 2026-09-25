@@ -389,6 +389,15 @@ law a_far_trunk_is_wood_under_its_leaves:
 law the_far_sea_is_water_over_its_bed:
   {(World.far_type(World.far_word(9, 12, 0, 0), 11), World.far_type(World.far_word(9, 12, 0, 0), 8)) == (8, 1) : U32 & U32}
 
+# the far walk goes through the sea to its bed: a sea column is solid to
+# its ground, a trunk's to its wood's top, a hill's to its own
+law the_far_sea_is_not_solid:
+  {(World.far_solid_top(World.far_word(9, 12, 0, 0)), World.far_solid_top(World.far_word(20, 24, 24, 26)), World.far_solid_top(World.far_word(12, 12, 0, 0))) == (9, 24, 12) : U32 & (U32 & U32)}
+
+# the sea is its plane over a lower ground, so a map never loaded holds none
+law the_far_sea_is_a_plane_over_its_bed:
+  {(World.far_sea(World.far_word(9, 12, 0, 0)), World.far_sea(World.far_word(20, 24, 24, 26)), World.far_sea(0)) == (True{}, False{}, False{}) : Bool & (Bool & Bool)}
+
 # --- a solid placed in water shoves the water up ------------------------------
 # What a cell holding b takes of a is what fits, and the shove's probe says
 # 256 for a solid, the amount for water, so the loop stops at a ceiling.

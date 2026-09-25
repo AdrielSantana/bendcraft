@@ -156,8 +156,7 @@ def far_then(+acc: U32, +near: U32, r: Array<U32> & U32) -> Array<U32> & U32:
 
 def near_then(+acc: U32, +dx: F32, +dy: F32, +dz: F32, +v: U32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   (ring, +near) = r
-  far_then(acc, near, Render.far_fin(eye_base(), eye_far(), looks(), v, 64.5, 30.0, 64.5, dx, dy, dz, lx, ly, lz, Sky.bodies(looks(), v, dx, dy, dz, lx, ly, lz),
-    Render.run_far(128n, ring, eye_far(), 64.5, 30.0, 64.5, dx, dy, dz, 0.0, Sky.reach())))
+  far_then(acc, near, Render.after_walk(False{}, 0, v, looks(), lx, ly, lz, eye_base(), eye_far(), 64.5, 30.0, 64.5, dx, dy, dz, 0.0, 0.0, 0.0, ring))
 
 def look_both(ring: Array<U32>, +acc: U32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   +v = Sky.atmosphere(looks(), dx, dy, dz, lx, ly, lz)
@@ -207,8 +206,8 @@ def main() -> IO(Unit):
       "a move of a column loads the far map's line that came into view, on either axis, either way, under its cell's top; four moves, and the new line's cell is whole and its top exact")
     Lib.expect(U32.is_eq(disagree(16384n, 1048512, 1048512, 0, 0), 14),
       "the far map agrees with the window's own columns, block by block, in all but 14 of the start window's 16384: a canopy's leaves inside a slope are the slope's, and two canopies at two heights fill the gap between them")
-    Lib.expect(U32.is_eq(parted_in(start()), 3),
-      "the far look is the window's: of 192 rays from the start's eye, all but three steep looks at a lake's bed are the same colour within 4 a channel over the far map")
+    Lib.expect(U32.is_eq(parted_in(start()), 0),
+      "the far look is the window's: 192 rays from the start's eye are the same colour within 4 a channel over the far map, a lake's bed under its water too")
     Lib.expect(saved_tree(World.load(World.W{[0 : U32^19n],
       World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.col6(511, 0, 4, 0, 0, 3584)),
       1048512, 1048512, Nil{}, 0, 0}}, 1048543, 1048592)), "saved submerged wood survives generation changes")

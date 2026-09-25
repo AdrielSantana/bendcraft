@@ -209,6 +209,8 @@ def Laws.leaves_inside_the_run_are_the_run_s(): {==}
 def Laws.a_far_ground_is_grass_dirt_and_stone(): {==}
 def Laws.a_far_trunk_is_wood_under_its_leaves(): {==}
 def Laws.the_far_sea_is_water_over_its_bed(): {==}
+def Laws.the_far_sea_is_not_solid(): {==}
+def Laws.the_far_sea_is_a_plane_over_its_bed(): {==}
 def Laws.what_fits_is_the_room(): {==}
 def Laws.what_fits_is_all_of_less(): {==}
 def Laws.nothing_fits_in_full(): {==}

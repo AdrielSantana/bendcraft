@@ -329,10 +329,13 @@ def run_glance(fuel: Nat, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F3
 # window's shadow glance ends for a far block's shadow (shadow_if). So
 # a lane of open sky walks a few steps or none; unlike the window's
 # walk, the early stop measured faster, since the far walk's lanes part
-# by kind, not by a few steps. A column is
-# solid from the floor to its run's top, and in its canopy's slab; the
-# ray meets a side where it enters a column inside either, a top where
-# it drops through one, the canopy's underside where it climbs into it.
+# by kind, not by a few steps. A column is solid from the floor to its
+# solid top (World.far_solid_top), and in its canopy's slab; the ray
+# meets a side where it enters a column inside either, a top where it
+# drops through one, the canopy's underside where it climbs into it. The
+# sea over a column is not solid: with the water on, the walk adds the
+# ray's path under its plane to the window's trace, as the window's walk
+# does (Water.crossed), and stops where the water's fog is whole.
 # The walk starts where the window's walk stopped, so the window's blocks
 # show to there and the map's columns from there. It runs in the map's
 # coordinates, the window's plus 64 and the corner's remainders plus
@@ -344,14 +347,14 @@ def run_glance(fuel: Nat, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F3
 # 0 nothing; with it the column's word. Only a sky pixel's lane pays for
 # it: a tile of ground alone skips it.
 type Far is Data:
-  Far{hit: U32, word: U32, t: F32}
+  Far{hit: U32, word: U32, t: F32, water: Water.Trace}
 
 def far_read(w: Array<U32>, +cx: F32, +cz: F32) -> Array<U32> & U32:
   Array.get(U32, w, World.far_at(Util.f2u(cx), Util.f2u(cz)))
 
-def far_end(+hit: U32, +word: U32, t: F32, r: Array<U32> & U32) -> Array<U32> & Far:
+def far_end(+hit: U32, +word: U32, t: F32, tr: Water.Trace, r: Array<U32> & U32) -> Array<U32> & Far:
   (w, x) = r
-  (w, Far{hit, word, t})
+  (w, Far{hit, word, t, tr})
 
 # the walk goes on while the ray is in the map and can still meet a
 # column that shows: a ray at or over 32, the top of the world,
@@ -371,17 +374,18 @@ def clamp4(+k: F32, +p: F32) -> F32:
 # the column's and the cell's far planes along x and z (ix, iz the
 # inverse steps, px1, pz1 one where the step is positive)
 def far(fuel: Nat, go: Bool, +bx: F32, +bz: F32, +fox: F32, +foz: F32, +dx: F32, +dz: F32, +ix: F32, +iz: F32, +px1: F32, +pz1: F32,
-        +oy: F32, +dy: F32, +iy: F32, +end: F32, +t: F32, +ax: F32, +hit: U32, +hw: U32, +cx: F32, +cz: F32, r: Array<U32> & U32) -> Array<U32> & Far:
+        +oy: F32, +dy: F32, +iy: F32, +end: F32, +t: F32, +on: Bool, +tr: Water.Trace, +ax: F32, +hit: U32, +hw: U32, +cx: F32, +cz: F32, r: Array<U32> & U32) -> Array<U32> & Far:
   match fuel:
     case 0n:
-      far_end(hit, hw, t, r)
+      far_end(hit, hw, t, tr, r)
     case 1n+f:
       match go:
         case False{}:
-          far_end(hit, hw, t, r)
+          far_end(hit, hw, t, tr, r)
         case True{}:
           (w, +word) = r
-          +run = Util.u2f((word / 32 % 32 : U32))
+          +sea = World.far_sea(word)
+          +run = Util.u2f(World.far_solid_top(word))
           +lb = Util.u2f((word / 1024 % 32 : U32))
           +lt = Util.u2f((word / 32768 % 32 : U32))
           +slab = (lt > lb : F32)
@@ -400,21 +404,32 @@ def far(fuel: Nat, go: Bool, +bx: F32, +bz: F32, +fox: F32, +foz: F32, +dx: F32,
           +roof = Bool.not(skip) && Bool.not(side) && slab && (y0 >= lt : F32) && (y1 < lt : F32)
           +top = Bool.not(skip) && Bool.not(side) && Bool.not(roof) && (y1 < run : F32)
           +under = Bool.not(skip) && Bool.not(side) && slab && (y0 < lb : F32) && (y1 >= lb : F32)
-          +nhit = Bool.pick(U32, side, Bool.pick(U32, (ax > 0.5 : F32), 1, 3), Bool.pick(U32, roof || top || under, 2, 0))
+          +nhit = Bool.pick(U32, side, Bool.pick(U32, (ax > 1.5 : F32), 2, Bool.pick(U32, (ax > 0.5 : F32), 1, 3)), Bool.pick(U32, roof || top || under, 2, 0))
           +nt = Bool.pick(F32, skip, tk, Bool.pick(F32, side, t, Bool.pick(F32, roof, ((lt - oy) * iy : F32), Bool.pick(F32, top, ((run - oy) * iy : F32),
             Bool.pick(F32, under, ((lb - oy) * iy : F32), tc)))))
+          +t12 = ((12.0 - oy) * iy : F32)
+          +ws = Bool.pick(F32, (y0 < 12.0 : F32), t, t12)
+          +wn = Bool.pick(F32, ((oy + dy * nt : F32) < 12.0 : F32), nt, t12)
+          +ntr = Water.crossed(on, sea && (ws < wn : F32), ws, wn, tr)
           +ux = (tcx < tcz : F32)
           +uk = (tkx < tkz : F32)
           +ncx = Bool.pick(F32, skip, Bool.pick(F32, uk, (kx - 1.0 + 5.0 * px1 : F32), clamp4(kx, (fox + dx * tk : F32))),
             Bool.pick(F32, ux, (cx - 1.0 + 2.0 * px1 : F32), cx))
           +ncz = Bool.pick(F32, skip, Bool.pick(F32, uk, clamp4(kz, (foz + dz * tk : F32)), (kz - 1.0 + 5.0 * pz1 : F32)),
             Bool.pick(F32, ux, cz, (cz - 1.0 + 2.0 * pz1 : F32)))
-          far(f, (nhit < 1 : U32) && inside((ncx - bx : F32), (ncz - bz : F32)) && can_meet(oy, dy, nt, end), bx, bz, fox, foz, dx, dz, ix, iz, px1, pz1,
-              oy, dy, iy, end, nt, Bool.pick(F32, skip, Bool.pick(F32, uk, 1.0, 0.0), Bool.pick(F32, ux, 1.0, 0.0)), nhit, word, ncx, ncz, far_read(w, ncx, ncz))
+          far(f, (nhit < 1 : U32) && inside((ncx - bx : F32), (ncz - bz : F32)) && can_meet(oy, dy, nt, end) && Water.clear(ntr),
+              bx, bz, fox, foz, dx, dz, ix, iz, px1, pz1, oy, dy, iy, end, nt, on, ntr, Bool.pick(F32, skip, Bool.pick(F32, uk, 1.0, 0.0), Bool.pick(F32, ux, 1.0, 0.0)), nhit, word, ncx, ncz, far_read(w, ncx, ncz))
+
+# how far a coordinate lies from the grid's nearest plane
+def off_grid(+q: F32) -> F32:
+  Util.absf((q - Util.floorf((q + 0.5 : F32)) : F32))
 
 # from the window's walk's end, a hair on: the map's coordinates of the
-# eye and of the point's column
-def run_far(fuel: Nat, w: Array<U32>, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t0: F32, +end: F32) -> Array<U32> & Far:
+# eye and of the point's column. The window's walk ends on the plane it
+# last crossed, into a cell it did not test: the far walk may start
+# inside a block, and names the face it came in through by that plane
+# (ax: 2 y, 1 x, 0 z), a top where the ray came down onto it
+def run_far(fuel: Nat, w: Array<U32>, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t0: F32, +end: F32, +on: Bool, tr: Water.Trace) -> Array<U32> & Far:
   +t = (t0 + 0.001 : F32)
   +bx = Util.u2f((fw / 256 + 256 : U32))
   +bz = Util.u2f((fw % 256 + 256 : U32))
@@ -424,10 +439,14 @@ def run_far(fuel: Nat, w: Array<U32>, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +d
   +cz = Util.floorf((foz + dz * (t + 0.002) : F32))
   +px1 = (dx > 0.0 : F32)
   +pz1 = (dz > 0.0 : F32)
+  +ex = off_grid((fox + dx * t0 : F32))
+  +ey = off_grid((oy + dy * t0 : F32))
+  +ez = off_grid((foz + dz * t0 : F32))
   far(fuel, can_meet(oy, dy, t, end) && inside((cx - bx : F32), (cz - bz : F32)), bx, bz, fox, foz, dx, dz,
       (1.0 / Bool.pick(F32, px1, F32.max(dx, 0.00001), F32.min(dx, (0.0 - 0.00001 : F32))) : F32),
       (1.0 / Bool.pick(F32, pz1, F32.max(dz, 0.00001), F32.min(dz, (0.0 - 0.00001 : F32))) : F32),
-      Bool.pick(F32, px1, 1.0, 0.0), Bool.pick(F32, pz1, 1.0, 0.0), oy, dy, (1.0 / dy : F32), end, t, 1.0, 0, 0, cx, cz, far_read(w, cx, cz))
+      Bool.pick(F32, px1, 1.0, 0.0), Bool.pick(F32, pz1, 1.0, 0.0), oy, dy, (1.0 / dy : F32), end, t, on, tr,
+      Bool.pick(F32, (ey < F32.min(ex, ez) : F32), 2.0, Bool.pick(F32, (ex < ez : F32), 1.0, 0.0)), 0, 0, cx, cz, far_read(w, cx, cz))
 
 # ---------- a face ----------
 # The hit point p = o + d t lies on a face of the block h; the cell before
@@ -471,13 +490,11 @@ def type_word(w: Array<U32>, +base: U32, +hx: F32, +hy: F32, +hz: F32) -> Array<
 # type from its column's word (World.far_type), its occlusion's cells
 # and its shadow's walk read from the far map, in the window's
 # coordinates plus 64 and the corner's remainders (fm, Cam.far). A far
-# cell is solid under its column's run, under the ground alone where the
-# sea is over it (water is nothing to a shadow or an occlusion), and in
+# cell is solid under its column's solid top (World.far_solid_top) and in
 # its canopy.
 def far_solid(+y: F32, r: Array<U32> & U32) -> Array<U32> & Bool:
   (w, +word) = r
-  +h = (word % 32 : U32)
-  (w, (y < Util.u2f(Bool.pick(U32, (h < World.sea() : U32), h, (word / 32 % 32 : U32))) : F32)
+  (w, (y < Util.u2f(World.far_solid_top(word)) : F32)
     || ((y >= Util.u2f((word / 1024 % 32 : U32)) : F32) && (y < Util.u2f((word / 32768 % 32 : U32)) : F32)))
 
 def solid_in(distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +x: F32, +y: F32, +z: F32) -> Array<U32> & Bool:
@@ -508,7 +525,7 @@ def shadow_fin(r: Array<U32> & Glance) -> Array<U32> & Bool:
 
 def far_shadow(r: Array<U32> & Far) -> Array<U32> & Bool:
   (w, fr) = r
-  Far{hit, word, t} = fr
+  Far{hit, word, t, tr} = fr
   (w, (hit > 0 : U32))
 
 def shadow_if(on: Bool, sunny: Bool, distant: Bool, w: Array<U32>, +base: U32, +fm: U32,
@@ -525,7 +542,7 @@ def shadow_if(on: Bool, sunny: Bool, distant: Bool, w: Array<U32>, +base: U32, +
             case False{}:
               shadow_fin(run_glance(24n, w, base, ox, oy, oz, lx, ly, lz))
             case True{}:
-              far_shadow(run_far(24n, w, fm, ox, oy, oz, lx, ly, lz, 0.0, (21.0 / (Util.absf(lx) + Util.absf(ly) + Util.absf(lz)) : F32)))
+              far_shadow(run_far(24n, w, fm, ox, oy, oz, lx, ly, lz, 0.0, (21.0 / (Util.absf(lx) + Util.absf(ly) + Util.absf(lz)) : F32), False{}, Water.Trace{0.0, 0.0}))
 
 # The eight cells around c along the face, one read each, as bits of m:
 # 1 +u, 2 -u, 4 +w, 8 -w, 16 +u+w, 32 -u+w, 64 +u-w, 128 -u-w, the cell
@@ -655,7 +672,7 @@ def far_glance_open(bottom: U32, m: Water.Reflection, +fl: U32, +base: U32,
                     +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
                     +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Far) -> Array<U32> & Water.Mirror:
   (w, fr) = r
-  Far{+hit, word, t} = fr
+  Far{+hit, word, t, tr} = fr
   glance_look((hit > 0 : U32), True{}, word, bottom, m, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, hit, t, w)
 
 def mirror_walk(distant: Bool, bottom: U32, m: Water.Reflection, +fl: U32, +base: U32, +fm: U32, +px: F32, +py: F32, +pz: F32,
@@ -665,7 +682,7 @@ def mirror_walk(distant: Bool, bottom: U32, m: Water.Reflection, +fl: U32, +base
       glance_open(bottom, m, fl, base, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz, run_glance(32n, w, base, px, py, pz, rx, ry, rz))
     case True{}:
       far_glance_open(bottom, m, fl, base, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz,
-        run_far(32n, w, fm, px, py, pz, rx, ry, rz, 0.0, (28.0 / (Util.absf(rx) + Util.absf(ry) + Util.absf(rz)) : F32)))
+        run_far(32n, w, fm, px, py, pz, rx, ry, rz, 0.0, (28.0 / (Util.absf(rx) + Util.absf(ry) + Util.absf(rz)) : F32), False{}, Water.Trace{0.0, 0.0}))
 
 # the world in the mirror is a look of its own (bit 27 of the camera's
 # base); its walk starts a hair over the water, in the air the ray came through
@@ -692,60 +709,16 @@ def mirrored(go: Bool, +distant: Bool, +fm: U32, +fl: U32, +base: U32, +ox: F32,
         entry, oy, lx, ly, lz,
         Water.reflected(Water.ripples_on(fl), base, (ox + dx * entry : F32), (oz + dz * entry : F32), entry, dx, dy, dz), r)
 
-# What the far walk met: nothing, the sky; the sea, as the window's water
-# is shaded (Water.shade), over a bed straight down at its column's
-# ground, 24 wet blocks at most, lit without a shadow (the walk would meet
-# the sea's plane), with the window's mirror; else a block, as the window's.
-def far_water(w: Array<U32>, +base: U32, +fm: U32, +word: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
-              +dx: F32, +dy: F32, +dz: F32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
-  +wet = Util.on(fl, 2097152)
-  +bed = F32.clamp(Bool.pick(F32, (dy < 0.0 : F32), ((Util.u2f((word % 32 : U32)) - oy) / dy : F32), (t + 24.0 : F32)), t, (t + 24.0 : F32))
-  Water.shade(wet, fl, v, oy, dy, lx, ly, lz, True{}, bed, True{}, Water.Trace{t, (bed - t : F32)},
-    mirrored(wet && Water.reflection_on(fl), True{}, fm, fl, base, ox, oy, oz, dx, dy, dz, t, lx, ly, lz,
-      shade_face(True{}, w, base, fm, word, v, oy, bed, (Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl) .&. 4294967294 : U32),
-        lx, ly, lz, face(1, ox, oy, oz, dx, dy, dz, bed))))
-
-def far_shade(wet: Bool, w: Array<U32>, +base: U32, +fm: U32, +word: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
-              +dx: F32, +dy: F32, +dz: F32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, fc: Face) -> Array<U32> & U32:
-  match wet:
-    case True{}:
-      far_water(w, base, fm, word, v, ox, oy, oz, dx, dy, dz, t, fl, lx, ly, lz)
-    case False{}:
-      shade_face(True{}, w, base, fm, word, v, oy, t, fl, lx, ly, lz, fc)
-
-# the height of the block behind a face
-def face_y(fc: Face) -> F32:
-  Face{px, py, pz, ax, ay, hx, hy, hz, cx, cy, cz, da, u, wf, tone} = fc
-  hy
-
-def far_face(w: Array<U32>, +base: U32, +fm: U32, +word: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
-             +dx: F32, +dy: F32, +dz: F32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +fc: Face) -> Array<U32> & U32:
-  far_shade(U32.is_eq(World.far_type(word, Util.f2u(face_y(fc))), 8), w, base, fm, word, v, ox, oy, oz, dx, dy, dz, t, fl, lx, ly, lz, fc)
-
-def far_hit(got: Bool, w: Array<U32>, +base: U32, +fm: U32, +word: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
-            +dx: F32, +dy: F32, +dz: F32, +hit: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +sky: U32) -> Array<U32> & U32:
-  match got:
-    case False{}:
-      (w, sky)
-    case True{}:
-      far_face(w, base, fm, word, v, ox, oy, oz, dx, dy, dz, t, fl, lx, ly, lz, face((hit - 1 : U32), ox, oy, oz, dx, dy, dz, t))
-
-def far_fin(+base: U32, +fm: U32, +fl: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32,
-            +sky: U32, r: Array<U32> & Far) -> Array<U32> & U32:
-  (w, fr) = r
-  Far{+hit, word, +t} = fr
-  far_hit((hit > 0 : U32), w, base, fm, word, v, ox, oy, oz, dx, dy, dz, hit, t, fl, lx, ly, lz, sky)
-
-def shade_go(sky: Bool, w: Array<U32>, +base: U32, +fw: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
+def shade_go(sky: Bool, +distant: Bool, +word: U32, w: Array<U32>, +base: U32, +fw: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match sky:
     case True{}:
-      far_fin(base, fw, fl, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz), run_far(128n, w, fw, ox, oy, oz, dx, dy, dz, t, Sky.reach()))
+      (w, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz))
     case False{}:
-      shade_face(False{}, w, base, fw, 0, v, oy, t, fl, lx, ly, lz, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
+      shade_face(distant, w, base, fw, word, v, oy, t, fl, lx, ly, lz, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
 
 # the profile's pixels: the steps to the hit (flag 32), or 1 on a hit (64)
-def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +fw: U32, +v: U32,
+def shade_mode(steps: Bool, hits: Bool, sky: Bool, +distant: Bool, +word: U32, w: Array<U32>, +base: U32, +fw: U32, +v: U32,
                +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
                +c: U32, +t: F32, +n: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match steps:
@@ -756,7 +729,7 @@ def shade_mode(steps: Bool, hits: Bool, sky: Bool, w: Array<U32>, +base: U32, +f
         case True{}:
           (w, Bool.pick(U32, sky, 0, 1))
         case False{}:
-          shade_go(sky, w, base, fw, v, ox, oy, oz, dx, dy, dz, c, t, fl, lx, ly, lz)
+          shade_go(sky, distant, word, w, base, fw, v, ox, oy, oz, dx, dy, dz, c, t, fl, lx, ly, lz)
 
 # the bed's light under the water: the caustic, on a block a wet ray met,
 # a look of its own (bit 28 of the camera's base). At night its factor is
@@ -775,16 +748,45 @@ def bed(on: Bool, +base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, +ly: F32, 
       (w, c) = r
       (w, dim(c, Water.caustic(base, x, z, drop, dy, ly, thick)))
 
-def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-              +c: U32, +t: F32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
+# What the ray met, under the water it went through: the window's hit or
+# the far walk's (distant), the water's surface met by either, and its
+# mirror walked where the surface was met.
+def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +top: Bool, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32,
+         +base: U32, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, tr: Water.Trace, w: Array<U32>) -> Array<U32> & U32:
   Water.Trace{+entry, +depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
-  +hitw = (c % 4 : U32)
-  Water.shade(wet, fl, v, oy, dy, lx, ly, lz, Water.top(c), t, (hitw > 0 : U32), tr,
-    mirrored(wet && Water.top(c) && Water.reflection_on(fl), False{}, fw, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
+  Water.shade(wet, fl, v, oy, dy, lx, ly, lz, top, t, (hitw > 0 : U32), Water.Trace{entry, depth},
+    mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
       bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
-        shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), w, base, fw, v, ox, oy, oz, dx, dy, dz, hitw, t, Water.steps(c), ground_flags, lx, ly, lz))))
+        shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz))))
+
+# the far walk's hit, under the water the window's walk and its own
+# crossed; the surface is the far walk's where the window's walk stayed
+# dry. A miss's distance is the window's end (t0): the far walk's says
+# nothing, and the water's ink is read at it.
+def from_far(+c: U32, +near_wet: Bool, +t0: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32,
+             +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, r: Array<U32> & Far) -> Array<U32> & U32:
+  (w, fr) = r
+  Far{+hit, +word, +t, tr} = fr
+  seen(True{}, Bool.not(near_wet), word, hit, Water.steps(c), Water.top(c) || Bool.not(near_wet), v, fl, lx, ly, lz,
+    base, fw, ox, oy, oz, dx, dy, dz, Bool.pick(F32, (hit > 0 : U32), t, t0), tr, w)
+
+# the profile's renders stay in the window; a ray the window's walk let
+# go on walks the far map
+def after_walk(near: Bool, +c: U32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32,
+               +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, +entry: F32, +depth: F32, w: Array<U32>) -> Array<U32> & U32:
+  match near:
+    case True{}:
+      seen(False{}, False{}, 0, (c % 4 : U32), Water.steps(c), Water.top(c), v, fl, lx, ly, lz, base, fw, ox, oy, oz, dx, dy, dz, t, Water.Trace{entry, depth}, w)
+    case False{}:
+      from_far(c, (depth > 0.0 : F32), t, v, fl, lx, ly, lz, base, fw, ox, oy, oz, dx, dy, dz,
+        run_far(128n, w, fw, ox, oy, oz, dx, dy, dz, t, Sky.reach(), Util.on(fl, 2097152), Water.Trace{entry, depth}))
+
+def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+              +c: U32, +t: F32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
+  Water.Trace{+entry, +depth} = tr
+  after_walk(((c % 4 : U32) > 0 : U32) || Util.on(fl, 96), c, v, fl, lx, ly, lz, base, fw, ox, oy, oz, dx, dy, dz, t, entry, depth, w)
 
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: Ray) -> Array<U32> & U32:

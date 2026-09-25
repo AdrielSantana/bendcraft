@@ -78,11 +78,10 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    window's own look with the far map in place of the window's columns:
    the corners' occlusion from eight far cells, the shadow by the far
    walk towards the sun to where the window's glance reaches, the sea
-   through the window's water shader over a bed straight down, with the
-   mirror walked over the map. So a block looks the same on either side
-   of the seam, and walking shows no pop-in: 189 of 192 rays from the
-   start's eye shade the same within 4 a channel either way (the other
-   three look steeply down at a lake's bed). The cost, five alternated
+   through the window's water shader over its bed, with the mirror
+   walked over the map. So a block looks the same on either side of the
+   seam, and walking shows no pop-in: all 192 rays from the start's eye
+   shade the same within 4 a channel either way. The cost, five alternated
    rounds with the game closed, against the bucket's commit, with the
    window's colours alone: 24 → 35 ms at 1470×796, 46 → 67 at 1920×1080,
    7 → 9 at scale 2; the level view 21 → 29, 6 → 9 at scale 2. The
@@ -99,14 +98,24 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    fog moved into the mist: within the near walk the distance term no
    longer reaches 1. What the map does not carry: edits (a placed tower
    past 60 blocks shows as the noise's ground) and the water's amounts (a
-   lake is its plane); its bed has no shadow and no caustic. Open (his
-   report, 2026-09-22): right at the seam, where the window's walk hands
-   over to the far walk, a line of blocks looks off and follows him as he
-   walks. The first suspect: where the window's walk ran out of steps at
-   a block's face, the far walk starts inside that block and calls it an
-   x side (`Render.run_far` starts with `ax` 1.0), whatever face the
-   window's walk crossed, so its tone, texture and occlusion are a side's
-   on what may be a top. Next, when a farther horizon is wanted: a
+   lake is its plane). The seam (his report, 2026-09-22: a line of
+   blocks at the window's edge that followed him as he walked) had two
+   causes where the window's walk hands over. The far walk began inside
+   the block on whose face the window's walk ran out of steps and called
+   it an x side whatever it was; it now names the face by the plane its
+   start lies on. And a lake across the seam was two waters, the
+   window's to its edge and the far sea's from its plane again, a
+   lighter band; the far walk now takes the window's wet trace, adds its
+   own path under the sea to it (`Water.crossed`) and walks on to the
+   bed, which so gets the shadow and the caustic. Against a window walk
+   of 80 steps taken as the truth (its step count stopped at 63, or it
+   spills into the water-top bit), the pixels off by more than 12 a
+   channel at 1024×576 fell from 11135 to 8 looking west over a lake,
+   3393 to 1120 and 4377 to 2559 in two other views, whose rest lies
+   where the 80 steps leave the window and are no truth. Free: A/B over
+   six alternated rounds against 5cc00fa, game closed, 46 ms at
+   1470×796 both, 87 → 86 at 1920×1080, 12 at scale 2; the level view
+   36 → 37 at 1470×796. Next, when a farther horizon is wanted: a
    coarser level where its cell is a few pixels, and the fog farther out;
    then the same cells let a near ray skip the open air above the ground.
 4. **Clouds with volume.** A slab between two heights, a 3D noise moved by
@@ -439,11 +448,11 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 131 laws include day and ripple periods for every `U32` clock word
+Today's 133 laws include day and ripple periods for every `U32` clock word
 and six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 123 laws are concrete checks, including water surface packing,
+The other 125 laws are concrete checks, including water surface packing,
 lake floors, dry tree roots, HUD packing, the bucket, the far map's
-addresses and types, and save/quit edges. Floats stay in the windowless tests: the checker does not compute them.
+addresses, types and sea, and save/quit edges. Floats stay in the windowless tests: the checker does not compute them.
 
 ## The order
 

@@ -101,14 +101,15 @@ stops at its hit, at the map's edge, over the world's top and where the
 fog is whole. What it meets is shaded by the window's own look, with the
 far map in place of the window's columns: its type from the column's
 word, the corners' occlusion from the eight cells around it, the shadow
-by the far walk towards the sun to where the window's glance reaches; the
-sea by the window's water, over a bed straight down at its column's
-ground, with the mirror walked over the far map. Then it is fogged into
+by the far walk towards the sun to where the window's glance reaches.
+The sea is no block to it: it adds the ray's path under the sea's plane
+to the window's wet trace and walks on to the bed, so the far sea is the
+window's water over its bed, one water with the window's across the
+seam, its mirror walked over the far map. Then it is fogged into
 the sky: the ground, its trees and its lakes go on to the horizon, block
 for block, and a block looks the same on either side of the walks' seam
-(test/terrain.bend: 189 of 192 rays from the start's eye within 4 a
-channel; the three others are steep looks at a lake's bed, where the far
-bed has no shadow and lies under the entry). A far map of 4x4 cells, each its
+(test/terrain.bend: all 192 rays from the start's eye within 4 a
+channel). A far map of 4x4 cells, each its
 highest block, came first and looked wrong: a tree made a pillar of
 leaves four wide, and a cell showed four times a block's size where the
 window's walk ends. The look is a `match` after the walk:
@@ -399,7 +400,7 @@ test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
 test/terrain.bend  noise rows, lake floor materials, dry roots, canopies, saved columns, the far map and its look
-test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea, the look, its shadow and mirror
+test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea and its trace, the look, its shadow and mirror
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -988,12 +989,13 @@ full cell or a solid, the bucket is the ninth slot and the HUD shows its
 full cells above the readout's numbers. Seven shove
 laws: what fits is the room, all of less, nothing in full or in a
 solid; a solid placed on water shoves its amount, water placed and a
-break shove nothing. Nine far-map laws: the window wraps under the far map,
+break shove nothing. Eleven far-map laws: the window wraps under the far map,
 its columns live above it, the render reads the word the host wrote, a
 column is its run and its canopy, its top is the higher of the two,
-leaves inside the run are the run's, and a far column's types are the
-window's for the ground, the trunk and the sea. There are 131 laws:
-eight universal claims and 123 concrete
+leaves inside the run are the run's, a far column's types are the
+window's for the ground, the trunk and the sea, the sea is its plane
+over a lower ground, and it is not solid. There are 133 laws:
+eight universal claims and 125 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;
