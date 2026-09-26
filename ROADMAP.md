@@ -133,9 +133,10 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    offset of the texture's coordinate by time and place.
 6. **Light of the blocks.** Torches and a night that needs them.
 
-**The budget.** At 1470×796 a frame is 15.6 ms with a ray for every pixel
-and 5 ms at scale 2, which suits the pixel art. At 60 frames a second that
-leaves about 11 ms for the look at scale 2. Every piece above says what it
+**The budget.** At 1470×796 a frame is 46 ms with a ray for every pixel
+and 12 ms at scale 2 (2026-09-25), which suits the pixel art; the far
+horizon took 7 → 12 of it. At 60 frames a second that leaves under 5 ms
+at scale 2 for the looks still to come. Every piece above says what it
 took of them in the profile table.
 
 **Ways to buy more of it**, in the order to try them; none is needed yet.
@@ -190,7 +191,7 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
    nothing. New games start empty. The HUD shows counts through `99+`,
    the save keeps their full values, and old saves load with zero counts.
    Time to break by block type and tools remain follow-up work.
-2. **Water — still water done (2026-09-21).** Material 8 has its own
+2. **Water — done (2026-09-22).** Material 8 has its own
    column mask below y=12. Rays cross it, tint by wet distance and retain
    air fog underwater; water fog hides the ray limit. Placing solids
    displaces it, and saves keep it. Submerged grass surfaces generate as
@@ -199,9 +200,8 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
    remain authoritative when loading old saves.
    Fresnel, sky reflection and ripples have separate flags. The ripple
    pattern stays in world coordinates through ring shifts.
-   Terrain reflection by a second ray is done. Next:
-   physics, a cellular rule over the edits' Map: down first, sideways,
-   sources stay. Swimming and collection are not implemented yet.
+   Terrain reflection by a second ray is done; the flow, the bucket and
+   swimming are done, recorded in the design below.
    The water model was chosen on 2026-09-21: **finite volume with explicit
    river sources** (the sources went on 2026-09-22 with the bucket: water
    is only moved, see below). Ordinary flow conserves volume; lakes can drain, and
@@ -462,17 +462,20 @@ addresses, types and sea, and save/quit edges. Floats stay in the windowless tes
 
 ## The order
 
-A proposal, a piece of the look then a piece of the game, the look first
-since it is what a visitor sees:
+The look is finished before the game's loop (decided 2026-09-26): it is
+what a visitor sees, and survival, crafting and mobs then play in the
+finished world.
 
 1. sky, sun, fog and the day cycle — done, 2026-09-21
 2. collecting and the inventory, with laws stated for every count — done, 2026-09-21
-3. water: still water and its shader done, 2026-09-21; then its physics
+3. water: its shader, its physics, the bucket and swimming — done, 2026-09-22
 4. the far horizon: its first level, a word a column to 128 blocks, done
-   2026-09-22; coarser levels past it wait on the reach wanted
-5. survival and crafting
-6. clouds and their shadows; vegetation
-7. mobs and entities; light of the blocks
+   2026-09-22, seamless 2026-09-25; coarser levels past it wait on the reach wanted
+5. clouds and their shadows
+6. vegetation
+7. light of the blocks
+8. survival and crafting
+9. mobs and entities
 
 The day-cycle foundation (2026-09-21) passed all four gates. Four
 alternated rounds at 1470×796: full profile 15.0 → 15.8 ms, shadows off
