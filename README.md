@@ -91,9 +91,9 @@ you come back.
 
 **The render** is a DDA through the ring, one ray per pixel, 60 steps. The
 loop returns the solid hit and its distance, plus the first wet entry and
-total wet distance; its distance stops where the ray leaves the
-window, whose columns end there. A ray that met nothing goes on from there over the far map, a
-word a column for 256x256 columns around the window: the column's run
+total wet distance. A ray that met nothing goes on over the far map
+from where it left the window's columns (`Render.window_exit`), a word a
+column for 256x256 columns around the window: the column's run
 from the floor, its ground, a trunk or the sea over it, and the canopy
 over that, and the highest top of the column's 4x4 cell. The second walk
 (`Render.run_far`) takes 128 steps at most: a step crosses a cell where
@@ -106,7 +106,10 @@ by the far walk towards the sun to where the window's glance reaches.
 The sea is no block to it: it adds the ray's path under the sea's plane
 to the window's wet trace and walks on to the bed, so the far sea is the
 window's water over its bed, one water with the window's across the
-seam, its mirror walked over the far map. Then it is fogged into
+seam, its mirror walked over the far map. A block near the window's
+side reads past it the same way: its corners' cells there are the map's,
+and its shadow and its mirror, once their glance ends past the side, go
+on over the far map from the side. Then it is fogged into
 the sky: the ground, its trees and its lakes go on to the horizon, block
 for block, and a block looks the same on either side of the walks' seam
 (test/terrain.bend: all 192 rays from the start's eye within 4 a

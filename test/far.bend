@@ -40,11 +40,12 @@ def put(ring: Array<U32>, +x: U32, +z: U32, +word: U32) -> Array<U32>:
   Array.set(U32, ring, World.far_at(x, z), word)
 
 # a column of ground 24 high at far-local (160, 128) with the sea at its
-# west foot, the sea at (140, 150), a trunk at (128, 100) and a canopy
-# alone at (120, 90), and the cells' tops over them; the corner's
-# remainders are 0
+# west foot, another just past the window's east side at (193, 128), the
+# sea at (140, 150), a trunk at (128, 100) and a canopy alone at (120,
+# 90), and the cells' tops over them; the corner's remainders are 0, and
+# the window's own columns are empty
 def map() -> Array<U32>:
-  World.load_grid(64n, put(put(put(put(put(fill(65536n, [0 : U32^19n], 0), 160, 128, tall()), 159, 128, sea()), 140, 150, sea()), 128, 100, trunk()), 120, 90, leaves()), 0)
+  World.load_grid(64n, put(put(put(put(put(put(fill(65536n, [0 : U32^19n], 0), 160, 128, tall()), 193, 128, tall()), 159, 128, sea()), 140, 150, sea()), 128, 100, trunk()), 120, 90, leaves()), 0)
 
 def crossed(tr: Water.Trace, +entry: F32, +depth: F32) -> Bool:
   Water.Trace{e, d} = tr
@@ -63,18 +64,6 @@ def met(r: Array<U32> & Render.Far, +hit: U32, +word: U32, t: F32) -> Bool:
 def dry() -> Water.Trace:
   Water.Trace{0.0, 0.0}
 
-def walked(r: Array<U32> & Render.Ray) -> F32:
-  (w, ray) = r
-  Render.Ray{c, t, tr} = ray
-  t
-
-# where the window's walk from (x, 10.5, 64.5) along x through empty
-# columns stops, the distance the far walk goes on from
-def walked_to(+x: F32) -> F32:
-  walked(Render.dda(~False{}, ~False{}, 60n, 0, Util.floorf(x), 10.0, 64.0, 1.0, 1.0, 1.0,
-    (Util.floorf(x) + 1.0 - x : F32), 50000.0, 50000.0, 1.0, 100000.0, 100000.0, 1.0, 0, 0.0, 0, 1024, Water.Trace{0.0, 0.0},
-    Render.column_words(~False{}, ~False{}, map(), World.col_at(0, Util.f2u(x), 64), 1024, 10, 1.0, 50000.0, 100000.0)))
-
 def run(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t0: F32, tr: Water.Trace) -> Array<U32> & Render.Far:
   Render.run_far(128n, map(), 0, ox, oy, oz, dx, dy, dz, t0, Sky.reach(), True{}, tr)
 
@@ -86,6 +75,10 @@ def walk(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t0: F32, +
 def shown(r: Array<U32> & U32) -> U32:
   (w, c) = r
   c
+
+def holds(r: Array<U32> & Bool) -> Bool:
+  (w, b) = r
+  b
 
 def look_on(+base: U32, +fl: U32, +word: U32, +axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> U32:
   shown(Render.from_far(0, False{}, 0.0, 123456, fl, 0.5, 0.8, 0.0, base, 0, ox, oy, oz, dx, dy, dz, (map(), Render.Far{(axis + 1 : U32), word, t, dry()})))
@@ -145,8 +138,12 @@ def main() -> IO(Unit):
     Lib.expect(walk(64.0, 10.3, 64.5, 1.0, 0.0, 0.0, 0.0, 1, flat(), 0.001) && walk(64.3, 10.0, 64.5, 0.6, (0.0 - 0.8 : F32), 0.0, 0.0, 2, flat(), 0.001),
       "a walk that starts inside a block meets it at once, on the face whose plane it starts on: the window's walk ends on the plane it last crossed")
     Lib.expect(walk(64.5, 16.5, 64.5, 1.0, 0.0, 0.0, 10.0, 1, tall(), 31.5), "the walk picks up at the distance the window's walk stopped at, and the hit's distance is the same")
-    Lib.expect(F32.is_eq(walked_to(120.5), 7.5) && F32.is_eq(walked_to(20.5), 59.5),
-      "the window's walk stops where the ray leaves the window, 7.5 blocks from 120.5, so the far walk misses none of the columns past its edge; inside, it walks its 60 steps")
+    Lib.expect(U32.is_eq(shown(Render.after_walk(False{}, 0, 123456, 0, 0.5, 0.8, 0.0, 0, 0, 124.5, 16.5, 64.5, 1.0, 0.0, 0.0, 10.0, 0.0, 0.0, map())),
+        shown(Render.after_walk(False{}, 0, 123456, 0, 0.5, 0.8, 0.0, 0, 0, 124.5, 16.5, 64.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, map())))
+      && holds(Render.shadow_if(True{}, True{}, False{}, map(), 0, 0, 127.5, 12.0, 64.5, 0.9578, 0.2873, 0.0))
+      && Bool.not(holds(Render.shadow_if(True{}, True{}, False{}, map(), 0, 0, 127.5, 12.0, 64.5, (0.0 - 0.9578 : F32), 0.2873, 0.0)))
+      && holds(Render.solid_in(False{}, map(), 0, 0, 129.5, 13.0, 64.5)) && Bool.not(holds(Render.solid_in(False{}, map(), 0, 0, 127.5, 13.0, 64.5))),
+      "past the window's side the far map goes on: a ray the window's walk took ten blocks on meets the column just past it as from the eye, a top by the side is in that column's shadow and lit with the sun behind it, and a cell past the side is the map's")
     Lib.expect(walk((0.0 - 35.5 : F32), 16.5, 64.5, 1.0, 0.0, 0.0, 100.0, 0, 0, 0.0), "the walk ends where the fog is whole: the tall column 131.5 blocks off is not met")
     Lib.expect(U32.is_eq(look(0, flat(), 1, 16.5, 0.0, (0.0 - 0.1 : F32), 1.0, 45.0), Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)))
       && U32.is_eq(look(0, tall(), 0, 16.5, 1.0, 0.0, 0.0, 31.5), Render.dim(Render.blockcol(2, True{}, 0.5), day(0.8)))

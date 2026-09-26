@@ -337,7 +337,7 @@ def main() -> IO(Unit):
       && U32.is_eq(Water.fog(False{}, 123, 456, 456, 0.0, 80.0), 123), "wet fog bounds and disable")
     Lib.expect(picked(Player.waim(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8),
       64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "picking traverses water and finds the bottom")
-    Lib.expect(Bool.not(shadow(Render.shadow_fin(Render.run_glance(24n, ring_of(World.put_col([0 : U32^19n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
+    Lib.expect(Bool.not(shadow(Render.shadow_fin(0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0, Render.run_glance(24n, ring_of(World.put_col([0 : U32^19n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
       0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)))), "water casts no solid shadow")
     Lib.expect(U32.is_eq(material(World.voxel(World.shift_x(False{}, World.shift_x(True{}, World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
     Lib.expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")

@@ -261,9 +261,10 @@ path under the sea to it (`Water.crossed`), and one `Render.seen` shades
 both walks' hits. It starts on the plane the window's walk last crossed,
 often inside a block, and names the face by that plane (`run_far`). A
 change to the window's look is a change to the far one; the parity test
-in test/terrain.bend says so. The window's walk stops its distance
-where the ray leaves the window, so the far walk misses no column past
-its edge. To judge the seam, render every pixel by the far walk from
+in test/terrain.bend says so. The far walk starts where the ray leaves
+the window (`Render.window_exit`), and a near block's shadow, mirror and
+corners read the far map past the side too: the window holds nothing
+there. To judge the seam, render every pixel by the far walk from
 the eye: it holds the whole map and is the window's look within 4 a
 channel. A longer window walk is no truth past the window's sides.
 The first far map was 64x64 cells of 4x4 columns, each its highest
