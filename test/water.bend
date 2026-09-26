@@ -150,15 +150,15 @@ def trace_of(r: Array<U32> & Render.Ray) -> Render.Ray:
 
 def partial_trace_w(+level: Bool, +x: F32, +y: F32, +z: F32, +axis: U32, w: World.World) -> Render.Ray:
   World.W{ring, meta} = w
-  +vy = Util.floorf(y)
+  +vy = F32.floor(y)
   +move_x = Bool.pick(Bool, level, U32.is_eq(axis, 0), True{})
   +move_y = Bool.pick(Bool, level, U32.is_eq(axis, 1), True{})
   +move_z = level && U32.is_eq(axis, 2)
   +ay = Bool.pick(F32, level, 1.0, 0.25)
-  trace_of(Render.dda(~True{}, ~True{}, 60n, 0, Util.floorf(x), vy, Util.floorf(z), 1.0, (0.0 - 1.0 : F32), 1.0,
-    Bool.pick(F32, move_x, (Util.floorf(x) + 1.0 - x : F32), 50000.0),
+  trace_of(Render.dda(~True{}, ~True{}, 60n, 0, F32.floor(x), vy, F32.floor(z), 1.0, (0.0 - 1.0 : F32), 1.0,
+    Bool.pick(F32, move_x, (F32.floor(x) + 1.0 - x : F32), 50000.0),
     Bool.pick(F32, move_y, ((y - vy) / ay : F32), ((y - vy) / 0.00001 : F32)),
-    Bool.pick(F32, move_z, (Util.floorf(z) + 1.0 - z : F32), 50000.0),
+    Bool.pick(F32, move_z, (F32.floor(z) + 1.0 - z : F32), 50000.0),
     Bool.pick(F32, move_x, 1.0, 100000.0),
     Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0),
     Bool.pick(F32, move_z, 1.0, 100000.0),

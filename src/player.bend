@@ -320,7 +320,7 @@ def step_bump(+npx: F32, +py: F32, +npz: F32, +ty: F32, +vy1: F32, +land: Bool, 
   (w, above) = r
   +bump = (vy1 > 0.0 : F32) && above
   +feet = (ty - eye() : F32)
-  +npy = F32.clamp(Bool.pick(F32, land, (Util.floorf(feet) + 1.0 + eye() : F32),
+  +npy = F32.clamp(Bool.pick(F32, land, (F32.floor(feet) + 1.0 + eye() : F32),
                              Bool.pick(F32, bump, py, ty)), eye(), 31.5)
   +nvy = Bool.pick(F32, (land && Util.on(held, 8192)) || bank, 0.2,
                    Bool.pick(F32, land || bump, 0.0, vy1))

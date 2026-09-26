@@ -21,9 +21,9 @@ def enc(+v: F32) -> U32:
 def dec(+n: U32) -> F32:
   (Util.u2f(n) / 1000.0 - 1000.0 : F32)
 
-# yaw modulo a turn: a hundred turns are added first, so it is positive
+# yaw modulo a turn
 def wrap(+yaw: F32) -> F32:
-  (yaw + 628.31853 - Util.floorf(((yaw + 628.31853) / 6.2831853 : F32)) * 6.2831853 : F32)
+  (yaw - F32.floor((yaw / 6.2831853 : F32)) * 6.2831853 : F32)
 
 def num_of(m: Maybe<&2, U32>) -> U32:
   match m:

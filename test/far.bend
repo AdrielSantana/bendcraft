@@ -40,12 +40,13 @@ def put(ring: Array<U32>, +x: U32, +z: U32, +word: U32) -> Array<U32>:
   Array.set(U32, ring, World.far_at(x, z), word)
 
 # a column of ground 24 high at far-local (160, 128) with the sea at its
-# west foot, another just past the window's east side at (193, 128), the
-# sea at (140, 150), a trunk at (128, 100) and a canopy alone at (120,
-# 90), and the cells' tops over them; the corner's remainders are 0, and
-# the window's own columns are empty
+# west foot, another just past the window's east side at (193, 128) and
+# one west and north of the window at (40, 20), the sea at (140, 150), a
+# trunk at (128, 100) and a canopy alone at (120, 90), and the cells'
+# tops over them; the corner's remainders are 0, and the window's own
+# columns are empty
 def map() -> Array<U32>:
-  World.load_grid(64n, put(put(put(put(put(put(fill(65536n, [0 : U32^19n], 0), 160, 128, tall()), 193, 128, tall()), 159, 128, sea()), 140, 150, sea()), 128, 100, trunk()), 120, 90, leaves()), 0)
+  World.load_grid(64n, put(put(put(put(put(put(put(fill(65536n, [0 : U32^19n], 0), 160, 128, tall()), 193, 128, tall()), 40, 20, tall()), 159, 128, sea()), 140, 150, sea()), 128, 100, trunk()), 120, 90, leaves()), 0)
 
 def crossed(tr: Water.Trace, +entry: F32, +depth: F32) -> Bool:
   Water.Trace{e, d} = tr
@@ -156,6 +157,8 @@ def main() -> IO(Unit):
     Lib.expect(U32.is_eq(look(8, tall(), 0, 16.5, 1.0, 0.0, 0.0, 10000.0), 123456), "the fog takes a far block into the sky at the reach")
     Lib.expect(U32.is_eq(top_at(2, 64.5, 109.5), top_at(0, 64.5, 109.5)) && darker(top_at(2, 95.5, 64.5), top_at(0, 95.5, 64.5)),
       "with the occlusion flag, a far top in the open is as it was, and one at the tall column's foot darkens")
+    Lib.expect(U32.is_eq(top_at(6, (0.0 - 22.7 : F32), (0.0 - 43.6 : F32)), top_at(6, 97.3, 64.4)),
+      "west and north of the window, where its coordinates are negative, a far top at a tall column's foot is textured and occluded as one east of it")
     Lib.expect(U32.is_eq(top_at(1, 90.5, 64.5), Render.dim(Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 0.6))
       && U32.is_eq(top_at(1, 90.5, 74.5), Render.dim(Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 1.0)),
       "the far walk casts a far block's shadow: a top the tall column hides from the sun is the window's shade, one beside it is lit")

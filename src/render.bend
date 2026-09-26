@@ -369,7 +369,7 @@ def can_meet(+oy: F32, +dy: F32, +t: F32, +end: F32) -> Bool:
 # the column a skip lands in along the axis it did not cross: the
 # ray's, kept inside the cell it crossed, the float's error aside
 def clamp4(+k: F32, +p: F32) -> F32:
-  F32.clamp(Util.floorf(p), k, (k + 3.0 : F32))
+  F32.clamp(F32.floor(p), k, (k + 3.0 : F32))
 
 # a step from the column (cx, cz) the ray is in at t: the distances to
 # the column's and the cell's far planes along x and z (ix, iz the
@@ -390,8 +390,8 @@ def far(fuel: Nat, go: Bool, +bx: F32, +bz: F32, +fox: F32, +foz: F32, +dx: F32,
           +lb = Util.u2f((word / 1024 % 32 : U32))
           +lt = Util.u2f((word / 32768 % 32 : U32))
           +slab = (lt > lb : F32)
-          +kx = (Util.floorf((cx * 0.25 : F32)) * 4.0 : F32)
-          +kz = (Util.floorf((cz * 0.25 : F32)) * 4.0 : F32)
+          +kx = (F32.floor((cx * 0.25 : F32)) * 4.0 : F32)
+          +kz = (F32.floor((cz * 0.25 : F32)) * 4.0 : F32)
           +tcx = ((cx + px1 - fox) * ix : F32)
           +tcz = ((cz + pz1 - foz) * iz : F32)
           +tkx = ((kx + 4.0 * px1 - fox) * ix : F32)
@@ -436,7 +436,7 @@ def reach_of(+blocks: F32, +dx: F32, +dy: F32, +dz: F32) -> F32:
 
 # how far a coordinate lies from the grid's nearest plane
 def off_grid(+q: F32) -> F32:
-  Util.absf((q - Util.floorf((q + 0.5 : F32)) : F32))
+  Util.absf((q - F32.floor((q + 0.5 : F32)) : F32))
 
 # from the window's walk's end, a hair on: the map's coordinates of the
 # eye and of the point's column. The window's walk ends on the plane it
@@ -449,8 +449,8 @@ def run_far(fuel: Nat, w: Array<U32>, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +d
   +bz = Util.u2f((fw % 256 + 256 : U32))
   +fox = (ox + 64.0 + bx : F32)
   +foz = (oz + 64.0 + bz : F32)
-  +cx = Util.floorf((fox + dx * (t + 0.002) : F32))
-  +cz = Util.floorf((foz + dz * (t + 0.002) : F32))
+  +cx = F32.floor((fox + dx * (t + 0.002) : F32))
+  +cz = F32.floor((foz + dz * (t + 0.002) : F32))
   +px1 = (dx > 0.0 : F32)
   +pz1 = (dz > 0.0 : F32)
   +ex = off_grid((fox + dx * t0 : F32))
@@ -480,12 +480,12 @@ def face(+axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
   +ax = U32.is_eq(axis, 0)
   +ay = U32.is_eq(axis, 1)
   +az = U32.is_eq(axis, 2)
-  +bx = Util.floorf((px + 0.5 : F32))
-  +by = Util.floorf((py + 0.5 : F32))
-  +bz = Util.floorf((pz + 0.5 : F32))
-  +cx = Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), (bx - 1.0 : F32), bx), Util.floorf(px))
-  +cy = Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), (by - 1.0 : F32), by), Util.floorf(py))
-  +cz = Bool.pick(F32, az, Bool.pick(F32, (dz > 0.0 : F32), (bz - 1.0 : F32), bz), Util.floorf(pz))
+  +bx = F32.floor((px + 0.5 : F32))
+  +by = F32.floor((py + 0.5 : F32))
+  +bz = F32.floor((pz + 0.5 : F32))
+  +cx = Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), (bx - 1.0 : F32), bx), F32.floor(px))
+  +cy = Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), (by - 1.0 : F32), by), F32.floor(py))
+  +cz = Bool.pick(F32, az, Bool.pick(F32, (dz > 0.0 : F32), (bz - 1.0 : F32), bz), F32.floor(pz))
   Face{px, py, pz, ax, ay,
        Bool.pick(F32, ax, Bool.pick(F32, (dx > 0.0 : F32), bx, (bx - 1.0 : F32)), cx),
        Bool.pick(F32, ay, Bool.pick(F32, (dy > 0.0 : F32), by, (by - 1.0 : F32)), cy),
@@ -839,9 +839,9 @@ def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32
 
 def run_dda(~water: Bool, ~partial: Bool, w: Array<U32>, +base: U32, +fw: U32, +ox: F32, +oy: F32, +oz: F32,
             +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
-  +vx = Util.floorf(F32.max(ox, 0.0))
-  +vy = Util.floorf(F32.max(oy, 0.0))
-  +vz = Util.floorf(F32.max(oz, 0.0))
+  +vx = F32.floor(F32.max(ox, 0.0))
+  +vy = F32.floor(F32.max(oy, 0.0))
+  +vz = F32.floor(F32.max(oz, 0.0))
   +px = (dx > 0.0 : F32)
   +py = (dy > 0.0 : F32)
   +pz = (dz > 0.0 : F32)

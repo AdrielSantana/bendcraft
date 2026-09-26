@@ -98,42 +98,30 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    fog moved into the mist: within the near walk the distance term no
    longer reaches 1. What the map does not carry: edits (a placed tower
    past 60 blocks shows as the noise's ground) and the water's amounts (a
-   lake is its plane). The seam (the report of 2026-09-22: a line
-   of blocks at the window's edge that followed the player) had four
-   causes where the window's walk hands over. The far walk began inside
-   the block on whose face the window's walk ran out of steps and called
-   it an x side whatever it was; it now names the face by the plane its
-   start lies on. And a lake across the seam was two waters, the
-   window's to its edge and the far sea's from its plane again, a
-   lighter band; the far walk now takes the window's wet trace, adds its
-   own path under the sea to it (`Water.crossed`) and walks on to the
-   bed, which so gets the shadow and the caustic. Against a window walk
-   of 80 steps taken as the truth, the pixels off by more than 12 a
-   channel at 1024×576 fell from 11135 to 8 looking west over a lake.
-   And a ray that left the window by its side went on stepping past its
-   edge, over columns the window does not hold, and the far walk began
-   where the 60 steps ran out: the hills and canopies between were
-   skipped, a white line on the horizon from high up (the second report,
-   2026-09-25) and, where the ray had gone under the ground, a pit of
-   dark sides. The far walk now starts where the ray leaves the window.
-   The 80-step walk had the same fault and was no
-   truth past the window's sides; the far walk from the eye is, over
-   the whole map: from 40 blocks up, eight headings, the pixels off by
-   more than 12 fell from 7298 to 423, 5730 to 436, 5217 to 28 and 1391
-   to 342 in the four worst, the rest where a near canopy's far word
-   differs. Free, each A/B over six alternated rounds with the game
-   closed: 46 ms at 1470×796 and 12 at scale 2 before and after both
-   fixes, the level view 36 → 37 → 37. And a block near the window's
-   side was lit as if nothing stood past it: its shadow's and its
-   mirror's glances and its corners' reads found air where the window's
-   columns end, a lighter band one to three blocks deep all around the
-   horizon that moved with the player (the third report, 2026-09-25).
-   They now go on over the far map past the side. From 40 blocks up the
-   pixels lighter than the far walk from the eye by more than 12 fell
-   from 551 to 281, 525 to 302 and 215 to 134 in the three views that
-   showed the band, the rest near canopies' far words. About 1 ms, over
-   twelve alternated rounds: 45-46 → 46-47 ms at 1470×796, 87-88 → 88-89
-   at 1920×1080, 12 at scale 2 both, the level view 35 → 35-36. Next, when a farther horizon is wanted: a
+   lake is its plane). The line at the seam (reports of 2026-09-22
+   and 2026-09-25: blocks at the window's edge that followed the player,
+   then a white ring one to three blocks deep all around the horizon)
+   had five causes. The far walk began inside the block on whose face
+   the window's walk ran out of steps and called it an x side whatever
+   it was; it names the face by the plane its start lies on. A lake
+   across the seam was two waters; the far walk takes the window's wet
+   trace and adds its own path under the sea to it (`Water.crossed`). A
+   ray that left the window by its side stepped on over columns the
+   window does not hold, and the far walk began where its 60 steps ran
+   out; it begins where the ray leaves the window (`Render.window_exit`).
+   A block near the window's side found air past it for its shadow, its
+   mirror and its corners; they go on over the far map. And west and
+   north of the window, where its coordinates are negative, the far look
+   floored through U32, which takes a negative to 0: a face's cells were
+   misplaced and its place on the face was the coordinate itself, so the
+   corners' occlusion blew up to black and white on the terraces and the
+   texture was flat; `F32.floor` took `Util.floorf`'s place. That last
+   was the ring seen: the fog hid it, and the far walk from the eye, the
+   oracle of the others, shared it; the view without the fog showed it
+   at once. At 1024×576 the pixels off by more than 12 a channel fell
+   from 11135 to 8 over a lake (the waters), 7298 to 423 from high up
+   (the side), 551 to 281 (the near blocks). All free but the near
+   blocks' reads past the side, about 1 ms at 1470×796. Next, when a farther horizon is wanted: a
    coarser level where its cell is a few pixels, and the fog farther out;
    then the same cells let a near ray skip the open air above the ground.
 4. **Clouds with volume.** A slab between two heights, a 3D noise moved by

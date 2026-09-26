@@ -98,7 +98,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `af620871df272a7a35e7d53de3e258c7` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `c777295b0b490b273e867be0082713c2` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `26eafd3e7eb6...`; same rule.
@@ -176,6 +176,8 @@ task. A four-way tree, a pruned four-way tree, 8x8 leaves: all tried, all
 slower. Do not change `fork`'s shape without the bench.
 - The GPU never shifts by a variable: pick by a division and a mask, or by
 a chain of `Bool.pick` (see `nib_at`, `row_div`).
+- A float under zero converts to U32 as 0: floor with `F32.floor`, never
+through U32 (the far look west and north of the window, 2026-09-25).
 - A tile's fixed squares are unrolled, as the shaders guide says (`t4` is
 four `t2`, straight-line). A long walk is never unrolled into a row of
 non-recursive defs: the emitted program explodes. The DDA's 60 steps are
@@ -266,7 +268,9 @@ the window (`Render.window_exit`), and a near block's shadow, mirror and
 corners read the far map past the side too: the window holds nothing
 there. To judge the seam, render every pixel by the far walk from
 the eye: it holds the whole map and is the window's look within 4 a
-channel. A longer window walk is no truth past the window's sides.
+channel. A longer window walk is no truth past the window's sides, and
+the far walk from the eye none for the far walk's own faults: judge the
+far look with the fog off too.
 The first far map was 64x64 cells of 4x4 columns, each its highest
 block: a tree made a pillar of leaves, and a cell near the window's edge
 looked four blocks wide. A coarser level belongs where its cell is a
