@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `c777295b0b490b273e867be0082713c2` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `a38df5dfde0c4f0517b76cc68d77d867` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -203,7 +203,7 @@ gets a word, not spare bits of another; measure.
 
 ## The code's fixed points
 
-- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; bits 7..19 are spare.
+- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows; bits 9..19 are spare.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
 horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.

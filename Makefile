@@ -67,7 +67,14 @@ sky: test/sky.bend src/*.bend
 	./build/sky
 	$(PYTHON) test/sky.py
 
-# Inspect the lake, surface flags, submerged views and reflected sky (Pillow).
+# the clouds by day, at sunset, overhead and at night, and the ground under
+# their shadows, each look off beside it (Pillow)
+clouds: test/clouds_view.bend test/sky.bend src/*.bend
+	@mkdir -p build
+	$(BEND) test/clouds_view.bend -o build/clouds-view
+	./build/clouds-view
+	$(PYTHON) test/clouds.py
+
 # the water's mirror on and off, four views, as a sheet of PNGs (Pillow)
 mirror: test/mirror_view.bend test/profile.bend test/sky.bend src/*.bend
 	@mkdir -p build
@@ -75,6 +82,7 @@ mirror: test/mirror_view.bend test/profile.bend test/sky.bend src/*.bend
 	./build/mirror-view
 	$(PYTHON) test/mirror.py
 
+# Inspect the lake, surface flags, submerged views and reflected sky (Pillow).
 water: test/water_view.bend test/profile.bend test/sky.bend src/*.bend
 	@mkdir -p build
 	$(BEND) test/water_view.bend -o build/water-view
@@ -114,4 +122,4 @@ page-test:
 	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
 	kill $$(cat build/serve.pid); rm -f build/serve.pid
 
-.PHONY: mirror run full check test bench profile sky water page publish page-test
+.PHONY: mirror run full check test bench profile sky clouds water page publish page-test

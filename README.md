@@ -341,6 +341,24 @@ and glow's colour, without celestial discs; its distance term reaches the
 sky at 120 blocks (`Sky.reach`), where the far walk stops; its map ends
 128 blocks from the window's centre on an axis. A separate height term thickens in the low ground.
 
+**The clouds** are cumulus in a slab from y=62 to 78, over the world's
+columns, not the window's (`src/clouds.bend`). A coverage over the
+ground's plane, value noise of four octaves that repeats every 256
+columns, raises each cloud's top from a flat base. A sky pixel's ray
+marches the slab in 12 steps; a step reads the coverage, and its two
+broad octaves again five blocks towards the sun, which light the side the
+sun sees, while the cloud above a step dims it. The light a step stops
+falls off as through fog, and the fine octaves fade as a step grows, at a
+flat ray, where they would alias into stripes. Their colour follows the
+sun: white by day, rose and gold at its rising and setting, grey-blue
+under the moon; from 180 blocks they fade into the horizon's haze. A
+weather number, 0 clear to 1 overcast, sets how much of the sky they
+cover and how much light a block of them stops; it stands at 0.45 until
+the weather comes. The ground reads the broad coverage once, where the
+sun's line from it crosses the slab's middle, and loses to a thin cloud a
+little of its sun, to a heavy one down to 0.55 of it, a shade darker
+than a block's shadow. The water's mirror does not show them yet.
+
 **Collecting and building** use eight natural counts in `Game`. A successful
 break reads the cell's actual type and credits that slot; a successful
 placement debits the selected slot. Empty spending, occupied cells and
@@ -390,6 +408,7 @@ main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
+src/clouds.bend    the clouds' coverage, their march along a sky ray, their shadow
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
@@ -405,13 +424,14 @@ test/lib.bend      what every windowless test needs: expect, ticks, one event, s
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
-test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, the clock's save
+test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, the clock's save, the clouds' place and shadow
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  clock/address packing, stable world noise, normals and wrap continuity
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
 test/mirror.bend   the mirror's walk over a placed brick, its reach and fade, the byte a miss keeps
 test/mirror_view.bend four views with the world in the mirror and without, for test/mirror.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
+test/clouds_view.bend eight cloud views, each look off beside one, for test/clouds.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
@@ -429,6 +449,7 @@ make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
 make profile    # each look off, by size; also night, lake, submerged, night lake, partial water
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
+make clouds     # eight PNGs and build/clouds-contact.png; Pillow
 make water      # sixteen PNGs and a ripple animation; Python with Pillow
 make flow       # the lake breached into a pit, filling and settled; Pillow
 make flow-bench # a lake draining through shafts: ms a tick on the host
@@ -439,18 +460,20 @@ make page-test  # the page in headless Chrome, hashes and fps
 ## Numbers
 
 Apple M5, the game closed, twelve rounds alternated with stock Bend 2.0.25
-and the order swapped every round (2026-09-27). The bench times the `!`
-only, five frames a size with the camera turning; its thirty checksums are
-the same on every build that changes nothing visible, both compilers too.
+and the order swapped every round (2026-09-27); the clouds' column, eight
+rounds alternated with the build before them, the same day. The bench
+times the `!` only, five frames a size with the camera turning; its thirty
+checksums are the same on every build that changes nothing visible, both
+compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 |
-|---|---|---|
-| 512×512 | 5 ms | 3 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms |
-| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms |
-| 1920×1080 | 91 ms | 33 ms |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds |
+|---|---|---|---|
+| 512×512 | 5 ms | 3 ms | 4 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 5 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 7 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 12 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms |
+| 1920×1080 | 91 ms | 33 ms | 42 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796 when #1140 was measured: its fix of
 a race ([#975](https://github.com/bendlang/bend/issues/975)) made every
@@ -471,20 +494,23 @@ steps a ray walks to its hit, each pixel weighed by the square it stands
 for. Its views are the bench's at four sizes, then at 1470×796 night
 looking at the moon, a lake looking west, under its water, the night lake
 with the moon in it, and the lake with partial water in the window. The
-least of four rounds alternated with 2.0.25 as above, ms a frame:
+least of four rounds alternated with the build before the clouds, as
+above, ms a frame:
 
-| | bench's view, 735×398 | bench's view, 1470×796 | lake | night lake |
-|---|---|---|---|---|
-| all on | 6.2 | 21.8 | 21.4 | 16.8 |
-| shadow off | 5.6 | 19.2 | 18.2 | 16.8 |
-| occlusion off | 6.2 | 20.2 | 19.0 | 15.8 |
-| texture off | 6.8 | 19.8 | 19.6 | 16.4 |
-| water off | 5.4 | 16.4 | 16.0 | 11.8 |
-| sky reflection off | 5.8 | 19.4 | 17.6 | 13.6 |
-| world mirror off | 5.8 | 19.4 | 19.0 | 13.8 |
-| caustic off | 6.2 | 20.8 | 19.8 | 17.0 |
-| rays alone | 4.0 | 12.4 | 10.8 | 9.2 |
-| all on, 2.0.25 | 14.0 | 51.6 | 49.2 | 39.6 |
+| | bench's view, 735×398 | bench's view, 1470×796 | lake | night lake | night, all sky |
+|---|---|---|---|---|---|
+| all on | 8.0 | 26.8 | 26.0 | 23.8 | 26.2 |
+| shadow off | 7.4 | 24.2 | 24.4 | 23.0 | 27.0 |
+| occlusion off | 7.2 | 24.8 | 24.2 | 21.2 | 27.2 |
+| texture off | 7.2 | 26.0 | 26.6 | 23.4 | 26.8 |
+| water off | 6.8 | 22.4 | 22.8 | 18.8 | 23.6 |
+| sky reflection off | 7.2 | 25.2 | 25.0 | 21.2 | 27.4 |
+| world mirror off | 7.2 | 24.8 | 25.4 | 22.4 | 26.8 |
+| caustic off | 7.6 | 26.0 | 26.6 | 23.8 | 27.2 |
+| clouds off | 6.0 | 20.8 | 20.4 | 16.8 | 11.6 |
+| cloud shadows off | 7.4 | 25.8 | 26.0 | 22.4 | 27.4 |
+| rays alone | 3.8 | 11.2 | 10.0 | 9.0 | 8.6 |
+| all on, before the clouds | 6.2 | 20.8 | 19.6 | 15.8 | 11.6 |
 
 The other looks (distance and height fog, HUD, day cycle, gradient, sun,
 glow, stars, moon, water fog, Fresnel, ripples) are arithmetic on a pixel
@@ -492,15 +518,19 @@ and read within the noise of all on. In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 
-The rays alone are over half of a frame. After them come the walks a look
-adds, since a DDA step costs about the same wherever it happens, the frame
-being its slowest lane: the shadow's 24 steps, the mirror's 32. Water is
-the dearest look, 5 ms of the lake's 21, because it tracks the wet
-intervals along every ray's 60 steps. Two lessons of the first profile
-hold: a ray that stopped at its hit walked a third of the steps and made
-the frame slower, the lanes of a SIMD group then leaving the loop at
-different steps; and a `Bool.pick` is strict, so a look that is off is
-skipped by a `match`, or it is paid for anyway.
+The rays alone are two fifths of a frame. After them come the walks a
+look adds, since a DDA step costs about the same wherever it happens, the
+frame being its slowest lane: the shadow's 24 steps, the mirror's 32, and
+the clouds' 12, each of them six hashed lattices and a step's light. The
+clouds are the dearest look: 6 ms in the bench's view, whose top is sky,
+and 15 where the whole frame is, since a sky ray's lane marches them all;
+off, they cost nothing. Their shadow, one read a lit block, takes 1. Water
+comes next, 3 to 5 ms, because it tracks the wet intervals along every
+ray's 60 steps. Two lessons of the first profile hold: a ray that stopped
+at its hit walked a third of the steps and made the frame slower, the
+lanes of a SIMD group then leaving the loop at different steps; and a
+`Bool.pick` is strict, so a look that is off is skipped by a `match`, or
+it is paid for anyway.
 
 `test/trace.py` goes one level down: it patches the emitted C so the
 frame's dispatch runs as one command buffer a kernel, and prints each

@@ -5,6 +5,7 @@ import ./day.bend as Day
 import ./sky.bend as Sky
 import ./inventory.bend as Inventory
 import ./water.bend as Water
+import ./clouds.bend as Clouds
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -612,16 +613,16 @@ def ao(n: Nat, +distant: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +base: U3
 
 # after the sun: the first neighbour read, or none with the occlusion off
 def after_sun(+distant: Bool, +v: U32, +col: U32, +f: F32, +base: U32, +fm: U32, +ox: F32, +oy: F32, +oz: F32,
-              +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+              +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32, +lit: F32,
               aon: Bool, r: Array<U32> & Bool) -> Array<U32> & U32:
   match aon:
     case True{}:
       (w, dark) = r
-      ao(7n, distant, v, col, f, Bool.pick(F32, dark, 0.6, 1.0), base, fm, 0, 1, 0, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      ao(7n, distant, v, col, f, Bool.pick(F32, dark, 0.6, lit), base, fm, 0, 1, 0, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
          solid_in(distant, w, base, fm, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
     case False{}:
       (w, dark) = r
-      (w, Util.mix(dim(col, Bool.pick(F32, dark, 0.6, 1.0)), v, f))
+      (w, Util.mix(dim(col, Bool.pick(F32, dark, 0.6, lit)), v, f))
 
 def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
   match on:
@@ -637,7 +638,8 @@ def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +hy: U32, +si
   (w, +word) = r
   +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
   +col = dim(blockcol(what, side, yf), (tone * tex_if(Util.on(fl, 4), u, wf) : F32))
-  after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw, Util.on(fl, 2),
+  after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
+            Clouds.shade(Util.on(fl, 256), fm, sx, sy, sz, lx, ly, lz), Util.on(fl, 2),
             shadow_if(Util.on(fl, 1), sunny, distant, w, base, fm, sx, sy, sz, lx, ly, lz))
 
 # the look of the block behind the face: its unit steps of u and w in
@@ -752,7 +754,7 @@ def shade_go(sky: Bool, +distant: Bool, +word: U32, w: Array<U32>, +base: U32, +
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match sky:
     case True{}:
-      (w, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz))
+      (w, Clouds.over(Util.on(fl, 128), fw, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz)))
     case False{}:
       shade_face(distant, w, base, fw, word, v, oy, t, fl, lx, ly, lz, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
 
@@ -881,7 +883,7 @@ def shoot(go: Bool, w: Array<U32>, +base: U32, +fw: U32, +ox: F32, +oy: F32, +oz
           +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match go:
     case False{}:
-      (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz), 0))
+      (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), Clouds.over(Util.on(fl, 128), fw, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz)), 0))
     case True{}:
       run_water(Util.on(fl, 2097152), w, base, fw, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 
@@ -908,7 +910,7 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ox: F32, +oy: F32, +oz: F32,
 # flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
-# what. Bits 7..19 are spare; bit 20 enables ripples. Bits 21..24
+# what. Bit 7 is the clouds, 8 their shadows; bits 9..19 are spare; bit 20 enables ripples. Bits 21..24
 # hold water (21), water fog (22), Fresnel (23) and sky reflection (24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low four bits, then four seven-bit counts;
@@ -920,7 +922,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4293918751
+def looks() -> U32: 4293919135
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds

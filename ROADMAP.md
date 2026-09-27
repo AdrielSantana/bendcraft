@@ -124,21 +124,35 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    blocks' reads past the side, about 1 ms at 1470×796. Next, when a farther horizon is wanted: a
    coarser level where its cell is a few pixels, and the fog farther out;
    then the same cells let a near ray skip the open air above the ground.
-4. **Clouds with volume.** A slab between two heights, a 3D noise moved by
-   the wind, a short march of 8 to 16 steps for the rays that reach it,
-   lit by the sun's side. And their shadows on the ground: one lookup of
-   the same noise where the sun's line from the hit crosses the slab.
-5. **Vegetation.** Tall grass and flowers as two crossed planes inside a
+4. **Clouds with volume — done (2026-09-27).** Cumulus in a slab from 62
+   to 78 over the world's columns: a coverage of four octaves that repeats
+   every 256 columns raises each cloud's top from a flat base, and a sky
+   ray marches the slab in 12 steps, lit from above and from the side the
+   sun sees; the ground's sun is dimmed by one read of the coverage where
+   its line to the sun crosses the slab, by the cloud's density (README).
+   The slab sits well over today's hills: the world reads as a miniature
+   of Minecraft's (see the game's step 4). Still to do: the clouds in the
+   water's mirror, which shows the bare sky; the faint stripes of a ray
+   almost level, whose step spans many columns; and a coverage computed
+   on the host into the world's array, as the far map is, which would
+   make a step a few reads in place of 24 hashes: they cost 6 ms at
+   1470×796 in the bench's view and 15 where the whole frame is sky.
+5. **Weather.** The weather number goes from clear to overcast over the
+   days, from a slow noise of the day's count; the wind drifts the clouds;
+   the sky, the fog and the sunlight grey and dim under a heavy sky.
+6. **Rain from heavy clouds.** Streaks under a cloud heavy enough, stopped
+   by a roof (the column's solid mask), with its flag and profile line.
+7. **Vegetation.** Tall grass and flowers as two crossed planes inside a
    voxel, leaves with holes: a ray that meets alpha goes on. Wind as an
    offset of the texture's coordinate by time and place.
-6. **Light of the blocks.** Torches and a night that needs them.
+8. **Light of the blocks.** Torches and a night that needs them.
 
-**The budget.** At 1470×796 a frame is 19 ms with a ray for every pixel
-and 6 ms at scale 2, which suits the pixel art (2026-09-27, on 2.0.32
-with #1132 and #1140; 48 and 13 on 2.0.25, where the far horizon took
-7 → 12 of the second). At 60 frames a second that leaves 10 ms at scale 2
-for the looks still to come, and 2 at 120. Every piece above says what it
-took of them in the profile table.
+**The budget.** At 1470×796 a frame is 24 ms with a ray for every pixel
+and 7 ms at scale 2, which suits the pixel art (2026-09-27, on 2.0.32
+with #1132 and #1140; the clouds took 19 → 24 and 6 → 7, the far
+horizon 7 → 12 of the second on 2.0.25). At 60 frames a second that
+leaves 9 ms at scale 2 for the looks still to come, and 1 at 120. Every
+piece above says what it took of them in the profile table.
 
 **Ways to buy more of it**, in the order to try them; none is needed yet.
 
@@ -220,11 +234,16 @@ checksums, same fastest frame at all six sizes, four alternated rounds.
 3. **Day and night — done with look step 1.** The saved integer clock
    drives the sun in `Cam`; the shadow has signed crossings on every axis.
    A full period returns the same sun phase for every clock word.
-4. **Survival.** Health, falling hurts, hunger, death and a place to come
+4. **A taller world.** The terrain stays under 32 blocks, the solid mask's
+   word a column, with no mountains and no caves, so next to Minecraft it
+   reads as a miniature (said 2026-09-27). More height is more words a
+   column in the ring and the save, more bits a height in the far map, and
+   longer walks; where it goes in the order is not decided.
+5. **Survival.** Health, falling hurts, hunger, death and a place to come
    back to.
-5. **Crafting.** A recipe is a vector over the counts: what it takes, what
+6. **Crafting.** A recipe is a vector over the counts: what it takes, what
    it gives. A grid in the HUD.
-6. **Mobs and entities.** An entity is a few boxes a ray tests, binned by
+7. **Mobs and entities.** An entity is a few boxes a ray tests, binned by
    column so a ray tests only those of the cells it crosses; a dropped
    item is an entity too. Their physics is the player's.
 
@@ -472,11 +491,12 @@ finished world.
 3. water: its shader, its physics, the bucket and swimming — done, 2026-09-22
 4. the far horizon: its first level, a word a column to 128 blocks, done
    2026-09-22, seamless 2026-09-25; coarser levels past it wait on the reach wanted
-5. clouds and their shadows
-6. vegetation
-7. light of the blocks
-8. survival and crafting
-9. mobs and entities
+5. clouds and their shadows — done, 2026-09-27
+6. the weather over the days, the wind, and rain from heavy clouds
+7. vegetation
+8. light of the blocks
+9. survival and crafting
+10. mobs and entities
 
 The day-cycle foundation (2026-09-21) passed all four gates. Four
 alternated rounds at 1470×796: full profile 15.0 → 15.8 ms, shadows off
