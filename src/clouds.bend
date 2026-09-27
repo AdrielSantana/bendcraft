@@ -11,7 +11,8 @@ import ./sky.bend as Sky
 # reads the coverage once, where the sun's line from it crosses the
 # slab's middle. The clouds sit on the world's columns, not the window's:
 # Cam.far holds the window's corner mod 256. The weather, 0 clear to 1
-# overcast, sets how much of the sky they cover and how heavy they are.
+# overcast, from the clock's days, sets how much of the sky they cover and
+# how heavy they are, and greys the sky; the wind moves them along x.
 
 def bottom() -> F32: 62.0
 
@@ -22,7 +23,10 @@ def per() -> F32: 0.0625
 
 def middle() -> F32: 70.0
 
-def weather() -> F32: 0.45
+# how grey a heavy sky is, and how much of the sun, the moon and the
+# stars it veils
+def gloom(+wx: F32) -> F32:
+  (0.8 * F32.clamp(((wx - 0.3) * 1.4 : F32), 0.0, 1.0) : F32)
 
 # how much light a block of cloud stops, heavier as the weather turns
 def sigma(+wx: F32) -> F32: (0.35 + 0.65 * wx : F32)
@@ -30,17 +34,27 @@ def sigma(+wx: F32) -> F32: (0.35 + 0.65 * wx : F32)
 # the coverage under which no cloud forms: lower, more sky covered
 def bias(+wx: F32) -> F32: (0.52 - 0.3 * wx : F32)
 
-# the window's corner in the clouds' 256 columns
-def corner_x(+fm: U32) -> F32: U32.to_f32(((fm / 256 + 64) % 256 : U32))
-
-def corner_z(+fm: U32) -> F32: U32.to_f32(((fm % 256 + 64) % 256 : U32))
-
 def wrap(+x: F32) -> F32:
   (x - 256.0 * F32.floor((x * 0.00390625 : F32)) : F32)
 
 # a lattice point's value in 0..1, by the stars' hash, which mixes its bits
 def at(+i: U32, +j: U32) -> F32:
   (U32.to_f32((Sky.star_hash(i, j) % 1024 : U32)) * 0.0009775171 : F32)
+
+# the weather, 0 clear to 1 overcast: a noise over half days, squared so
+# that fair days are the most; it repeats with the clock's word, every
+# 4096 days, and its seed makes the first day fair with some clouds
+def weather(+t: U32) -> F32:
+  +f = Util.smooth((U32.to_f32((t % 524288 : U32)) * 0.0000019073486 : F32))
+  +v = (at((t / 524288 : U32), 45) * (1.0 - f) + at(((t / 524288 + 1) % 8192 : U32), 45) * f : F32)
+  (v * v : F32)
+
+# the window's corner in the clouds' 256 columns, less the way the wind
+# carried them along x: their 256 columns in a half day
+def corner_x(+fm: U32, +t: U32) -> F32:
+  (U32.to_f32(((fm / 256 + 64) % 256 : U32)) - U32.to_f32((t % 524288 : U32)) * 0.00048828125 : F32)
+
+def corner_z(+fm: U32) -> F32: U32.to_f32(((fm % 256 + 64) % 256 : U32))
 
 # value noise over cells of 1/k columns, n of them to the 256, so that it
 # repeats with the columns; x and z in 0..256
@@ -116,34 +130,44 @@ def puffed(+v: U32, +sky: U32, +t0: F32, +wx: F32, +dx: F32, +dy: F32, +dz: F32,
   +fade = (1.0 - Util.smooth(F32.clamp(((t0 - 180.0) * 0.004 : F32), 0.0, 1.0)) : F32)
   Util.mix(sky, Util.mix(Util.mix(dark, bright, light), v, F32.clamp((t0 * 0.0018 : F32), 0.0, 0.6)), ((1.0 - tr) * fade : F32))
 
-# a sky pixel's clouds, over the sky it shows; a ray too flat to reach the
-# slab near enough has faded before it
-def over(on: Bool, +fm: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+# a sky pixel's clouds, over the sky it shows, whose sun, moon and stars
+# a heavy sky veils; a ray too flat to reach the slab near enough has
+# faded before it
+def over(on: Bool, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
          +lx: F32, +ly: F32, +lz: F32, +sky: U32) -> U32:
   match on:
     case False{}:
       sky
     case True{}:
-      +wx = weather()
+      +wx = weather(ck)
       +up = F32.max(dy, 0.02)
       +t0 = ((bottom() - oy) / up : F32)
       +dt = ((top() - bottom()) / up * 0.0833333 : F32)
       +s = (t0 + 0.5 * dt : F32)
-      puffed(v, sky, t0, wx, dx, dy, dz, lx, ly, lz,
-        march(12n, (ox + corner_x(fm) + dx * s : F32), (oy + up * s : F32), (oz + corner_z(fm) + dz * s : F32),
+      puffed(v, Util.mix(sky, v, gloom(wx)), t0, wx, dx, dy, dz, lx, ly, lz,
+        march(12n, (ox + corner_x(fm, ck) + dx * s : F32), (oy + up * s : F32), (oz + corner_z(fm) + dz * s : F32),
           (dx * dt : F32), (up * dt : F32), (dz * dt : F32), lx, lz, (dt * sigma(wx) : F32), F32.clamp((1.6 - dt * 0.15 : F32), 0.0, 1.0), bias(wx), 1.0, 0.0, 0.0))
 
 # the sun's light on the ground under the clouds: what the cloud over it
 # lets through along the sun's line, through its whole height, over the
 # light a block's shadow leaves: a thin cloud dims it a little, a heavy
 # one more than a block does
-def shade(on: Bool, +fm: U32, +x: F32, +y: F32, +z: F32, +lx: F32, +ly: F32, +lz: F32) -> F32:
+def shade(on: Bool, +fm: U32, +ck: U32, +x: F32, +y: F32, +z: F32, +lx: F32, +ly: F32, +lz: F32) -> F32:
   match on:
     case False{}:
       1.0
     case True{}:
-      +wx = weather()
+      +wx = weather(ck)
       +slant = F32.max(ly, 0.3)
       +t = ((middle() - y) / F32.max(ly, 0.05) : F32)
-      +c = rough((x + corner_x(fm) + lx * t : F32), (z + corner_z(fm) + lz * t : F32), bias(wx))
+      +c = rough((x + corner_x(fm, ck) + lx * t : F32), (z + corner_z(fm) + lz * t : F32), bias(wx))
       (0.55 + 0.45 * F32.exp((0.0 - sigma(wx) * c * (top() - bottom()) * 0.25 / slant : F32)) : F32)
+
+# the sky and its fog under the weather: a heavy one greys them, by day
+# and by night
+def overcast(on: Bool, +ck: U32, +ly: F32, +c: U32) -> U32:
+  match on:
+    case False{}:
+      c
+    case True{}:
+      Util.mix(c, Util.mix(Util.rgb(24, 26, 32), Util.rgb(158, 164, 172), Sky.daylight(ly)), gloom(weather(ck)))

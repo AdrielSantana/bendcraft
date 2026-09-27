@@ -6,7 +6,8 @@ from sky import picture
 
 
 if __name__ == '__main__':
-    labels = ['morning', 'morning-off', 'away', 'overhead', 'sunset', 'night', 'ground', 'ground-off']
+    labels = ['morning', 'morning-off', 'clear', 'overcast', 'away', 'overhead', 'sunset', 'night',
+              'ground', 'ground-off', 'ground-overcast', 'ground-clear']
     sheet = Image.new('RGB', (1024, 312 * ((len(labels) + 1) // 2)), '#161922')
     for i, label in enumerate(labels):
         path = Path(f'build/clouds-{label}.tree')

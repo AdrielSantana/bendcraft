@@ -34,7 +34,7 @@ def fixture(t: U32) -> Player.Game:
 # a ray from the eye at (64.5, 30, 64.5) of a window whose corner is 0
 # mod 256, and the same ray from a window 10 columns further along x
 def cloud_at(+fm: U32, +ox: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
-  Clouds.over(True{}, fm, 12345, ox, 30.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 6789)
+  Clouds.over(True{}, fm, 154747, 12345, ox, 30.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 6789)
 
 def fixed(+dx: F32, +dy: F32, +dz: F32) -> Bool:
   U32.is_eq(cloud_at(0, 64.5, dx, dy, dz), cloud_at(2560, 54.5, dx, dy, dz))
@@ -46,12 +46,35 @@ def shaded(n: Nat, +x: F32, +least: F32, +ok: Bool) -> F32 & Bool:
     case 0n:
       (least, ok)
     case 1n+k:
-      +s = Clouds.shade(True{}, 0, x, 20.0, 64.5, 0.0, 1.0, 0.0)
+      +s = Clouds.shade(True{}, 0, 154747, x, 20.0, 64.5, 0.0, 1.0, 0.0)
       shaded(k, (x + 3.0 : F32), F32.min(least, s), ok && (s >= 0.55 : F32) && (s <= 1.0 : F32))
 
 def row(r: F32 & Bool) -> Bool:
   (least, ok) = r
   ok && (least < 0.95 : F32)
+
+# the ground's sun along a row, and along the row 10 columns east 20.48
+# seconds later, when the wind has carried the clouds that far
+def carried(n: Nat, +x: F32) -> Bool:
+  match n:
+    case 0n:
+      True{}
+    case 1n+k:
+      Lib.near(Clouds.shade(True{}, 0, 0, x, 20.0, 64.5, 0.0, 1.0, 0.0), Clouds.shade(True{}, 0, 20480, (x + 10.0 : F32), 20.0, 64.5, 0.0, 1.0, 0.0), 0.005)
+        && carried(k, (x + 3.0 : F32))
+
+# the least and the most weather over n quarter days
+def weathers(n: Nat, +t: U32, +lo: F32, +hi: F32) -> F32 & F32:
+  match n:
+    case 0n:
+      (lo, hi)
+    case 1n+k:
+      +w = Clouds.weather(t)
+      weathers(k, (t + 262144 : U32), F32.min(lo, w), F32.max(hi, w))
+
+def spans(r: F32 & F32) -> Bool:
+  (+lo, +hi) = r
+  (lo >= 0.0 : F32) && (lo < 0.1 : F32) && (hi > 0.8 : F32) && (hi <= 1.0 : F32)
 
 def main() -> IO(Unit):
   do IO<Unit>:
@@ -60,11 +83,19 @@ def main() -> IO(Unit):
       && (U32.is_ne(cloud_at(0, 64.5, 0.0, 1.0, 0.0), 6789) || U32.is_ne(cloud_at(0, 64.5, 0.3, 0.6, 0.2), 6789)
         || U32.is_ne(cloud_at(0, 64.5, (0.0 - 0.5 : F32), 0.4, 0.7), 6789)),
       "a cloud stays over its column when the window moves under it")
-    Lib.expect(U32.is_eq(Clouds.over(False{}, 0, 12345, 64.5, 30.0, 64.5, 0.3, 0.6, 0.2, 0.48, 0.8, 0.36, 6789), 6789)
-      && U32.is_eq(cloud_at(0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2), 6789),
-      "with the clouds off, or under the horizon, the sky shows as it was")
-    Lib.expect(row(shaded(86n, 0.0, 1.0, True{})) && F32.is_eq(Clouds.shade(False{}, 0, 10.0, 20.0, 10.0, 0.0, 1.0, 0.0), 1.0),
+    Lib.expect(U32.is_eq(Clouds.over(False{}, 0, 154747, 12345, 64.5, 30.0, 64.5, 0.3, 0.6, 0.2, 0.48, 0.8, 0.36, 6789), 6789)
+      && U32.is_eq(Clouds.over(True{}, 0, 3145728, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 6789), 6789),
+      "with the clouds off, or under the horizon on a fair day, the sky shows as it was")
+    Lib.expect(row(shaded(86n, 0.0, 1.0, True{})) && F32.is_eq(Clouds.shade(False{}, 0, 154747, 10.0, 20.0, 10.0, 0.0, 1.0, 0.0), 1.0),
       "a cloud dims the sun on the ground under it, never below a heavy cloud's 0.55, and none with its look off")
+    Lib.expect(carried(86n, 0.0), "the wind carries the clouds along x, 10 columns in 20.48 seconds")
+    Lib.expect(spans(weathers(64n, 0, 1.0, 0.0)) && Lib.near(Clouds.weather(4294967295), Clouds.weather(0), 0.001)
+      && (Clouds.weather(Day.morning()) > 0.3 : F32) && (Clouds.weather(Day.morning()) < 0.6 : F32),
+      "the weather goes from clear to overcast within sixteen days, with no jump at the clock's wrap, and the first morning is fair")
+    Lib.expect(U32.is_ne(Clouds.overcast(True{}, 1048576, 0.8, 6789), 6789) && U32.is_eq(Clouds.overcast(True{}, 3145728, 0.8, 6789), 6789)
+      && U32.is_eq(Clouds.overcast(False{}, 1048576, 0.8, 6789), 6789)
+      && U32.is_ne(Clouds.over(True{}, 0, 1048576, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 6789), 6789),
+      "a heavy sky greys the sky and its fog and veils its sun, moon and stars, a fair one leaves them, and none with the clouds off")
     Lib.expect((Sky.gradient(True{}, 0.5, (0.0 - 1.0 : F32)) < Sky.gradient(True{}, 0.5, 1.0) : U32), "night sky is darker")
     Lib.expect(F32.is_eq(Sky.fog(0, 40.0, 5.0, 5.0), 0.0), "fog flags disable both terms")
     Lib.expect(F32.is_eq(Sky.fog(8, 120.0, 30.0, 30.0), 1.0), "distant terrain reaches sky colour")
@@ -81,7 +112,9 @@ def main() -> IO(Unit):
     Lib.expect(probe(64, 10, 59, 0.0, 0.0, (0.0 - 1.0 : F32)), "shadow -z")
     Lib.expect(Bool.not(probe(69, 10, 64, (0.0 - 1.0 : F32), 0.0, 0.0)), "block behind ray")
     Lib.expect(probe(59, 18, 60, (0.0 - 0.48 : F32), 0.8, (0.0 - 0.36 : F32)), "afternoon shadow")
-    Lib.expect(U32.is_eq(clock(Player.advance(fixture(1048575), 2)), 1), "clock wraps")
+    Lib.expect(U32.is_eq(Day.phase(clock(Player.advance(fixture(1048575), 2))), 1)
+      && U32.is_eq(clock(Player.advance(fixture(1048575), 2)), 1048577), "the sun wraps to dawn and the clock counts the day")
     Lib.expect(U32.is_eq(clock(Player.advance(Player.advance(fixture(1234), 16), 17)),
                      clock(Player.advance(fixture(1234), 33))), "frame rate independent clock")
     Lib.expect(U32.is_eq(restored(Save.text(fixture(786432))), 786432), "save restores night")
+    Lib.expect(U32.is_eq(restored(Save.text(fixture(3932160))), 3932160), "save keeps the days, the weather's")

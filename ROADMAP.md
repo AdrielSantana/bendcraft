@@ -137,9 +137,11 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    on the host into the world's array, as the far map is, which would
    make a step a few reads in place of 24 hashes: they cost 6 ms at
    1470×796 in the bench's view and 15 where the whole frame is sky.
-5. **Weather.** The weather number goes from clear to overcast over the
-   days, from a slow noise of the day's count; the wind drifts the clouds;
-   the sky, the fog and the sunlight grey and dim under a heavy sky.
+5. **Weather — done (2026-09-27).** The clock counts the days, and the
+   weather goes from clear to overcast over them, a noise over half days;
+   the wind carries the clouds along x; a heavy sky greys the sky and the
+   fog and veils the sun, and its clouds' shadow dims the ground all over.
+   The camera carries the clock, its seventeenth word.
 6. **Rain from heavy clouds.** Streaks under a cloud heavy enough, stopped
    by a roof (the column's solid mask), with its flag and profile line.
 7. **Vegetation.** Tall grass and flowers as two crossed planes inside a
@@ -492,7 +494,8 @@ finished world.
 4. the far horizon: its first level, a word a column to 128 blocks, done
    2026-09-22, seamless 2026-09-25; coarser levels past it wait on the reach wanted
 5. clouds and their shadows — done, 2026-09-27
-6. the weather over the days, the wind, and rain from heavy clouds
+6. the weather over the days and the wind — done, 2026-09-27; rain from
+   heavy clouds
 7. vegetation
 8. light of the blocks
 9. survival and crafting

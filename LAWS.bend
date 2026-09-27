@@ -169,11 +169,11 @@ law a_frame_a_second_shows:
 # turn returns it for every clock word, including U32 wrap.
 
 law day_wraps_to_dawn:
-  {Day.advance(1048575, 1) == 0 : U32}
+  {Day.phase(Day.advance(1048575, 1)) == 0 : U32}
 
 law day_returns_after_a_full_turn:
   for t: U32
-  {Day.advance(t, Day.length()) == Day.phase(t) : U32}
+  {Day.phase(Day.advance(t, Day.length())) == Day.phase(t) : U32}
 
 # A cell and its inventory count keep the same total after every action,
 # and after any list of actions, including attempts to spend from zero.

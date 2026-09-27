@@ -1,12 +1,13 @@
 import Base
 
-# One turn is 2^20 milliseconds (17 minutes 28.576 seconds). Keeping the
-# phase as an integer avoids drift, including across saves and U32 wrap.
+# One turn is 2^20 milliseconds (17 minutes 28.576 seconds). The clock
+# counts milliseconds across the days, the weather's input, and its word
+# wraps after 4096 whole turns, so the phase, the sun's, never jumps.
 def length() -> U32: 1048576
 
 def phase(t: U32) -> U32: (t .&. 1048575 : U32)
 
-def advance(t: U32, ms: U32) -> U32: phase((t + ms : U32))
+def advance(t: U32, ms: U32) -> U32: (t + ms : U32)
 
 def morning() -> U32: 154747
 

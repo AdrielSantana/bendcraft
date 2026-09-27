@@ -4,13 +4,10 @@ import ../src/water.bend as Water
 import ../src/world.bend as World
 import ../src/day.bend as Day
 
-def near(a: F32, b: F32, epsilon: F32) -> Bool:
-  (F32.abs((a - b : F32)) <= epsilon : F32)
-
 def same(a: Water.Reflection, b: Water.Reflection, +epsilon: F32) -> Bool:
   Water.Reflection{ax, ay, az, ac} = a
   Water.Reflection{bx, by, bz, bc} = b
-  near(ax, bx, epsilon) && near(ay, by, epsilon) && near(az, bz, epsilon) && near(ac, bc, epsilon)
+  Lib.near(ax, bx, epsilon) && Lib.near(ay, by, epsilon) && Lib.near(az, bz, epsilon) && Lib.near(ac, bc, epsilon)
 
 def sample(base: U32, clock: U32, x: F32, z: F32) -> Water.Reflection:
   Water.reflected(True{}, Water.frame_base(base, clock), x, z, 6.0, 0.8, (0.0 - 0.6 : F32), 0.0)
@@ -40,7 +37,7 @@ def addresses(n: Nat, +i: U32) -> Bool:
 
 def unit(r: Water.Reflection) -> Bool:
   Water.Reflection{+x, +y, +z, +c} = r
-  near((x * x + y * y + z * z : F32), 1.0, 0.00001)
+  Lib.near((x * x + y * y + z * z : F32), 1.0, 0.00001)
     && (y >= 0.0 : F32) && (c > 0.0 : F32) && (c <= 1.0 : F32)
 
 # Look in every horizontal direction, head-on and close to grazing. A

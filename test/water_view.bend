@@ -10,8 +10,8 @@ import ./sky.bend as Export
 
 # Hold the camera and sun fixed so the exported sequence isolates ripples.
 def phase_camera(cam: Render.Cam, t: U32) -> Render.Cam:
-  Render.Cam{px, py, pz, yaw, pit, +base, far, sel, items, stat, fl, rw, rh, lx, ly, lz} = cam
-  Render.Cam{px, py, pz, yaw, pit, Water.with_looks(Water.frame_base(base, t), base), far, sel, items, stat, fl, rw, rh, lx, ly, lz}
+  Render.Cam{px, py, pz, yaw, pit, +base, far, sel, items, stat, fl, rw, rh, lx, ly, lz, clock} = cam
+  Render.Cam{px, py, pz, yaw, pit, Water.with_looks(Water.frame_base(base, t), base), far, sel, items, stat, fl, rw, rh, lx, ly, lz, clock}
 
 def phase_view(g: Player.Game, t: U32) -> Player.Game & Image:
   Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, +sel, +res, +clock, +bag} = g

@@ -331,7 +331,9 @@ including any previously saved submerged wood or grass.
 **The day clock** is an integer in `Game`, advanced by elapsed milliseconds
 at the window loop, independently of the physics and frame rate. One day is
 1048576 ms (17 minutes 28.576 seconds); phase zero is dawn, one quarter noon,
-one half dusk and three quarters midnight. Its sine and cosine are computed
+one half dusk and three quarters midnight. The clock counts the days too,
+for the weather, and its word wraps after 4096 of them, whole turns; the
+save keeps it whole, and a save from before the days starts on the first. Its sine and cosine are computed
 on the host and the three sun components ride in `Cam`. The shadow walks
 with signed steps on all three axes; the terrain dims when the sun sets.
 The default starts in the morning. A world-direction sky gradient follows
@@ -351,10 +353,14 @@ sun sees, while the cloud above a step dims it. The light a step stops
 falls off as through fog, and the fine octaves fade as a step grows, at a
 flat ray, where they would alias into stripes. Their colour follows the
 sun: white by day, rose and gold at its rising and setting, grey-blue
-under the moon; from 180 blocks they fade into the horizon's haze. A
-weather number, 0 clear to 1 overcast, sets how much of the sky they
-cover and how much light a block of them stops; it stands at 0.45 until
-the weather comes. The ground reads the broad coverage once, where the
+under the moon; from 180 blocks they fade into the horizon's haze. The
+weather, 0 clear to 1 overcast, is a noise over half days of the clock,
+squared so that fair days are the most (`Clouds.weather`): it sets how
+much of the sky they cover and how much light a block of them stops, and
+a heavy sky greys the sky and its fog and veils the sun, the moon and the
+stars. The first morning is fair with some clouds, and the second day
+brings the first overcast. The wind carries them along x, their 256
+columns in half a day, a column every two seconds. The ground reads the broad coverage once, where the
 sun's line from it crosses the slab's middle, and loses to a thin cloud a
 little of its sun, to a heavy one down to 0.55 of it, a shade darker
 than a block's shadow. The water's mirror does not show them yet.
@@ -424,14 +430,14 @@ test/lib.bend      what every windowless test needs: expect, ticks, one event, s
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
-test/day.bend      signed shadows, sky/fog, clock wrapping, frame rate, the clock's save, the clouds' place and shadow
+test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  clock/address packing, stable world noise, normals and wrap continuity
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
 test/mirror.bend   the mirror's walk over a placed brick, its reach and fade, the byte a miss keeps
 test/mirror_view.bend four views with the world in the mirror and without, for test/mirror.py
 test/sky.bend      six fixed sky views, saved as Image trees for test/sky.py
-test/clouds_view.bend eight cloud views, each look off beside one, for test/clouds.py
+test/clouds_view.bend twelve cloud views, clear and overcast, each look off, for test/clouds.py
 test/bench.bend    five frames on the GPU with checksums, untouched and built
 test/profile.bend  what costs what: each look off in turn, the rays' hits and steps
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
@@ -449,7 +455,7 @@ make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
 make profile    # each look off, by size; also night, lake, submerged, night lake, partial water
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
-make clouds     # eight PNGs and build/clouds-contact.png; Pillow
+make clouds     # twelve PNGs and build/clouds-contact.png; Pillow
 make water      # sixteen PNGs and a ripple animation; Python with Pillow
 make flow       # the lake breached into a pit, filling and settled; Pillow
 make flow-bench # a lake draining through shafts: ms a tick on the host
@@ -461,7 +467,8 @@ make page-test  # the page in headless Chrome, hashes and fps
 
 Apple M5, the game closed, twelve rounds alternated with stock Bend 2.0.25
 and the order swapped every round (2026-09-27); the clouds' column, eight
-rounds alternated with the build before them, the same day. The bench
+rounds alternated with the build before them, the same day, and the
+weather's after it. The bench
 times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
@@ -473,7 +480,7 @@ compilers too.
 | 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 7 ms |
 | 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 12 ms |
 | 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms |
-| 1920×1080 | 91 ms | 33 ms | 42 ms |
+| 1920×1080 | 91 ms | 33 ms | 45 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796 when #1140 was measured: its fix of
 a race ([#975](https://github.com/bendlang/bend/issues/975)) made every

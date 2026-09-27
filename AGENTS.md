@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `a38df5dfde0c4f0517b76cc68d77d867` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `9588b23d5844f3e6cab6f73af29a5aa8` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -199,7 +199,9 @@ costs a count a node a pixel, on every node of that type.
 - A new parameter rides in every task. A fifteenth and a sixteenth
 camera word (the readout's `Cam.stat` and the far map's `Cam.far`,
 2026-09-22) each measured free, so a number with a meaning of its own
-gets a word, not spare bits of another; measure.
+gets a word, not spare bits of another; measure. The seventeenth, the
+game's clock (`Cam.clock`, 2026-09-27), handed through the fifteen defs
+from a ray to the clouds, read about 1 ms at 1470×796 and none at scale 2.
 
 ## The code's fixed points
 
@@ -210,6 +212,9 @@ horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask 
 - `Cam.far`: the far map's corner mod 256, x's over z's
 (`World.far_cam`); the device walks the map in the window's coordinates
 plus 64, plus those remainders, plus 256 (`Render.run_far`).
+- `Cam.clock`: the game's clock, milliseconds across the days
+(`Day.advance` no longer wraps a day; its word wraps after 4096); the
+weather (`Clouds.weather`) and the wind (`Clouds.corner_x`) read it.
 - `Cam.base`: low 14 bits address the ring; bits 14..26 hold the ripple
 clock modulo 8192 ms. The array wraps addresses, so the clock's bits
 cannot affect world reads. Bits 27..30 are the

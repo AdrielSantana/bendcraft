@@ -9,9 +9,6 @@ import ../src/water.bend as Water
 # The far walk, windowless: a map of columns written by hand, rays from
 # the window over it, and the look of what they meet. `bend test/far.bend`.
 
-def near(a: F32, b: F32, epsilon: F32) -> Bool:
-  (F32.abs((a - b : F32)) <= epsilon : F32)
-
 # flat grass twelve high; the far base 0, so the window's local block x
 # lies at far-local block x + 64
 def flat() -> U32:
@@ -50,14 +47,14 @@ def map() -> Array<U32>:
 
 def crossed(tr: Water.Trace, +entry: F32, +depth: F32) -> Bool:
   Water.Trace{e, d} = tr
-  near(e, entry, 0.001) && near(d, depth, 0.001)
+  Lib.near(e, entry, 0.001) && Lib.near(d, depth, 0.001)
 
 # a miss keeps walking, so its distance says nothing: only a hit's is
 # held, and the water the ray crossed, where it went in and how deep
 def met_wet(r: Array<U32> & Render.Far, +hit: U32, +word: U32, t: F32, +entry: F32, +depth: F32) -> Bool:
   (w, fr) = r
   Render.Far{h, at_word, at, tr} = fr
-  U32.is_eq(h, hit) && ((hit < 1 : U32) || (U32.is_eq((at_word % 1048576 : U32), word) && near(at, t, 0.001))) && crossed(tr, entry, depth)
+  U32.is_eq(h, hit) && ((hit < 1 : U32) || (U32.is_eq((at_word % 1048576 : U32), word) && Lib.near(at, t, 0.001))) && crossed(tr, entry, depth)
 
 def met(r: Array<U32> & Render.Far, +hit: U32, +word: U32, t: F32) -> Bool:
   met_wet(r, hit, word, t, 0.0, 0.0)
@@ -82,11 +79,11 @@ def holds(r: Array<U32> & Bool) -> Bool:
   b
 
 def look_on(+base: U32, +fl: U32, +word: U32, +axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> U32:
-  shown(Render.from_far(0, False{}, 0.0, 123456, fl, 0.5, 0.8, 0.0, base, 0, ox, oy, oz, dx, dy, dz, (map(), Render.Far{(axis + 1 : U32), word, t, dry()})))
+  shown(Render.from_far(0, False{}, 0.0, 123456, fl, 0.5, 0.8, 0.0, base, 0, 0, ox, oy, oz, dx, dy, dz, (map(), Render.Far{(axis + 1 : U32), word, t, dry()})))
 
 # the far walk's pixel for a ray from the eye, walked over the map
 def far_pixel(+base: U32, +fl: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
-  shown(Render.after_walk(False{}, 0, 123456, fl, 0.5, 0.8, 0.0, base, 0, ox, oy, oz, dx, dy, dz, 0.0, 0.0, 0.0, map()))
+  shown(Render.after_walk(False{}, 0, 123456, fl, 0.5, 0.8, 0.0, base, 0, 0, ox, oy, oz, dx, dy, dz, 0.0, 0.0, 0.0, map()))
 
 # the window's water over a bed seen at the given depth, as the far sea
 # should show it
@@ -139,8 +136,8 @@ def main() -> IO(Unit):
     Lib.expect(walk(64.0, 10.3, 64.5, 1.0, 0.0, 0.0, 0.0, 1, flat(), 0.001) && walk(64.3, 10.0, 64.5, 0.6, (0.0 - 0.8 : F32), 0.0, 0.0, 2, flat(), 0.001),
       "a walk that starts inside a block meets it at once, on the face whose plane it starts on: the window's walk ends on the plane it last crossed")
     Lib.expect(walk(64.5, 16.5, 64.5, 1.0, 0.0, 0.0, 10.0, 1, tall(), 31.5), "the walk picks up at the distance the window's walk stopped at, and the hit's distance is the same")
-    Lib.expect(U32.is_eq(shown(Render.after_walk(False{}, 0, 123456, 0, 0.5, 0.8, 0.0, 0, 0, 124.5, 16.5, 64.5, 1.0, 0.0, 0.0, 10.0, 0.0, 0.0, map())),
-        shown(Render.after_walk(False{}, 0, 123456, 0, 0.5, 0.8, 0.0, 0, 0, 124.5, 16.5, 64.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, map())))
+    Lib.expect(U32.is_eq(shown(Render.after_walk(False{}, 0, 123456, 0, 0.5, 0.8, 0.0, 0, 0, 0, 124.5, 16.5, 64.5, 1.0, 0.0, 0.0, 10.0, 0.0, 0.0, map())),
+        shown(Render.after_walk(False{}, 0, 123456, 0, 0.5, 0.8, 0.0, 0, 0, 0, 124.5, 16.5, 64.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, map())))
       && holds(Render.shadow_if(True{}, True{}, False{}, map(), 0, 0, 127.5, 12.0, 64.5, 0.9578, 0.2873, 0.0))
       && Bool.not(holds(Render.shadow_if(True{}, True{}, False{}, map(), 0, 0, 127.5, 12.0, 64.5, (0.0 - 0.9578 : F32), 0.2873, 0.0)))
       && holds(Render.solid_in(False{}, map(), 0, 0, 129.5, 13.0, 64.5)) && Bool.not(holds(Render.solid_in(False{}, map(), 0, 0, 127.5, 13.0, 64.5))),

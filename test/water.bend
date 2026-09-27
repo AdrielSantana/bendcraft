@@ -9,9 +9,6 @@ import ../src/inventory.bend as Inventory
 import ../src/util.bend as Util
 import ../src/sky.bend as Sky
 
-def near(a: F32, b: F32, epsilon: F32) -> Bool:
-  (F32.abs((a - b : F32)) <= epsilon : F32)
-
 def empty() -> World.World:
   World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
 
@@ -177,7 +174,7 @@ def step_trace(+a: U32, +b: U32) -> Render.Ray:
 
 def ray_matches(+entry: F32, +depth: F32, top: Bool, ray: Render.Ray) -> Bool:
   Render.Ray{code, t, Water.Trace{e, d}} = ray
-  near(e, entry, 0.0001) && near(d, depth, 0.0001) && Bool.not(Bool.xor(Water.top(code), top))
+  Lib.near(e, entry, 0.0001) && Lib.near(d, depth, 0.0001) && Bool.not(Bool.xor(Water.top(code), top))
 
 def partial_ok(+level: Bool, +a: U32, +x: F32, +y: F32, +z: F32, +axis: U32, +along: Bool, +entry: F32, +depth: F32, top: Bool) -> Bool:
   ray_matches(entry, depth, top, partial_trace(level, a, x, y, z, axis))
@@ -192,7 +189,7 @@ def pixel(r: Array<U32> & U32) -> U32:
 
 def fog_ray_w(+fl: U32, +oy: F32, w: World.World) -> U32:
   World.W{ring, meta} = w
-  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 0, 1.5, oy, 64.5,
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 0, 0, 1.5, oy, 64.5,
     1.0, 0.0, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
 
 # a level ray through a pool of cells at height y, to a wall at that height
@@ -206,7 +203,7 @@ def fog_ray(fl: U32, wet_until: U32, wall: U32) -> U32:
 # It rises through the water surface before reaching either background.
 def emerged_ray_w(+fl: U32, +sun_y: F32, w: World.World) -> U32:
   World.W{ring, meta} = w
-  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 0, 1.5, 2.5, 64.5,
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 0, 0, 1.5, 2.5, 64.5,
     0.99875, 0.05, 0.0, Sky.gradient(True{}, 0.05, sun_y), fl, 0.48, sun_y, 0.36))
 
 def emerged_wall(fl: U32, sun_y: F32, wall: U32, w: World.World) -> U32:
@@ -229,7 +226,7 @@ def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
 def surface_ray_w(+fl: U32, +under: Bool, w: World.World) -> U32:
   World.W{ring, meta} = w
   World.Meta{m, ox, oz, q, +np, gone} = meta
-  pixel(Render.run_water(Util.on(fl, 2097152), ring, Render.with_partial(0, (np > 0 : U32)), 0, 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
+  pixel(Render.run_water(Util.on(fl, 2097152), ring, Render.with_partial(0, (np > 0 : U32)), 0, 0, 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
     0.0, (0.0 - 1.0 : F32), 0.0, Util.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36))
 
 def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
@@ -239,7 +236,7 @@ def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
 # a ray from the window's west edge, east and a little down, over a pool
 def far_surface_w(w: World.World, +fl: U32, +oy: F32, +dy: F32) -> U32:
   World.W{ring, meta} = w
-  pixel(Render.run_water(True{}, ring, 0, 0, 1.5, oy, 64.5,
+  pixel(Render.run_water(True{}, ring, 0, 0, 0, 1.5, oy, 64.5,
     0.9949874, dy, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
 
 def low_pool() -> World.World:
@@ -251,31 +248,31 @@ def main() -> IO(Unit):
     Lib.expect(F32.is_eq(Water.fresnel(True{}, 1.0), 0.02) && F32.is_eq(Water.fresnel(True{}, 0.0), 1.0)
       && (Water.fresnel(True{}, 0.5) > 0.142 : F32) && (Water.fresnel(True{}, 0.5) < 0.143 : F32)
       && F32.is_eq(Water.fresnel(False{}, 0.0), 0.02), "Fresnel grows toward grazing angles; off keeps normal reflectance")
-    Lib.expect(near(Water.opacity(True{}, 0.0), 0.12, 0.0001) && near(Water.opacity(True{}, 1.0), 0.5171, 0.001)
+    Lib.expect(Lib.near(Water.opacity(True{}, 0.0), 0.12, 0.0001) && Lib.near(Water.opacity(True{}, 1.0), 0.5171, 0.001)
       && (Water.opacity(True{}, 4.0) > 0.84 : F32) && (Water.opacity(True{}, 60.0) < 1.0 : F32)
-      && near(Water.opacity(False{}, 4.0), 0.54, 0.0001) && (Water.opacity(False{}, 4.0) < Water.opacity(True{}, 4.0) : F32), "water is dense seen from the air and clear for an eye under it")
+      && Lib.near(Water.opacity(False{}, 4.0), 0.54, 0.0001) && (Water.opacity(False{}, 4.0) < Water.opacity(True{}, 4.0) : F32), "water is dense seen from the air and clear for an eye under it")
     Lib.expect(U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 0.0), Water.colour(0.8))
       && U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 6.0), Water.deep(0.8))
       && U32.is_eq(Water.ink_at(Water.colour(0.8), 0.8, 20.0), Water.deep(0.8))
       && (Water.deep(0.8) < Water.colour(0.8) : U32) && (Water.deep((0.0 - 0.5 : F32)) < Water.colour((0.0 - 0.5 : F32)) : U32),
       "the water's colour darkens with the depth under the surface, by day and by night")
-    Lib.expect(near(Water.lit_path(3.0, (0.0 - 1.0 : F32)), 6.0, 0.0001) && near(Water.lit_path(3.0, 0.0), 3.0, 0.0001)
-      && near(Water.lit_path(3.0, 0.5), 3.0, 0.0001), "the bed's light went down before it came up the ray")
+    Lib.expect(Lib.near(Water.lit_path(3.0, (0.0 - 1.0 : F32)), 6.0, 0.0001) && Lib.near(Water.lit_path(3.0, 0.0), 3.0, 0.0001)
+      && Lib.near(Water.lit_path(3.0, 0.5), 3.0, 0.0001), "the bed's light went down before it came up the ray")
     Lib.expect((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) >= 0.5 : F32)
       && (Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) <= 2.1 : F32)
-      && Bool.not(near(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), Water.caustic(4000000, 61.1, 66.2, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), 0.001)),
+      && Bool.not(Lib.near(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), Water.caustic(4000000, 61.1, 66.2, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), 0.001)),
       "the caustic brightens and darkens the bed within bounds, and differs from point to point")
     Lib.expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 6.0, (0.0 - 1.0 : F32), 0.9, 1.0), 1.0)
       && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), (0.0 - 0.5 : F32), 1.0), 1.0)
       && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, 0.1, 0.9, 1.0), 1.0),
       "the caustic is gone six blocks down, at night, and looking along or up through the surface")
-    Lib.expect(near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
+    Lib.expect(Lib.near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
         Water.caustic(Water.frame_base((4000000 + 128 : U32), 700), 59.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0), 0.0001)
-      && near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
+      && Lib.near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
         Water.caustic(Water.frame_base((4000000 + 1 : U32), 700), 60.4, 65.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0), 0.0001),
       "a ring shift along either axis cannot drag the caustic")
     Lib.expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.0), 1.0)
-      && near((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.45) - 1.0 : F32),
+      && Lib.near((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.45) - 1.0 : F32),
         ((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9) - 1.0) / 2.0 : F32), 0.0001)
       && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9), Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 3.0))
       && F32.is_eq(Render.thickness(2.0, 1.5, (0.0 - 0.5 : F32)), 0.75) && F32.is_eq(Render.thickness(0.0, 0.2, (0.0 - 0.5 : F32)), 9.0),
@@ -327,8 +324,8 @@ def main() -> IO(Unit):
       && U32.is_eq(fog_ray(6291464, 128, 100), Water.ink_at(Water.colour(0.8), 0.8, 1.5))
       && (fog_ray(6291464, 128, 40) < Water.colour(0.8) : U32), "underwater wall and ray limit converge to the same fog colour, the water's at the eye's depth")
     Lib.expect(U32.is_ne(fog_ray(2097160, 128, 40), Water.ink_at(Water.colour(0.8), 0.8, 1.5)), "water fog has its own flag")
-    Lib.expect(F32.is_eq(Water.light(0.0), 1.0) && near(Water.light(3.0), 0.575, 0.0001) && near(Water.light(6.0), 0.15, 0.0001)
-      && near(Water.light(30.0), 0.15, 0.0001) && F32.is_eq(Water.drop(12.0), 0.0) && F32.is_eq(Water.drop(14.0), 0.0)
+    Lib.expect(F32.is_eq(Water.light(0.0), 1.0) && Lib.near(Water.light(3.0), 0.575, 0.0001) && Lib.near(Water.light(6.0), 0.15, 0.0001)
+      && Lib.near(Water.light(30.0), 0.15, 0.0001) && F32.is_eq(Water.drop(12.0), 0.0) && F32.is_eq(Water.drop(14.0), 0.0)
       && F32.is_eq(Water.drop(9.5), 2.5), "the light left under the surface: all of it at the level, a sixth six blocks down")
     Lib.expect(U32.is_eq(fog_ray_y(2151677960, 2, 128, 50), Util.rgb(100, 140, 180)), "water off keeps the air fog and the mist: a wall in the mist is the exact sky")
     Lib.expect(U32.is_eq(Water.fog(True{}, 123, 456, 456, 0.0, 0.0), 123)
