@@ -69,11 +69,14 @@ def keyed(window: Window, st: Stat, r: Player.Game & Bool, rest: Window -> Stat 
   (g, f) = r
   IO.bind(Maybe<Player.Game>, Unit, Save.tick(Nil{}, g), next(window, stat_flip(st, f), rest))
 
+# the window holds the mouse while it has the focus and lets it go when the
+# focus leaves; asked every frame, it takes the mouse back when it returns
 def after(shown: Window & Image & List<Event>, st: Stat, g: Player.Game, rest: Window -> Stat -> Player.Game -> IO(Unit)) -> IO(Unit):
   (window, image, evs) = shown
   do IO<Unit>:
     Unit <- IO.pure(Unit, Image.drop!(image))
-    keyed(window, st, Player.pressed(Player.feed(evs, g), 512), rest)
+    held : Window <- Window.grab(window, True{})
+    keyed(held, st, Player.pressed(Player.feed(evs, g), 512), rest)
 
 def show(window: Window, st: Stat, r: Player.Game & Image, rest: Window -> Stat -> Player.Game -> IO(Unit)) -> IO(Unit):
   (g, image) = r
@@ -113,6 +116,6 @@ def run(whs: U32 & (U32 & U32)) -> IO(Unit):
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    IO.print("WASD move | space jump | drag to look | click break | right click place | J/L break/place | 1-8 choose | P save | F frame time | Esc quit")
+    IO.print("WASD move | space jump | mouse look | click break | right click place | J/L break/place | 1-8 choose | P save | F frame time | Esc quit")
     xs : List<String> <- IO.args()
     run(size_of(xs))

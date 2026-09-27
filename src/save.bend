@@ -67,14 +67,14 @@ def text_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +sel: U32, clock:
    ++ " " ++ U32.show(enc(wrap(yaw))) ++ " " ++ U32.show(enc(pit)) ++ " " ++ U32.show(sel) ++ " " ++ U32.show(clock) ++ counts_text(bag)
    ++ col_lines(Map.to_list(&2, World.Col, m)))
 
-def text_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
+def text_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
              r: World.World & String) -> Player.Game & String:
   (w, s) = r
-  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, s)
+  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag}, s)
 
 def text(g: Player.Game) -> Player.Game & String:
-  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, res, +clock, +bag} = g
-  text_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, text_w(px, py, pz, yaw, pit, sel, clock, bag, w))
+  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, +sel, res, +clock, +bag} = g
+  text_fin(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, text_w(px, py, pz, yaw, pit, sel, clock, bag, w))
 
 def written(fr: File & Result<&1, &1, U32 & String, Unit>) -> IO(Unit):
   (f, r) = fr
@@ -142,7 +142,7 @@ def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Gam
       +cx = num(ox)
       +cz = num(oz)
       Player.G{World.load_world(World.W{[0 : U32^19n], World.Meta{cols_of(ls, Map.new(&2, World.Col)), cx, cz, Nil{}, 0, 0}}, cx, cz),
-               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, 0, 0, (num(sel) % 9 : U32), res, Day.phase(num(clock)), counts_of(9n, counts)}
+               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, (num(sel) % 9 : U32), res, Day.phase(num(clock)), counts_of(9n, counts)}
     case Con{tag, rest}:
       Player.start_at(res)
     case Nil{}:
@@ -211,9 +211,9 @@ def alive_go(act: Bool, +quit: Bool, path: String, g: Player.Game) -> IO(Maybe<P
       IO.pure(Maybe<Player.Game>, Some{g})
 
 def alive_at(path: String, g: Player.Game) -> IO(Maybe<Player.Game>):
-  Player.G{w, px, py, pz, yaw, pit, vy, held, +edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, +edge, sel, res, clock, bag} = g
   +quit = Util.on(edge, 4096)
-  alive_go(quit || Util.on(edge, 256), quit, path, Player.G{w, px, py, pz, yaw, pit, vy, held, 0, mx, my, sel, res, clock, bag})
+  alive_go(quit || Util.on(edge, 256), quit, path, Player.G{w, px, py, pz, yaw, pit, vy, held, 0, sel, res, clock, bag})
 
 def tick_to(path: String, evs: List<Event>, g: Player.Game) -> IO(Maybe<Player.Game>):
   alive_at(path, Player.step(Player.feed(evs, g)))

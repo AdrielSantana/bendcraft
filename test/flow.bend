@@ -258,11 +258,11 @@ def decode_ok(+ox: U32, +oz: U32, +lx: U32, +lz: U32) -> Bool:
 
 # the world of a game advanced by ms from a clock at zero
 def world_of(g: Player.Game) -> World.World:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   w
 
 def advanced(+ms: U32, w: World.World) -> World.World:
-  world_of(Player.advance(Player.G{w, 64.5, 30.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, Player.res512(), 0, Nil{}}, ms))
+  world_of(Player.advance(Player.G{w, 64.5, 30.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, Player.res512(), 0, Nil{}}, ms))
 
 def main() -> IO(Unit):
   do IO<Unit>:

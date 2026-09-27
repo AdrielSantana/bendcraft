@@ -41,7 +41,6 @@ def Laws.grass_under_the_trunk(): {==}
 def Laws.trees_reject_submerged_ground(): {==}
 def Laws.trees_accept_dry_grass(): {==}
 def Laws.trees_reject_snow_heights(): {==}
-def Laws.keys_off_the_mouse_bits(): {==}
 def Laws.unknown_key_is_no_bit(): {==}
 def Laws.stat_reads_back(): {==}
 def Laws.stat_stops_at_its_room(): {==}

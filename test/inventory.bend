@@ -19,7 +19,7 @@ def same(a: List<&2, Nat>, b: List<&2, Nat>) -> Bool:
     case Con{h, t} Con{k, u}: Nat.is_eq(h, k) && same(t, u)
 
 def bag(g: Player.Game) -> List<&2, Nat>:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, xs} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, xs} = g
   xs
 
 def empty_world() -> World.World:
@@ -29,7 +29,7 @@ def empty_world() -> World.World:
 # need not agree with either; a break must read the cell before clearing it.
 def fixture(xs: List<&2, Nat>, sel: U32) -> Player.Game:
   Player.G{World.edit(World.edit(empty_world(), 64, 66, 10, True{}, 3), 64, 67, 10, True{}, 6),
-    64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, sel, Player.res512(), 786432, xs}
+    64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 0, sel, Player.res512(), 786432, xs}
 
 def sand() -> List<&2, Nat>: [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n, 0n]
 
@@ -37,7 +37,7 @@ def sand() -> List<&2, Nat>: [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n, 0n]
 # `units` in the bucket, and the bucket chosen
 def wet(+a: U32, units: Nat) -> Player.Game:
   Player.G{World.pour(World.edit(World.edit(empty_world(), 64, 66, 10, True{}, 3), 64, 67, 10, True{}, 6), 64, 10, 65, a),
-    64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 8, Player.res512(), 786432, List.set(&2, Nat, Inventory.empty(), 8n, units)}
+    64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 0, 8, Player.res512(), 786432, List.set(&2, Nat, Inventory.empty(), 8n, units)}
 
 def pail_of(g: Player.Game) -> Nat:
   Inventory.count(bag(g), 8n)
@@ -47,11 +47,11 @@ def snd(r: World.World & U32) -> U32:
   v
 
 def amount(g: Player.Game, +x: U32, +y: U32, +z: U32) -> U32:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, xs} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, xs} = g
   snd(World.amount_at(w, x, y, z))
 
 def selected(g: Player.Game) -> U32:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, xs} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, xs} = g
   sel
 
 def press(code: U32, g: Player.Game) -> Player.Game:
@@ -66,16 +66,16 @@ def cell_solid(+idx: U32, ok: Bool, solid: Bool, kind: U32, r: World.World & Boo
   cell_type(ok && Bool.not(Bool.xor(solid, actual)), kind, World.voxel(w, Player.ix_x(idx), Player.ix_y(idx), Player.ix_z(idx)))
 
 def cell(g: Player.Game, xs: List<&2, Nat>, +idx: U32, solid: Bool, kind: U32) -> Bool:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, actual} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, actual} = g
   cell_solid(idx, same(actual, xs), solid, kind,
     World.wsolid(w, Util.u2f(Player.ix_x(idx)), Util.u2f(Player.ix_y(idx)), Util.u2f(Player.ix_z(idx))))
 
 def edited(r: World.World & List<&2, Nat>) -> Player.Game:
   (w, xs) = r
-  Player.G{w, 64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, Player.res512(), 786432, xs}
+  Player.G{w, 64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, Player.res512(), 786432, xs}
 
 def world_of(g: Player.Game) -> World.World & List<&2, Nat>:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, xs} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, xs} = g
   (w, xs)
 
 def both() -> Player.Game:
@@ -141,7 +141,7 @@ def main() -> IO(Unit):
       world_of(fixture(sand(), 3)))), sand(), Player.pk_u(64, 10, 66), True{}, 3), "occupied cell does not spend")
     Lib.expect(cell(edited(Player.edit_world(True{}, 524288, True{}, 3,
       world_of(fixture(sand(), 3)))), sand(), Player.pk_u(64, 10, 65), False{}, 0), "out of bounds placement does not spend")
-    Lib.expect(cell(Player.step_edit(64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 2048, 0, 0, 3, Player.res512(), 786432, sand(),
+    Lib.expect(cell(Player.step_edit(64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 2048, 3, Player.res512(), 786432, sand(),
       empty_world(), ((1 + Player.pk_u(64, 10, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
       sand(), Player.pk_u(64, 10, 64), False{}, 0), "placement on player does not spend")
     Lib.expect(cell(both(), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "same tick break can fund one placement")
@@ -152,10 +152,10 @@ def main() -> IO(Unit):
     Lib.expect(types(8n), "each block type is collected into its own slot")
     Lib.expect(cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), True{}, 3,
       world_of(press(106, fixture(Inventory.empty(), 0))))), Inventory.empty(), Player.pk_u(64, 10, 66), True{}, 3), "break then replace restores cell type and count")
-    Lib.expect(cell(Player.step_edit(64.5, 10.9, 64.5, 0.0, 0.0, 0.0, 0, 2048, 0, 0, 3, Player.res512(), 786432, sand(),
+    Lib.expect(cell(Player.step_edit(64.5, 10.9, 64.5, 0.0, 0.0, 0.0, 0, 2048, 3, Player.res512(), 786432, sand(),
       empty_world(), ((1 + Player.pk_u(64, 10, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
       sand(), Player.pk_u(64, 10, 64), False{}, 0), "placement between head and feet does not spend")
-    Lib.expect(cell(Player.step_edit(64.5, 10.59, 64.5, 0.0, 0.0, 0.0, 0, 2048, 0, 0, 3, Player.res512(), 786432, sand(),
+    Lib.expect(cell(Player.step_edit(64.5, 10.59, 64.5, 0.0, 0.0, 0.0, 0, 2048, 3, Player.res512(), 786432, sand(),
       empty_world(), ((1 + Player.pk_u(64, 8, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
       sand(), Player.pk_u(64, 8, 64), False{}, 0), "placement at the bottom of the feet does not spend")
     Lib.expect(packing(102n), "all display counts read back in every slot")

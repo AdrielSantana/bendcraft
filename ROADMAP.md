@@ -762,9 +762,10 @@ once both are released it goes back to the stock `bend`.
 | [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | `make full` sizes the window to the screen |
 
 The grabbed mouse (#921) came with 2.0.32, as `Window.grab` and
-`Look{dx, dy}`. The page target (PR #866) was closed and the WGSL lane
-(#920) closed as not planned: the page keeps its own compiler
-(`BEND_WEB`), which gets the grabbed mouse when it moves to 2.0.32.
+`Look{dx, dy}`, and the game looks with it. The page target (PR #866) was
+closed and the WGSL lane (#920) closed as not planned: the page keeps its
+own compiler (`BEND_WEB`), which knows neither, so `make page` waits for
+that fork to move to 2.0.32; the published page still looks by dragging.
 
 To see where things stand:
 

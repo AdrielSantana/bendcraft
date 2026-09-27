@@ -100,26 +100,26 @@ def cast(+cam: Render.Cam, +ring: Array<U32>, +rw: U32, +rh: U32) -> Array<U32> 
   fork!((d + d : Nat), False{}, (h < rh : U32), cam, ring, rw, rh, h, 0, 0)
 
 def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
-             held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, meta: World.Meta,
+             held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, meta: World.Meta,
              r: Array<U32> & Image) -> Player.Game & Image:
   (ring, img) = r
-  (Player.G{World.W{ring, meta}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, img)
+  (Player.G{World.W{ring, meta}, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag}, img)
 
 def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
-           held: U32, edge: U32, mx: U32, my: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, stat: U32, more: U32, w: World.World) -> Player.Game & Image:
+           held: U32, edge: U32, +sel: U32, +res: U32, +clock: U32, +bag: List<&2, Nat>, +fl: U32, stat: U32, more: U32, w: World.World) -> Player.Game & Image:
   World.W{ring, +meta} = w
   World.Meta{m, ox, oz, q, +np, gone} = meta
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
-  view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, meta,
+  view_fin(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, meta,
            cast(Render.camera(px, py, pz, yaw, pit, World.base(meta), World.far_cam(meta), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), Render.with_pail(stat, Inventory.hud_pail(bag)), fl, rw, rh, clock), ring, rw, rh))
 
 # the frame with the render's flags (Render.Cam), all looks on for the game;
 # `more` holds the looks the flags word has no room for (Render.looks_base),
 # `stat` the readout's numbers (Render.stat_of), zero for none
 def view_more(g: Player.Game, +fl: U32, stat: U32, more: U32) -> Player.Game & Image:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  view_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, fl, stat, more, w)
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  view_w(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, fl, stat, more, w)
 
 def view_with(g: Player.Game, fl: U32) -> Player.Game & Image:
   view_more(g, fl, 0, Render.looks_base())

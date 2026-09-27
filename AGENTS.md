@@ -84,8 +84,8 @@ pure. That is why the whole game runs in tests with no window. A loop is
 a recursion with fuel (a `Nat`), and a tail call compiles to a real loop.
 - **No new effects to get around the language.** `bend guide effects`
 shows how a C or JS effect is written; here that is a last resort, never
-a way to draw, and the user decides. What the platform lacks (grabbing
-the mouse, true full screen) is reported upstream, not patched around.
+a way to draw, and the user decides. What the platform lacks (true full
+screen) is reported upstream, not patched around.
 - **Rules are proved.** A rule of the game is a law in `LAWS.bend`, closed
 in `PROOF.bend`. That is the other half of why this is written in Bend.
 
@@ -105,7 +105,7 @@ make profile    # what each look costs, at four sizes
 - **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `c777295b0b490b273e867be0082713c2` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
-digest. `bend test/physics.bend | md5` is `26eafd3e7eb6...`; same rule.
+digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
 - **The frame's time.** Compare two builds by alternated runs and their
 fastest frames, swapping the order every round (the build that runs
 second reads slower on a busy machine), never by one run: the small sizes read twice as slow on a
@@ -232,7 +232,7 @@ counts load with an empty bag.
 18..24 the bucket's full cells (`Render.with_pail`, the hotbar's ninth
 count).
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
-512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 the mouse.
+512 F, 1024 2048 J L, 4096 Esc, 8192 space.
 - The world: a ring of 128x128 columns in the low 2^18 words of one
 `Array<U32>` of 2^19, sixteen words a column (solid mask, four type words, water mask, eight
 words of water amounts 0..255 in bytes, the flow's marks at slot 14,

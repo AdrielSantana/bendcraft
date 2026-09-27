@@ -58,7 +58,7 @@ def queued(w: World.World) -> World.World & Nat:
   (World.W{ring, meta}, n)
 
 def world(g: Player.Game) -> World.World:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   w
 
 law run:

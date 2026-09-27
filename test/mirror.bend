@@ -13,7 +13,7 @@ def near(a: F32, b: F32, epsilon: F32) -> Bool:
 
 # one brick high over the start window, where no terrain reaches
 def walled(g: Player.Game) -> World.World:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   World.edit(w, 60, 70, 30, True{}, 6)
 
 # a miss keeps walking, so its distance says nothing: only a hit's is held

@@ -9,16 +9,16 @@ import ../src/player.bend as Player
 # the state printed after each. `bend test/physics.bend` prints the lines;
 # compare them with the ones in the README.
 
-def show_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +vy: F32, +held: U32, +edge: U32, +mx: U32, +my: U32, +sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
+def show_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +vy: F32, +held: U32, +edge: U32, +sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
            w: World.World) -> Player.Game & String:
   World.W{ring, +meta} = w
   World.Meta{m, +ox, +oz, q, np, gone} = meta
-  (Player.G{World.W{ring, meta}, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag},
+  (Player.G{World.W{ring, meta}, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag},
    "p=(" ++ F32.show(px) ++ ", " ++ F32.show(py) ++ ", " ++ F32.show(pz) ++ ") yaw=" ++ F32.show(yaw) ++ " pit=" ++ F32.show(pit) ++ " vy=" ++ F32.show(vy) ++ " held=" ++ U32.show(held) ++ " edge=" ++ U32.show(edge) ++ " sel=" ++ U32.show(sel) ++ " corner=" ++ U32.show(ox) ++ "," ++ U32.show(oz))
 
 def show(g: Player.Game) -> Player.Game & String:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  show_w(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, w)
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  show_w(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, w)
 
 def wcol_fin(meta: World.Meta, r: Array<U32> & U32) -> World.World & U32:
   (ring, c) = r
@@ -28,32 +28,32 @@ def wcol(w: World.World, +lx: U32, +lz: U32) -> World.World & U32:
   World.W{ring, +meta} = w
   wcol_fin(meta, Array.get(U32, ring, World.col_at(World.base(meta), lx, lz)))
 
-def target_typ(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
+def target_typ(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
                +prev: U32, +got: U32, +h: U32, +c: U32, r: World.World & U32) -> Player.Game & String:
   (w, t) = r
-  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag},
+  (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag},
    "hit=" ++ U32.show(got) ++ " prev=" ++ U32.show(prev) ++ " block=(" ++ U32.show(Player.ix_x(h)) ++ "," ++ U32.show(Player.ix_y(h)) ++ "," ++ U32.show(Player.ix_z(h)) ++ ") column=" ++ U32.show(c) ++ " type=" ++ U32.show(t))
 
-def target_col(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
+def target_col(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
                +prev: U32, +got: U32, +h: U32, r: World.World & U32) -> Player.Game & String:
   (w, c) = r
-  target_typ(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, prev, got, h, c,
+  target_typ(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, prev, got, h, c,
              World.voxel(w, Player.ix_x(h), Player.ix_y(h), Player.ix_z(h)))
 
-def target_ph(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
+def target_ph(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
               w: World.World, ph: U32 & U32) -> Player.Game & String:
   (+prev, +got) = ph
   +h = (got - 1 : U32)
-  target_col(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, prev, got, h, wcol(w, Player.ix_x(h), Player.ix_z(h)))
+  target_col(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, prev, got, h, wcol(w, Player.ix_x(h), Player.ix_z(h)))
 
-def target_hit(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, mx: U32, my: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
+def target_hit(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
                r: World.World & (U32 & U32)) -> Player.Game & String:
   (w, ph) = r
-  target_ph(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, w, ph)
+  target_ph(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, w, ph)
 
 def target(g: Player.Game) -> Player.Game & String:
-  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  target_hit(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag,
+  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, sel, res, clock, bag} = g
+  target_hit(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag,
              Player.waim(w, px, py, pz, Render.look_x(yaw, pit), Render.look_y(pit), Render.look_z(yaw, pit)))
 
 # an edit survives its column leaving the ring and coming back: the bit
@@ -67,21 +67,21 @@ def persist_fin(r: World.World & U32) -> String:
   persist_typ(c, World.voxel(w, 64, 20, 64))
 
 def persist(g: Player.Game) -> String:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   persist_fin(wcol(World.follow(130n, False{}, False{}, World.follow(130n, False{}, True{}, World.edit(w, 64, 64, 20, True{}, 6))), 64, 64))
 
 # Keep the historical physics scenario's one sand placement funded. The
 # inventory tests exercise the real empty start and rejected placements.
 def supplied(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n, 0n]}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, [0n, 0n, 0n, 1n, 0n, 0n, 0n, 0n, 0n]}
 
 # the player set down in the lake west of the spawn (local 45.5, 66.5 at
 # the start's corner: full water at heights 8 to 11, the surface at 12),
 # the eye half a block over the surface, facing +z
 def dunk(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{w, 45.5, 12.5, 66.5, 0.0, 0.0, 0.0, held, edge, mx, my, sel, res, clock, bag}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, 45.5, 12.5, 66.5, 0.0, 0.0, 0.0, held, edge, sel, res, clock, bag}
 
 def main() -> IO(Unit):
   do IO<Unit>:
@@ -91,7 +91,7 @@ def main() -> IO(Unit):
     g2 : Player.Game <- Lib.say("jump 1     ", show(Player.step(Player.feed(Lib.one(Key{32, True{}}), g1))))
     g3 : Player.Game <- Lib.say("jump 17    ", show(Lib.ticks(16n, Player.feed(Lib.one(Key{32, False{}}), g2))))
     g4 : Player.Game <- Lib.say("landed     ", show(Lib.ticks(60n, g3)))
-    g5 : Player.Game <- Lib.say("drag       ", show(Player.step(Player.feed(Con{Mouse{256, 256, 0, True{}}, Con{Move{356, 256}, Con{Move{356, 306}, Lib.one(Mouse{356, 306, 0, False{}})}}}, g4))))
+    g5 : Player.Game <- Lib.say("look       ", show(Player.step(Player.feed(Con{Move{356, 256}, Con{Look{100.0, 0.0}, Lib.one(Look{0.0, 50.0})}}, g4))))
     g6 : Player.Game <- Lib.say("aim        ", target(g5))
     g7 : Player.Game <- Lib.say("click      ", show(Player.step(Player.feed(Con{Mouse{256, 256, 0, True{}}, Lib.one(Mouse{256, 256, 0, False{}})}, g6))))
     g8 : Player.Game <- Lib.say("aim        ", target(g7))

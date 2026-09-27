@@ -164,23 +164,23 @@ def profile_size(name: String, +rw: U32, +rh: U32) -> IO(Unit):
 # Stars and the moon are skipped during the day. Measure them in their
 # active state too, looking upward so the moon is in the frame.
 def night(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{w, px, py, pz, 0.9272952, 1.1, vy, held, edge, mx, my, sel, res, 786432, bag}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, 0.9272952, 1.1, vy, held, edge, sel, res, 786432, bag}
 
 # This view is close enough to a lake to measure the active water look.
 def lake(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{w, 51.5, 16.0, 66.5, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32), vy, held, edge, mx, my, sel, res, clock, bag}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, 51.5, 16.0, 66.5, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32), vy, held, edge, sel, res, clock, bag}
 
 def submerged(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{w, 45.5, 11.5, 66.5, (0.0 - 1.5707963 : F32), 0.1, vy, held, edge, mx, my, sel, res, clock, bag}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, 45.5, 11.5, 66.5, (0.0 - 1.5707963 : F32), 0.1, vy, held, edge, sel, res, clock, bag}
 
 # The ordinary night view points at the sky. This one activates water's
 # reflected sky and moon as well as its daytime lake profile.
 def night_lake(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{w, 36.5, 14.0, 60.5, 0.9272952, (0.0 - 0.215 : F32), vy, held, edge, mx, my, sel, res, 560000, bag}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, 36.5, 14.0, 60.5, 0.9272952, (0.0 - 0.215 : F32), vy, held, edge, sel, res, 560000, bag}
 
 # The lake again with a stair of partial cells poured into it (the water
 # view's levels): the frame then walks every ray with the plane clip.
@@ -191,8 +191,8 @@ def stair(n: Nat, w: World.World, +i: U32) -> World.World:
       stair(k, World.pour(w, (38 + i * 2 : U32), 11, 66, ((i + 1) * 32 : U32)), (i + 1 : U32))
 
 def partial_lake(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{stair(7n, w, 0), 51.5, 16.0, 66.5, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32), vy, held, edge, mx, my, sel, res, clock, bag}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{stair(7n, w, 0), 51.5, 16.0, 66.5, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32), vy, held, edge, sel, res, clock, bag}
 
 def main() -> IO(Unit):
   do IO<Unit>:

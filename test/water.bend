@@ -95,7 +95,7 @@ def same_levels(a: World.Levels, b: World.Levels) -> Bool:
     && U32.is_eq(a4, b4) && U32.is_eq(a5, b5) && U32.is_eq(a6, b6) && U32.is_eq(a7, b7)
 
 def saved_col(g: Player.Game) -> World.Col:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   World.W{ring, meta} = w
   col(World.get_col(ring, World.col_at(0, 64, 64)))
 
@@ -104,7 +104,7 @@ def restored(r: Player.Game & String) -> World.Col:
   saved_col(Save.parse(String.lines(text), Player.res512()))
 
 def fixture(w: World.World) -> Player.Game:
-  Player.G{w, 64.5, 14.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, Player.res512(), 154747, Inventory.empty()}
+  Player.G{w, 64.5, 14.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, Player.res512(), 154747, Inventory.empty()}
 
 def placed(r: World.World & List<&2, Nat>) -> Bool:
   (w, bag) = r

@@ -14,11 +14,11 @@ def phase_camera(cam: Render.Cam, t: U32) -> Render.Cam:
   Render.Cam{px, py, pz, yaw, pit, Water.with_looks(Water.frame_base(base, t), base), far, sel, items, stat, fl, rw, rh, lx, ly, lz}
 
 def phase_view(g: Player.Game, t: U32) -> Player.Game & Image:
-  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, mx, my, +sel, +res, +clock, +bag} = g
+  Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, +sel, +res, +clock, +bag} = g
   World.W{ring, +meta} = w
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
-  Frame.view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, meta,
+  Frame.view_fin(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, meta,
     Frame.cast(phase_camera(Render.camera(px, py, pz, yaw, pit, World.base(meta), World.far_cam(meta), Render.looks_base(),
       Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), 0, Render.looks(), rw, rh, clock), t), ring, rw, rh))
 
@@ -35,8 +35,8 @@ def motion(n: Nat, +i: U32, g: Player.Game) -> IO(Unit):
 # a diver at the lake's deepest bed (local 36, 66: terrain 7, water to
 # 11), looking east along it, where the bed climbs to the bank
 def diver(g: Player.Game) -> Player.Game:
-  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-  Player.G{w, 36.5, 8.3, 66.5, 1.5707963, (0.0 - 0.25 : F32), vy, held, edge, mx, my, sel, res, 300000, bag}
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, 36.5, 8.3, 66.5, 1.5707963, (0.0 - 0.25 : F32), vy, held, edge, sel, res, 300000, bag}
 
 # a stair of amounts 32 to 224 (an eighth a step) in the lake's top
 # cells (y 11) across the lake view's middle: the surface lowered to
@@ -45,8 +45,8 @@ def stair(n: Nat, g: Player.Game, +i: U32) -> Player.Game:
   match n:
     case 0n: g
     case 1n+k:
-      Player.G{w, px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag} = g
-      stair(k, Player.G{World.pour(w, (38 + i * 2 : U32), 11, 66, ((i + 1) * 32 : U32)), px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag}, (i + 1 : U32))
+      Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+      stair(k, Player.G{World.pour(w, (38 + i * 2 : U32), 11, 66, ((i + 1) * 32 : U32)), px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag}, (i + 1 : U32))
 
 def main() -> IO(Unit):
   do IO<Unit>:
