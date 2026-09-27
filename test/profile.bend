@@ -60,63 +60,45 @@ def frames(n, fl, more, lv, acc, ssum, g):
         t1 : Nat <- IO.now()
         frames_fin(m, fl, more, lv, acc, ssum, t0, t1, r)
 
-# the variants, in order: a warm-up, all on, each look off, the rays alone,
+# a render of the view: its line's name, what the line says (0 the ms of
+# one frame, 1 the ms a frame of five, 2 the hits, 3 the steps), and the
+# flags and the base's looks it renders with
+type Run is Type:
+  Run{name: String, kind: U32, fl: U32, more: U32}
+
+# a look turned off: the flags' bits and the base's it clears
+def off(name: String, +fl: U32, +more: U32) -> Run:
+  Run{name, 1, (Render.looks() .&. U32.not(fl) : U32), (Render.looks_base() .&. U32.not(more) : U32)}
+
+# the renders, in order: a warm-up, all on, each look off, the rays alone,
 # the hits, the steps. HUD off includes the inventory labels under flag 16.
-def off_bit(+i: U32) -> U32:
-  Bool.pick(U32, U32.is_eq(i, 2), 1,
-    Bool.pick(U32, U32.is_eq(i, 3), 2,
-    Bool.pick(U32, U32.is_eq(i, 4), 4,
-    Bool.pick(U32, U32.is_eq(i, 5), 8,
-    Bool.pick(U32, U32.is_eq(i, 6), 16,
-    Bool.pick(U32, U32.is_eq(i, 7), 33554432,
-    Bool.pick(U32, U32.is_eq(i, 8), 67108864,
-    Bool.pick(U32, U32.is_eq(i, 9), 134217728,
-    Bool.pick(U32, U32.is_eq(i, 10), 268435456,
-    Bool.pick(U32, U32.is_eq(i, 11), 536870912,
-    Bool.pick(U32, U32.is_eq(i, 12), 1073741824,
-    Bool.pick(U32, U32.is_eq(i, 13), 2147483648,
-    Bool.pick(U32, U32.is_eq(i, 14), 2097152,
-    Bool.pick(U32, U32.is_eq(i, 15), 4194304,
-    Bool.pick(U32, U32.is_eq(i, 16), 8388608,
-    Bool.pick(U32, U32.is_eq(i, 17), 16777216,
-    Bool.pick(U32, U32.is_eq(i, 18), 1048576, Bool.pick(U32, U32.is_eq(i, 19), 128, 256))))))))))))))))))
-
-def flags_of(+i: U32) -> U32:
-  Bool.pick(U32, (i < 2 : U32), Render.looks(),
-    Bool.pick(U32, (i < 21 : U32), (Render.looks() .&. U32.not(off_bit(i)) : U32),
-    Bool.pick(U32, (i < 23 : U32), Render.looks(),
-    Bool.pick(U32, U32.is_eq(i, 23), 0, Bool.pick(U32, U32.is_eq(i, 24), 64, 32)))))
-
-# the looks that ride in the camera's base: variant 21 turns the world in
-# the water's mirror off, 22 the caustic on its bed
-def more_of(+i: U32) -> U32:
-  Bool.pick(U32, U32.is_eq(i, 21), (Render.looks_base() .&. U32.not(134217728) : U32),
-    Bool.pick(U32, U32.is_eq(i, 22), (Render.looks_base() .&. U32.not(268435456) : U32), Render.looks_base()))
-
-def label_of(+i: U32) -> String:
-  Bool.pick(String, U32.is_eq(i, 0), "warm-up, the GPU program loads",
-    Bool.pick(String, U32.is_eq(i, 1), "all on           ",
-    Bool.pick(String, U32.is_eq(i, 2), "shadow off       ",
-    Bool.pick(String, U32.is_eq(i, 3), "occlusion off    ",
-    Bool.pick(String, U32.is_eq(i, 4), "texture off      ",
-    Bool.pick(String, U32.is_eq(i, 5), "distance fog off ",
-    Bool.pick(String, U32.is_eq(i, 6), "HUD off          ",
-    Bool.pick(String, U32.is_eq(i, 7), "day cycle off    ",
-    Bool.pick(String, U32.is_eq(i, 8), "sky gradient off ",
-    Bool.pick(String, U32.is_eq(i, 9), "sun disc off     ",
-    Bool.pick(String, U32.is_eq(i, 10), "horizon glow off ",
-    Bool.pick(String, U32.is_eq(i, 11), "stars off        ",
-    Bool.pick(String, U32.is_eq(i, 12), "moon off         ",
-    Bool.pick(String, U32.is_eq(i, 13), "height fog off   ",
-    Bool.pick(String, U32.is_eq(i, 14), "water off        ",
-    Bool.pick(String, U32.is_eq(i, 15), "water fog off    ",
-    Bool.pick(String, U32.is_eq(i, 16), "Fresnel off      ",
-    Bool.pick(String, U32.is_eq(i, 17), "sky reflection off",
-    Bool.pick(String, U32.is_eq(i, 18), "ripples off      ",
-    Bool.pick(String, U32.is_eq(i, 19), "clouds off       ",
-    Bool.pick(String, U32.is_eq(i, 20), "cloud shadows off",
-    Bool.pick(String, U32.is_eq(i, 21), "world mirror off ",
-    Bool.pick(String, U32.is_eq(i, 22), "caustic off      ", "rays alone       ")))))))))))))))))))))))
+def plan() -> List<Run>:
+  [Run{"warm-up, the GPU program loads", 0, Render.looks(), Render.looks_base()},
+   off("all on           ", 0, 0),
+   off("shadow off       ", 1, 0),
+   off("occlusion off    ", 2, 0),
+   off("texture off      ", 4, 0),
+   off("distance fog off ", 8, 0),
+   off("HUD off          ", 16, 0),
+   off("day cycle off    ", 33554432, 0),
+   off("sky gradient off ", 67108864, 0),
+   off("sun disc off     ", 134217728, 0),
+   off("horizon glow off ", 268435456, 0),
+   off("stars off        ", 536870912, 0),
+   off("moon off         ", 1073741824, 0),
+   off("height fog off   ", 2147483648, 0),
+   off("water off        ", 2097152, 0),
+   off("water fog off    ", 4194304, 0),
+   off("Fresnel off      ", 8388608, 0),
+   off("sky reflection off", 16777216, 0),
+   off("ripples off      ", 1048576, 0),
+   off("clouds off       ", 128, 0),
+   off("cloud shadows off", 256, 0),
+   off("world mirror off ", 0, 134217728),
+   off("caustic off      ", 0, 268435456),
+   Run{"rays alone       ", 1, 0, Render.looks_base()},
+   Run{"hits             ", 2, 64, Render.looks_base()},
+   Run{"steps           ", 3, 32, Render.looks_base()}]
 
 def dec(+t: U32) -> String:
   U32.show((t / 10 : U32)) ++ "." ++ U32.show((t % 10 : U32))
@@ -126,43 +108,47 @@ def per_frame(+ms5: Nat) -> String:
   +t = Nat.mul(ms5, 2n)
   Nat.show(Nat.div(t, 10n)) ++ "." ++ Nat.show(Nat.mod(t, 10n))
 
-def line(+i: U32, +ms5: Nat, +sum: U32, +px: U32) -> String:
-  Bool.pick(String, (i < 1 : U32), "  " ++ label_of(i) ++ " " ++ Nat.show(ms5) ++ " ms, one frame",
-    Bool.pick(String, U32.is_eq(i, 24), "  hits             " ++ U32.show((sum * 100 / px : U32)) ++ " % of the rays reach a block",
-      Bool.pick(String, U32.is_eq(i, 25), "  steps           " ++ dec((sum * 10 / px : U32)) ++ " a ray to its hit, of the 60 it walks (a sky ray's 60 count)",
-        "  " ++ label_of(i) ++ " " ++ per_frame(ms5) ++ " ms a frame")))
+def said(+kind: U32, +ms5: Nat, +sum: U32, +px: U32) -> String:
+  Bool.pick(String, U32.is_eq(kind, 0), " " ++ Nat.show(ms5) ++ " ms, one frame",
+    Bool.pick(String, U32.is_eq(kind, 2), U32.show((sum * 100 / px : U32)) ++ " % of the rays reach a block",
+      Bool.pick(String, U32.is_eq(kind, 3), dec((sum * 10 / px : U32)) ++ " a ray to its hit, of the 60 it walks (a sky ray's 60 count)",
+        " " ++ per_frame(ms5) ++ " ms a frame")))
 
 law runs:
-  for  n: Nat
-  for  +i: U32
+  for  rs: List<Run>
   for  +lv: Nat
   for  +px: U32
   for  g: Player.Game
   IO(Unit)
 
 @unsafe
-def runs_fin(n: Nat, +i: U32, +lv: Nat, +px: U32, r: Player.Game & (Nat & U32)) -> IO(Unit):
+def runs_fin(rest: List<Run>, name: String, +kind: U32, +lv: Nat, +px: U32, r: Player.Game & (Nat & U32)) -> IO(Unit):
   (g, ms) = r
   (ms5, sum) = ms
   do IO<Unit>:
-    IO.print(line(i, ms5, sum, px))
-    runs(n, (i + 1 : U32), lv, px, g)
+    IO.print("  " ++ name ++ said(kind, ms5, sum, px))
+    runs(rest, lv, px, g)
 
 @unsafe
-def runs(n, i, lv, px, g):
-  match n:
-    case 0n:
+def run(r: Run, rest: List<Run>, +lv: Nat, +px: U32, g: Player.Game) -> IO(Unit):
+  Run{name, +kind, fl, more} = r
+  do IO<Unit>:
+    done : Player.Game & (Nat & U32) <- frames(Bool.pick(Nat, U32.is_eq(kind, 0), 1n, 5n), fl, more, lv, 0n, 0, g)
+    runs_fin(rest, name, kind, lv, px, done)
+
+@unsafe
+def runs(rs, lv, px, g):
+  match rs:
+    case Nil{}:
       IO.pure(Unit, Unit{})
-    case 1n+m:
-      do IO<Unit>:
-        r : Player.Game & (Nat & U32) <- frames(Bool.pick(Nat, U32.is_eq(i, 0), 1n, 5n), flags_of(i), more_of(i), lv, 0n, 0, g)
-        runs_fin(m, i, lv, px, r)
+    case Con{r, rest}:
+      run(r, rest, lv, px, g)
 
 # the image's levels: the fork's depth and the tile's two
 def profile_view(name: String, +rw: U32, +rh: U32, g: Player.Game) -> IO(Unit):
   do IO<Unit>:
     IO.print(name)
-    runs(26n, 0, (Frame.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), g)
+    runs(plan(), (Frame.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), g)
 
 def profile_size(name: String, +rw: U32, +rh: U32) -> IO(Unit):
   profile_view(name, rw, rh, Player.start_at(Player.res_of(rw, rh)))
