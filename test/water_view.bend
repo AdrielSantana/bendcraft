@@ -1,5 +1,6 @@
 import Base
 import ../src/player.bend as Player
+import ../src/frame.bend as Frame
 import ../src/render.bend as Render
 import ../src/world.bend as World
 import ../src/water.bend as Water
@@ -17,8 +18,8 @@ def phase_view(g: Player.Game, t: U32) -> Player.Game & Image:
   World.W{ring, +meta} = w
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
-  Player.view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, meta,
-    Render.frame(phase_camera(Render.camera(px, py, pz, yaw, pit, World.base(meta), World.far_cam(meta), Render.looks_base(),
+  Frame.view_fin(px, py, pz, yaw, pit, vy, held, edge, mx, my, sel, res, clock, bag, meta,
+    Frame.cast(phase_camera(Render.camera(px, py, pz, yaw, pit, World.base(meta), World.far_cam(meta), Render.looks_base(),
       Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), 0, Render.looks(), rw, rh, clock), t), ring, rw, rh))
 
 def motion(n: Nat, +i: U32, g: Player.Game) -> IO(Unit):
@@ -50,19 +51,19 @@ def stair(n: Nat, g: Player.Game, +i: U32) -> Player.Game:
 def main() -> IO(Unit):
   do IO<Unit>:
     g : Player.Game = Player.start_at(Player.res_of(512, 288))
-    a : Player.Game <- Export.save("build/water-default.tree", Player.view(g))
-    b : Player.Game <- Export.save("build/water-lake.tree", Player.view(Profile.lake(a)))
-    q0 : Player.Game <- Export.save("build/water-caustic.tree", Player.view(Export.aim(Profile.lake(b), 300000, (0.0 - 1.5707963 : F32), (0.0 - 0.75 : F32))))
-    q1 : Player.Game <- Export.save("build/water-caustic-off.tree", Player.view_more(q0, Render.looks(), 0, (Render.looks_base() .&. U32.not(268435456) : U32)))
-    q2 : Player.Game <- Export.save("build/water-bed.tree", Player.view(diver(q1)))
-    q : Player.Game <- Export.save("build/water-levels.tree", Player.view(Export.aim(stair(7n, Profile.lake(q2), 0), 300000, (0.0 - 1.5707963 : F32), (0.0 - 0.5 : F32))))
-    r : Player.Game <- Export.save("build/water-reflection-off.tree", Player.view_with(q, (Render.looks() .&. U32.not(16777216) : U32)))
-    s : Player.Game <- Export.save("build/water-fresnel-off.tree", Player.view_with(r, (Render.looks() .&. U32.not(8388608) : U32)))
-    c : Player.Game <- Export.save("build/water-off.tree", Player.view_with(s, (Render.looks() .&. U32.not(2097152) : U32)))
-    d : Player.Game <- Export.save("build/water-dusk.tree", Player.view(Export.aim(c, 524288, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32))))
-    e : Player.Game <- Export.save("build/water-under.tree", Player.view(Profile.submerged(Export.aim(d, 154747, 0.0, 0.0))))
-    f : Player.Game <- Export.save("build/water-under-off.tree", Player.view_with(e, (Render.looks() .&. U32.not(4194304) : U32)))
-    h : Player.Game <- Export.save("build/water-sunset-reflection.tree", Player.view(Export.aim(Profile.lake(f), 480000, 4.068888, (0.0 - 0.35 : F32))))
-    i : Player.Game <- Export.save("build/water-night-reflection.tree", Player.view(Profile.night_lake(h)))
-    j : Player.Game <- Export.save("build/water-night-ripples-off.tree", Player.view_with(i, (Render.looks() .&. U32.not(1048576) : U32)))
+    a : Player.Game <- Export.save("build/water-default.tree", Frame.view(g))
+    b : Player.Game <- Export.save("build/water-lake.tree", Frame.view(Profile.lake(a)))
+    q0 : Player.Game <- Export.save("build/water-caustic.tree", Frame.view(Export.aim(Profile.lake(b), 300000, (0.0 - 1.5707963 : F32), (0.0 - 0.75 : F32))))
+    q1 : Player.Game <- Export.save("build/water-caustic-off.tree", Frame.view_more(q0, Render.looks(), 0, (Render.looks_base() .&. U32.not(268435456) : U32)))
+    q2 : Player.Game <- Export.save("build/water-bed.tree", Frame.view(diver(q1)))
+    q : Player.Game <- Export.save("build/water-levels.tree", Frame.view(Export.aim(stair(7n, Profile.lake(q2), 0), 300000, (0.0 - 1.5707963 : F32), (0.0 - 0.5 : F32))))
+    r : Player.Game <- Export.save("build/water-reflection-off.tree", Frame.view_with(q, (Render.looks() .&. U32.not(16777216) : U32)))
+    s : Player.Game <- Export.save("build/water-fresnel-off.tree", Frame.view_with(r, (Render.looks() .&. U32.not(8388608) : U32)))
+    c : Player.Game <- Export.save("build/water-off.tree", Frame.view_with(s, (Render.looks() .&. U32.not(2097152) : U32)))
+    d : Player.Game <- Export.save("build/water-dusk.tree", Frame.view(Export.aim(c, 524288, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32))))
+    e : Player.Game <- Export.save("build/water-under.tree", Frame.view(Profile.submerged(Export.aim(d, 154747, 0.0, 0.0))))
+    f : Player.Game <- Export.save("build/water-under-off.tree", Frame.view_with(e, (Render.looks() .&. U32.not(4194304) : U32)))
+    h : Player.Game <- Export.save("build/water-sunset-reflection.tree", Frame.view(Export.aim(Profile.lake(f), 480000, 4.068888, (0.0 - 0.35 : F32))))
+    i : Player.Game <- Export.save("build/water-night-reflection.tree", Frame.view(Profile.night_lake(h)))
+    j : Player.Game <- Export.save("build/water-night-ripples-off.tree", Frame.view_with(i, (Render.looks() .&. U32.not(1048576) : U32)))
     motion(128n, 0, j)

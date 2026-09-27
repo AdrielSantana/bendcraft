@@ -1,6 +1,6 @@
 import Base
 import ../src/player.bend as Player
-import ../src/render.bend as Render
+import ../src/frame.bend as Frame
 import ../src/world.bend as World
 import ../src/flow.bend as Flow
 import ../src/util.bend as Util
@@ -72,10 +72,10 @@ def stair_side(g: Player.Game) -> Player.Game:
 def main() -> IO(Unit):
   do IO<Unit>:
     g : Player.Game = Player.start_at(Player.res_of(512, 288))
-    a : Player.Game <- Export.save("build/flow-dug.tree", Player.view(rim(dug(g))))
-    b : Player.Game <- Export.save("build/flow-filling.tree", Player.view(run(24n, a)))
-    c : Player.Game <- Export.save("build/flow-wading.tree", Player.view(wading(b)))
-    d : Player.Game <- Export.save("build/flow-settled.tree", Player.view(rim(run(400n, c))))
-    e : Player.Game <- Export.save("build/flow-settled-wading.tree", Player.view(wading(d)))
-    f : Player.Game <- Export.save("build/flow-stair-side.tree", Player.view(stair_side(Player.start_at(Player.res_of(512, 288)))))
+    a : Player.Game <- Export.save("build/flow-dug.tree", Frame.view(rim(dug(g))))
+    b : Player.Game <- Export.save("build/flow-filling.tree", Frame.view(run(24n, a)))
+    c : Player.Game <- Export.save("build/flow-wading.tree", Frame.view(wading(b)))
+    d : Player.Game <- Export.save("build/flow-settled.tree", Frame.view(rim(run(400n, c))))
+    e : Player.Game <- Export.save("build/flow-settled-wading.tree", Frame.view(wading(d)))
+    f : Player.Game <- Export.save("build/flow-stair-side.tree", Frame.view(stair_side(Player.start_at(Player.res_of(512, 288)))))
     IO.pure(Unit, Unit{})

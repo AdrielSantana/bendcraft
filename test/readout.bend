@@ -1,5 +1,6 @@
 import Base
 import ../src/player.bend as Player
+import ../src/frame.bend as Frame
 import ../src/render.bend as Render
 
 # The readout, windowless: a frame with "16.4 MS  60 FPS" asked for, and its
@@ -65,4 +66,4 @@ def packing(n: Nat, +fps: U32) -> IO(Unit):
 def main() -> IO(Unit):
   do IO<Unit>:
     packing(257n, 0)
-    shown(Player.view_stat(Player.start(), 164, 60))
+    shown(Frame.view_stat(Player.start(), 164, 60))

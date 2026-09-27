@@ -20,7 +20,18 @@ placing spends one of the selected type. The hotbar shows each count
 
 ## Build and run
 
-Bend 2.0.23 or later (`bend update`). On a Mac with Metal:
+Bend 2.0.32 with two fixes that are not released yet,
+[bendlang/bend#1132](https://github.com/bendlang/bend/pull/1132) (the lanes
+after a grow) and [#1140](https://github.com/bendlang/bend/pull/1140) (a
+shared array's read): a frame takes 2.5 times less than on 2.0.25, and
+stock 2.0.32 is slower than both. The Makefile runs it with `bun` from a
+checkout beside this one; `make BEND=bend` builds with the installed Bend.
+
+```sh
+git clone -b bendcraft https://github.com/AdrielSantana/bend ../bend
+```
+
+On a Mac with Metal:
 
 ```sh
 make            # bend main.bend -o build/bendcraft
@@ -36,7 +47,7 @@ left out). The window's shader walks the image quadtree from the window's
 size and stops at the first pixel it meets, so a coarser render scales up
 by itself, nearest neighbour, which suits the pixel art. `make full` asks
 the screen for its visible size with a line of Swift and takes the title
-bar off, at scale 2; `make full SCALE=1` is a ray for every pixel, 16 ms a
+bar off, at scale 2; `make full SCALE=1` is a ray for every pixel, 20 ms a
 frame on a 14" MacBook. The costs are in the table below, and `make profile`
 says what each part of a frame costs.
 
@@ -169,7 +180,7 @@ the step in the band between the planes losing their sky). A side entry
 from the air stays a wall, the wedge of a stream. A full cell's plane is
 its top face, so the
 picture of a still lake is the same bit for bit; and the loop is
-specialized on bit 29 of the camera's base, set by `Player.view_w` when
+specialized on bit 29 of the camera's base, set by `Frame.view_w` when
 the world counts a partial cell in the window (`World.partials`), so a
 frame without one costs what it did, while a frame with one pays about
 a sixth more at 1470×796 (34 → 41 ms on the lake, `make profile`'s last
@@ -383,8 +394,10 @@ src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
-src/render.bend    the DDA, the sun, the texture, the occlusion, the mirror's walk, the fork
+src/render.bend    the DDA, the sun, the texture, the occlusion, the mirror's walk, a pixel
+src/frame.bend     the frame's tree, its one `!` and the game's view: all that relies on @unsafe
 src/player.bend    Game, events, picking, the tick
+src/flow.bend      the water's flow: marked cells stepped bottom up
 src/save.bend      the save file, and the tick that writes it
 LAWS.bend          the rules the checker proves; PROOF.bend closes them
 AGENTS.md          for an agent (or a person) about to write Bend here: the gate, the rules
@@ -426,499 +439,76 @@ make page-test  # the page in headless Chrome, hashes and fps
 
 ## Numbers
 
-Apple M5, Bend 2.0.25 (the same thirty checksums and the same times as
-2.0.24, four alternated rounds: 24 and 25 ms at 1470×796, 46 and 47 at
-1920×1080, the small sizes equal; the kernel trace still reads the
-runtime's text: grow1 0.5 ms, grow128 1.7, work 23.5, pack 0.3 at
-1470×796). The historical tree comparison below predates the
-day cycle; the current measurements follow it. The bench times
-the `!` only, five frames with the camera turning; the thirty checksums are the same on every build that
-changes nothing visible. The first column is the binary tree, the second
-the four-way tree it replaced.
+Apple M5, the game closed, twelve rounds alternated with stock Bend 2.0.25
+and the order swapped every round (2026-09-27). The bench times the `!`
+only, five frames a size with the camera turning; its thirty checksums are
+the same on every build that changes nothing visible, both compilers too.
 
-| | binary tree | four-way tree |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 |
 |---|---|---|
-| Metal, 512×512 | 3 ms a frame | 7 ms |
-| Metal, 512×512, 300 blocks placed | 3 ms | 7 ms |
-| Metal, 735×398 rays, a 14" MacBook at scale 2 | 5 ms | 18–29 ms |
-| Metal, 960×540 rays, a 1920×1080 window at scale 2 | 9–10 ms | 14–17 ms |
-| Metal, 1470×796 rays, a 14" MacBook at every pixel | 16 ms | 46 ms |
-| Metal, 1920×1080 rays | 28–31 ms | 50 ms |
-| WebAssembly, 512×512, 10 threads | 31 fps | 37 fps |
-| WebAssembly, 512×512, 1 thread | 7 fps | 7 fps |
-| WebAssembly, 512×288 rays in a 1024×576 canvas, 10 threads | 54 fps | 54–56 fps |
+| 512×512 | 5 ms | 3 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms |
+| 1920×1080 | 91 ms | 33 ms |
 
-After sky and day cycle, four alternated rounds against the original build:
-
-| fastest bench frame | before | after |
-|---|---|---|
-| 512×512 | 2 ms | 2 ms |
-| 512×512, 300 blocks placed | 2 ms | 2 ms |
-| 735×398 | 4 ms | 4 ms |
-| 960×540 | 8 ms | 9 ms |
-| 1470×796 | 15 ms | 16 ms |
-| 1920×1080 | 28 ms | 30 ms |
-
-The extra work is the signed shadow, sky colour and height/distance fog;
-the larger frames pay for that arithmetic at more pixels. The rays-alone
-profile remains 11.0 ms at 1470×796. Web numbers have not been remeasured.
-
-After collecting and inventory, four alternated rounds against the sky build:
-
-| fastest bench frame | before inventory | with inventory |
-|---|---|---|
-| 512×512 | 2 ms | 2 ms |
-| 512×512, 300 blocks placed | 2 ms | 2 ms |
-| 735×398 | 4 ms | 4 ms |
-| 960×540 | 8 ms | 8 ms |
-| 1470×796 | 15 ms | 16 ms |
-| 1920×1080 | 29 ms | 29 ms |
-
-The 15 ms frame occurred once in twenty baseline samples; the rest were
-16–18 ms, and the new build ranged from 16–20. To investigate that one-ms
-floor change, four further alternated rounds used `test/trace.py`: the work
-kernel's minimum was 14.570 → 14.526 ms, with the fastest traced dispatch
-summing to 16.625 → 16.266 ms. Tracing submits kernels separately, so its
-absolute times are diagnostic, not the normal bench. It found no repeatable
-kernel slowdown; the isolated minimum and the profile's few-tenths changes
-fit the run variation and the ordinary timer's one-ms resolution.
-
-On the page, `?size=1024x576x2` in the address gives the wide frame, and
-the fullscreen link scales whatever is rendered to the screen.
+Stock 2.0.32 took 215 ms at 1470×796 when #1140 was measured: its fix of
+a race ([#975](https://github.com/bendlang/bend/issues/975)) made every
+read of a shared array two atomic loads, dear on Metal
+([#1139](https://github.com/bendlang/bend/issues/1139)). The page was last
+measured before the sky: 31 fps at 512×512 on ten threads, 7 on one. On
+the page, `?size=1024x576x2` in the address gives the wide frame, and the
+fullscreen link scales whatever is rendered to the screen.
 
 ## What costs what
 
-`make profile` renders one view five times with every look on, then with
-each look off in turn (the camera's `fl` flags: shadow, occlusion, texture,
-distance fog, HUD, day cycle, gradient, sun, glow, stars, moon, height fog,
-water, water fog, Fresnel, sky reflection, ripples; and the world in the
-mirror and the caustic, bits 27 and 28 of the base word),
-then the rays alone, and prints the `!` per frame; then it
-renders the view twice more with numbers for pixels, how many rays reach
-a block and how many DDA steps a ray walks to its hit, summed over the
-image with each pixel weighed by the square it stands for. The same
-view as the bench is used for the full render (the profile sums by pixel
-area; the bench sums the tree's leaves). At 1470×796:
+`make profile` renders a view five times with every look on, then with
+each look off in turn (the camera's `fl` flags, and the world in the
+mirror and the caustic, bits 27 and 28 of the base word), then the rays
+alone, and prints the `!` a frame; then it renders the view twice more
+with numbers for pixels, how many rays reach a block and how many DDA
+steps a ray walks to its hit, each pixel weighed by the square it stands
+for. Its views are the bench's at four sizes, then at 1470×796 night
+looking at the moon, a lake looking west, under its water, the night lake
+with the moon in it, and the lake with partial water in the window. The
+least of four rounds alternated with 2.0.25 as above, ms a frame:
 
-Four alternated pre-inventory/current rounds, minimum five-frame mean per
-variant (the timer resolves milliseconds):
+| | bench's view, 735×398 | bench's view, 1470×796 | lake | night lake |
+|---|---|---|---|---|
+| all on | 6.2 | 21.8 | 21.4 | 16.8 |
+| shadow off | 5.6 | 19.2 | 18.2 | 16.8 |
+| occlusion off | 6.2 | 20.2 | 19.0 | 15.8 |
+| texture off | 6.8 | 19.8 | 19.6 | 16.4 |
+| water off | 5.4 | 16.4 | 16.0 | 11.8 |
+| sky reflection off | 5.8 | 19.4 | 17.6 | 13.6 |
+| world mirror off | 5.8 | 19.4 | 19.0 | 13.8 |
+| caustic off | 6.2 | 20.8 | 19.8 | 17.0 |
+| rays alone | 4.0 | 12.4 | 10.8 | 9.2 |
+| all on, 2.0.25 | 14.0 | 51.6 | 49.2 | 39.6 |
 
-| | before inventory | with inventory, ms a frame |
-|---|---|---|
-| all on | 16.0 | 16.2 |
-| shadow off | 13.4 | 13.2 |
-| occlusion off | 15.0 | 14.6 |
-| texture off | 15.6 | 15.8 |
-| distance fog off | 15.6 | 16.0 |
-| HUD off | 15.8 | 16.2 |
-| day cycle off | 15.8 | 15.8 |
-| sky gradient off | 15.6 | 16.0 |
-| sun disc off | 16.0 | 15.6 |
-| horizon glow off | 15.6 | 15.8 |
-| stars off | 16.0 | 16.0 |
-| moon off | 16.0 | 16.2 |
-| height fog off | 16.2 | 16.0 |
-| rays alone | 11.4 | 11.0 |
+The other looks (distance and height fog, HUD, day cycle, gradient, sun,
+glow, stars, moon, water fog, Fresnel, ripples) are arithmetic on a pixel
+and read within the noise of all on. In the bench's view 49% of the rays
+reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
+after 31.3.
 
-The full profile's four means ranged from 16.0–16.6 before and 16.2–16.4
-after; HUD-off ranged from 15.8–16.2 and 16.2–17.2. These overlapping
-ranges and the kernel trace above matter more than a few tenths in an
-off variant. The camera carries one extra word; digit decoding runs only
-inside the eight slots, and HUD off skips it entirely.
-
-Stars and moon are skipped in this morning view. The profile also looks
-up at midnight, at 1470×796: all on 11.6 → 11.8 ms, stars off 11.6 →
-11.6, moon off 11.6 → 11.8, rays alone 10.6 → 10.6. The moon is visible
-in that view. The gradient and fog take no extra ray; the sun and moon
-are angular discs and the stars are a fixed hash of direction.
-
-Preparing room for water moves four FPS bits to the spare high bits of
-`Cam.items`, keeping the same 14-word camera, pixels and physics. Four
-alternated rounds at 1470×796, minimum five-frame mean:
-
-| | before packing | after packing, ms |
-|---|---|---|
-| all on | 16.2 | 16.0 |
-| shadow off | 13.4 | 13.2 |
-| occlusion off | 14.8 | 14.8 |
-| texture off | 15.6 | 15.6 |
-| distance fog off | 15.8 | 15.6 |
-| HUD off | 16.0 | 15.8 |
-| day cycle off | 16.0 | 15.8 |
-| sky gradient off | 15.2 | 15.8 |
-| sun disc off | 16.0 | 15.6 |
-| horizon glow off | 15.6 | 15.8 |
-| stars off | 16.2 | 15.8 |
-| moon off | 16.2 | 15.6 |
-| height fog off | 15.6 | 16.0 |
-| rays alone | 11.0 | 11.0 |
-
-The larger off-row differences follow overlapping run ranges: gradient
-15.2–16.6 → 15.8–16.4, height fog 15.6–16.6 → 16.0–17.2. Their rendering
-code is unchanged; the readout is disabled in these views. Fastest bench
-frames at the six sizes are 2/2/4/9/16/29 → 2/2/4/8/15/29 ms. The readout
-test checks every FPS value through 256, including clamping.
-
-Still-water delivery, four alternated pre-water/current rounds at 1470×796.
-These compare the same default view; the bench picture changes intentionally.
-Minimum five-frame means:
-
-| | before water | with water, ms |
-|---|---|---|
-| all on | 15.8 | 20.0 |
-| shadow off | 13.0 | 17.2 |
-| occlusion off | 15.0 | 18.8 |
-| texture off | 15.6 | 19.4 |
-| distance fog off | 16.2 | 19.8 |
-| HUD off | 15.8 | 19.8 |
-| day cycle off | 16.0 | 20.4 |
-| sky gradient off | 15.8 | 19.8 |
-| sun disc off | 15.8 | 19.6 |
-| horizon glow off | 15.4 | 20.6 |
-| stars off | 16.2 | 20.0 |
-| moon off | 16.0 | 20.2 |
-| height fog off | 16.0 | 20.2 |
-| water off | — | 17.4 |
-| rays alone | 11.0 | 12.0 |
-
-The cost is real: one extra mask read at each crossed column and wet
-interval arithmetic during the 60-step walk. The emitted dry specialization
-skips those operations but still carries three extra scalar words through
-the loop (water mask, entry, depth), returns two extra words and checks for
-a wet hit before shading. Water-off therefore includes some shared cost;
-subtracting that row alone understates the feature's total cost.
-
-Fresh emitted C and four alternated kernel traces locate the increase in
-ray work: work-kernel minima 14.525 ms before, 15.000 with water off, 17.445
-with water on. Fastest traced dispatch sums are 16.318 / 17.146 / 19.521 ms.
-Camera width and fork shape are unchanged. Tracing submits kernels
-separately, so those totals diagnose the increase rather than replace the
-ordinary bench times. The dry build retains all thirty original checksums.
-
-Fastest ordinary bench frames at the six sizes are
-2/2/4/8/16/29 → 2/2/5/10/19/36 ms. At 735×398, the native scale-2 case,
-the fastest frame is 5 ms. A separate lake view at 1470×796 measures 20.8
-ms all on, 17.6 water off, 12.0 rays alone. Night measures 14.6 / 13.2 /
-11.4 for those same variants. Solid hits and steps in the default view
-remain 52% and 41.3, because water does not stop the ray.
-
-Underwater fog correction, four fresh alternated before/after rounds at
-1470×796. An open game may have affected the earlier measurement session;
-that series is excluded here. Process checks throughout the timed runs
-found no running Bendcraft instance. Minimum five-frame means:
-
-| | before fog correction | after, ms |
-|---|---|---|
-| all on | 21.0 | 21.4 |
-| shadow off | 18.0 | 18.0 |
-| occlusion off | 20.0 | 20.6 |
-| texture off | 20.0 | 20.2 |
-| distance fog off | 21.2 | 21.8 |
-| HUD off | 21.0 | 21.4 |
-| day cycle off | 22.0 | 21.6 |
-| sky gradient off | 20.6 | 21.2 |
-| sun disc off | 20.2 | 21.2 |
-| horizon glow off | 20.4 | 21.4 |
-| stars off | 21.2 | 21.4 |
-| moon off | 21.8 | 22.0 |
-| height fog off | 21.4 | 21.6 |
-| water off | 17.8 | 18.0 |
-| water fog off | — | 21.2 |
-| rays alone | 12.6 | 12.4 |
-
-The new work is a second distance/height fog evaluation for the full
-solid-hit path, plus density and two colour mixes for water extinction.
-It runs only on wet rays; disabling water fog skips the extinction work
-but retains the corrected air fog. The DDA, camera width and fork shape
-are unchanged. The all-on means span 21.0–23.0 before and 21.4–22.4 after.
-The larger off-row deltas also overlap: sun disc 20.2–22.6 → 21.2–25.8,
-horizon glow 20.4–23.0 → 21.4–23.2. Water-off skips the changed shading
-and spans 17.8–19.4 → 18.0–19.4; a 0.2 ms minimum difference does not
-establish a slowdown on that path. Closing the game removes one source
-of contention, not all timing noise.
-
-The submerged view now has its own profile at 1470×796: all on
-20.6 → 21.2 ms, water fog off 21.2, rays alone 12.2 → 12.0. Its water-off
-means span 17.4–22.8 → 18.4–19.6. The lake view is 22.0 → 22.0 ms,
-water fog off 21.8; night is 14.8 → 14.4. Night's unchanged rays-only
-path spans 11.4–13.0 → 11.8–12.2. Fastest ordinary bench frames at the
-six sizes are 3/3/6/10/19/36 → 2/3/6/10/20/37 ms. The extra wet-ray
-shading is paid for; the overlapping ranges limit how precisely these
-runs can separate that cost from noise.
-
-Four alternated traces from freshly emitted C locate the increase in the
-work kernel: 17.430 → 19.290 ms minimum at 1470×796. Grow and pack remain
-within 0.051 ms; the fastest traced dispatch sums are 19.425 → 21.080 ms.
-These separately submitted kernels diagnose the added pixel arithmetic;
-their totals do not replace the ordinary bench or profile numbers.
-
-Dry tree roots, four alternated before/after rounds at 1470×796, with no
-running Bendcraft process detected. Minimum five-frame means:
-
-| | before dry roots | after, ms |
-|---|---|---|
-| all on | 20.8 | 20.4 |
-| shadow off | 17.2 | 17.4 |
-| occlusion off | 19.2 | 18.8 |
-| texture off | 20.0 | 19.4 |
-| distance fog off | 20.4 | 20.8 |
-| HUD off | 20.8 | 20.2 |
-| day cycle off | 20.6 | 20.4 |
-| sky gradient off | 20.6 | 20.6 |
-| sun disc off | 20.6 | 20.8 |
-| horizon glow off | 20.4 | 20.4 |
-| stars off | 20.6 | 20.6 |
-| moon off | 20.6 | 20.6 |
-| height fog off | 20.4 | 20.2 |
-| water off | 17.2 | 17.6 |
-| water fog off | 20.6 | 20.2 |
-| rays alone | 12.2 | 12.0 |
-
-Only host generation changes: 202 → 173 trees in the initial window.
-The renderer, camera and flags are unchanged, but the rays see a different
-scene. Default solid hits fall 52% → 49%, and steps to a hit or sky rise
-41.3 → 41.4. Underwater, removing trunks exposes longer paths: hits
-63% → 59%, steps 31.1 → 35.5. All-on means span 20.8–21.0 → 20.4–21.4;
-the default rows with increased minima overlap their earlier ranges:
-shadow off 17.2–18.0 → 17.4–18.2, distance fog off 20.4–21.0 → 20.8–22.0,
-sun disc off 20.6–21.0 → 20.8–21.2, water off 17.2–18.0 → 17.6–17.6.
-These small deltas do not establish a rendering slowdown.
-
-The lake all-on minimum stays 21.4 ms and the submerged view stays 20.6;
-night moves 14.4 → 14.2. Submerged occlusion-off and sun-disc-off minima
-each rise 1.2 ms; their ranges are 18.4–19.8 → 19.6–20.4 and
-20.0–21.2 → 21.2–22.0. The changed ray paths and overlapping ranges limit
-how precisely the timing deltas can be attributed to generation.
-Fastest bench frames remain 3/2/6/10/19/36 ms at the six sizes.
-The generated-column regression fails on the old generator and passes
-on the new one; dry shoreline trees and saved edited columns remain.
-
-Lake floors and underwater silhouettes, four alternated before/after
-rounds at 1470×796, after the open game was closed. Process checks guarded
-every timed run. Minimum five-frame means:
-
-| | before correction | after, ms |
-|---|---|---|
-| all on | 21.2 | 21.6 |
-| shadow off | 18.4 | 17.8 |
-| occlusion off | 19.8 | 20.0 |
-| texture off | 20.2 | 20.2 |
-| distance fog off | 21.0 | 21.6 |
-| HUD off | 20.8 | 21.6 |
-| day cycle off | 21.2 | 21.4 |
-| sky gradient off | 21.0 | 20.8 |
-| sun disc off | 21.2 | 21.0 |
-| horizon glow off | 20.6 | 20.6 |
-| stars off | 21.4 | 21.4 |
-| moon off | 20.8 | 21.0 |
-| height fog off | 21.2 | 21.4 |
-| water off | 18.0 | 18.2 |
-| water fog off | 21.2 | 21.2 |
-| rays alone | 12.6 | 12.8 |
-
-The earlier fog correction still tinted sky misses differently from
-fully fogged solids, leaving bright silhouettes after a ray exited water.
-Its side-exit test expected the unfiltered atmospheric colour and missed
-that mismatch. The new regression compares a far wall with the same ray
-missing into the sky, while checking that a nearby wall remains visible;
-it covers day, twilight, night, surface and side exits, and fog flags.
-Both that test and the packed lake-floor check fail on the previous build.
-
-The fix reorders two existing colour mixes and attenuates wet tint by
-foreground air haze, adding one subtraction and multiplication on wet
-rays. The dirt rule runs during world generation. Geometry, DDA, camera
-and flags stay the same; default hits and steps remain 49% and 41.4.
-The all-on means span 21.2–24.4 → 21.6–23.0 ms. Increased off-row minima
-also overlap: distance fog 21.0–25.0 → 21.6–23.4, HUD 20.8–30.0 →
-21.6–22.2, water off 18.0–20.6 → 18.2–18.8, rays alone 12.6–13.2 →
-12.8–13.8. Night spans 14.8–15.8 → 15.4–17.8; its upward rays never
-cross water. These runs cannot isolate a few tenths from the timing noise.
-
-Four additional alternated traces from freshly emitted C investigate the
-0.4 ms increase in the default profile minimum: work-kernel minima are
-18.287 → 18.308 ms, grow/pack minima differ by at most 0.038 ms, and the
-fastest traced dispatch sums are 20.571 → 20.442 ms. They do not establish
-a repeatable slowdown of that size. Separate kernel submission makes
-tracing diagnostic; the normal bench minima are
-3/3/6/10/20/38 → 3/3/6/10/19/38 ms. Lake all-on moves 22.2 → 21.4 ms,
-submerged 21.6 → 21.4. The six water views were rendered and inspected.
-
-Fresnel and reflected sky, four alternated before/after rounds at 1470×796,
-with no game process running. Minimum five-frame means:
-
-| | before reflection | after, ms |
-|---|---|---|
-| all on | 20.6 | 21.8 |
-| shadow off | 17.6 | 18.8 |
-| occlusion off | 19.8 | 20.4 |
-| texture off | 20.0 | 21.2 |
-| distance fog off | 20.6 | 21.8 |
-| HUD off | 20.8 | 21.2 |
-| day cycle off | 20.6 | 21.4 |
-| sky gradient off | 20.0 | 21.0 |
-| sun disc off | 20.6 | 21.4 |
-| horizon glow off | 20.2 | 21.6 |
-| stars off | 20.8 | 22.0 |
-| moon off | 20.8 | 21.8 |
-| height fog off | 20.8 | 21.2 |
-| water off | 17.6 | 17.4 |
-| water fog off | 20.0 | 21.6 |
-| Fresnel off | — | 22.0 |
-| sky reflection off | — | 20.6 |
-| rays alone | 12.0 | 12.4 |
-
-The surface look costs 1.2 ms in the default view and 1.6 ms in the lake
-view (21.8 → 23.4, reflection off 21.8, Fresnel off 22.6). This includes
-marking the first water-top crossing in the existing 60-step walk, then
-evaluating the sky in the reflected direction and mixing its colour.
-The shared crossing marker is still computed with sky reflection off;
-the off row measures the surface shading, not all of that bookkeeping.
-Neither the 14-word camera nor the ray's two-word wet trace grows, and
-no second world ray is cast. Hits and steps stay 49% and 41.4 by default,
-77% and 31.3 at the lake.
-
-The all-on ranges are 20.6–21.6 → 21.8–23.0 ms; Fresnel off spans
-22.0–23.0, so its 0.2 ms increase over all-on is within the overlapping
-timing noise. Water off is 17.6–18.4 → 17.4–18.0. The submerged image is
-byte-identical to the previous build and its full profile is 21.6 → 21.4;
-the lake image with reflection off is also identical. Disabling both new
-flags reproduces all thirty previous bench checksums.
-
-The rays-alone profile minimum initially rose 0.4 ms, with disjoint
-five-frame ranges (12.0–12.2 → 12.4–13.4), so it was investigated before
-accepting the change. Four alternated traces from fresh C, using the exact
-profile cameras, give rays-alone work minima 10.496 → 10.593 ms and
-fastest dispatch sums 11.992 → 12.057. Individual work frames span
-10.496–12.299 → 10.593–12.252. Four turning-camera bench traces agree:
-work 10.455 → 10.520, dispatch 11.956 → 12.009, identical checksums.
-They do not reproduce a 0.4 ms slowdown; smaller differences remain within
-the run-to-run spread. Tracing submits kernels separately and diagnoses
-the increase; it does not replace the normal profile table.
-
-The fixed-camera full work kernel does increase, 17.737 → 18.640 ms,
-with reflection off at 18.250. The shared top-crossing tests still run
-throughout the water-enabled DDA, even with reflection off; the remaining
-surface work evaluates the reflected sky, Fresnel and colour blends.
-Water-off traced dispatch minima are 17.436 → 17.204 ms. This supports
-attributing the consistent increase to the added water work, without
-claiming that individual off-row differences isolate each operation.
-
-The upward night view is 14.8 → 15.2 ms (ranges 14.8–15.8 → 15.2–15.4),
-with reflection off 14.8 and rays alone unchanged at 11.4. A new night-lake
-view includes the reflected moon: all on 20.6, reflection off 18.2,
-Fresnel off 20.2, stars off 19.4 and moon off 20.0. Those bodies are active
-here; the daytime off rows cannot measure them. The ten water views were
-rendered and inspected. Normal bench minima at the six sizes are
-2/3/6/10/21/36 → 3/3/6/11/21/38 ms.
-
-`Cam.fl` bits 0..4 are shadow, occlusion, texture, distance fog and HUD;
-5 and 6 are debug renders; 7..19 are spare. Bit 20 enables ripples;
-bit 21 enables water, bit 22 water fog, bit 23 Fresnel and bit 24
-sky reflection. Bits 25..31 are day
-cycle, sky gradient, sun disc, horizon glow, stars, moon and height fog.
-`Render.looks()` enables them all. Day cycle off uses the original fixed
-sun for profiling. HUD off also disables the new count labels. The default
-picture intentionally changes with stronger ripples kept over the horizon:
-bench digest `0b9d000fe324fdac57d1dcc98658ec91`; physics stays
-`73516c0ead87f8c1151e34d25b3ac32e`.
-
-Ripples, three alternated before/after rounds at 1470×796 with no game
-process running. Minimum five-frame means, default view:
-
-| | before ripples | after, ms |
-|---|---|---|
-| all on | 22.2 | 22.6 |
-| shadow off | 18.2 | 19.0 |
-| water off | 17.8 | 17.6 |
-| sky reflection off | 21.2 | 21.2 |
-| ripples off | — | 22.0 |
-| rays alone | 12.2 | 12.4 |
-
-The tilted normal costs about 0.4 ms in the default view and 0.2 at the
-lake (23.4 → 23.6, ripples off 22.8); the night view is unchanged (15.2 →
-15.4). It is four hashes and a square root on the pixels that show a
-water top, and no world read. The bench agrees: 21 → 22 ms at 1470×796,
-38 → 39 at 1920×1080, the smaller sizes the same. Water as a whole is now
-the dearest look, about 5 ms of the 22.6, ahead of the shadow ray's 3.6:
-the wet intervals are tracked along every ray's 60 steps. The Codex session
-that wrote the ripples ended before these rounds; they were run afterwards
-on the same tree.
-
-The first ripples were too soft to see: on against off, three lake views
-differed by 3 levels of 255 at most. The tilt was 0.04 and faded out below
-14 degrees of elevation, where the reflection is strongest, because a
-stronger one sent mirrored rays under the horizon and failed its test. The
-tilt is now 0.15, fades only in the last 4 degrees, and the mirrored ray
-is lifted over the horizon: 15 levels, about 2% of the pixels, the same
-eight ripple tests, and the same frame (21 ms at 1470×796 and 39 at
-1920×1080 before and after, four alternated rounds).
-
-The world in the mirror is the first look whose price is a walk of its
-own since the shadow. Against the commit before it, at 1470×796, three
-alternated rounds of the whole profile and four of a short one:
-
-| | before, ms | with the mirror | mirror off (bit 27) |
-|---|---|---|---|
-| the bench's view | 21.8 | 25.2 | 23.0 |
-| lake, looking west | 24.4 | 31.2 | 24.0 |
-| night lake | 21.0 | 27.6 | 21.4 |
-| submerged | 21.8 | 22.0 | 21.6 |
-| lake at 735×398 (scale 2) | — | 8.4 | 6.8 |
-
-With the look off the frame is the old one, in time and bit for bit (four
-views compared with the commit before); the `Water.Mirror` record that
-every pixel now carries costs nothing. With it on, the bench's checksums
-did not move either, because no mirrored ray meets a block in its views,
-and yet its frames got slower (21 → 24 ms at 1470×796, 39 → 46 at
-1920×1080): the walk is paid by every pixel of a water top, whether it
-meets a block or the sky, and the frame is its slowest lane. The walk's
-length says what a step costs: 32, 24 and 16 steps gave the lake 30.6,
-29.4 and 28.0 ms, so 0.16 ms a step at this size, the same as the shadow's
-24 steps for 3.6 ms and the primary ray's 60 for about 10, plus 1.6 ms for
-the mirrored direction, the hit's colour and its fog. Sixteen steps would
-save 2.6 ms and cut the reach to 8 blocks; the 32 stay, and the fade at
-the end of the reach costs nothing measurable. Water as a whole is now
-about 13 ms of a lake's 31 at full size, and 1.6 of 8.4 at scale 2.
-
-The dense water, the deeper colour and the cubed Fresnel are arithmetic
-on a pixel and cost nothing measurable (lake 31.0 and 31.0 ms, 8.4 and 8.2
-at scale 2); with them the mirror moves up to 53 levels on 10% of the
-bank view's pixels, where it moved 37 on 7%. Measuring it taught the
-routine something: on a busy machine the build that runs second in a pair
-reads 2 to 3 ms slower, whichever it is, so alternated rounds also swap
-their order.
-
-The caustic is arithmetic on the pixels of a wet hit, eight hashes and a
-few products, and costs what such arithmetic costs on the lake's lanes:
-at 1470×796 the lake goes 31.0 → 32.0 ms (caustic off 30.8), the bench's
-view 25.2 → 25.6, the lake at scale 2 8.4 → 8.6; four alternated rounds,
-order swapped. At night its factor is 1.0 and the sun's height is the
-same for every pixel, so the render skips it there with no divergence:
-the night lake stays at 28.2, where paying it read 29.2. The light left
-at a depth and the colour that darkens with it are two more mixes and
-cost nothing measurable (lake 32.4 and 31.8, order swapped).
-
-In the original profile, 52% of the rays reached a block after 24 steps
-on average; the rest walked the box's 60. Primary rays took three quarters
-of the frame and the shadow ray most of the rest; occlusion and texture
-cost under a millisecond each, fog and HUD nothing measurable. Two lessons
-came out of the first run. A ray that stopped at its hit walked a third
-of the steps and made the frame slower, 15 → 17 ms here and 28 → 32 at
-1920×1080, with the same checksums: the lanes of a SIMD group then leave
-the loop at different steps, and the runtime's switch over segments runs
-them one case at a time, so the loop walks its 60 steps with the state
-frozen, on purpose. And a `Bool.pick` is strict, so a look that is off
-must be skipped by a `match`, or it is paid for anyway.
+The rays alone are over half of a frame. After them come the walks a look
+adds, since a DDA step costs about the same wherever it happens, the frame
+being its slowest lane: the shadow's 24 steps, the mirror's 32. Water is
+the dearest look, 5 ms of the lake's 21, because it tracks the wet
+intervals along every ray's 60 steps. Two lessons of the first profile
+hold: a ray that stopped at its hit walked a third of the steps and made
+the frame slower, the lanes of a SIMD group then leaving the loop at
+different steps; and a `Bool.pick` is strict, so a look that is off is
+skipped by a `match`, or it is paid for anyway.
 
 `test/trace.py` goes one level down: it patches the emitted C so the
-frame's single dispatch runs as four command buffers, one a kernel, and
-prints each kernel's time and the tasks left in the lanes' rings
-(`bend test/bench.bend -o build/bench.c && python3 test/trace.py
-build/bench.c && ./build/bench_trace`). For the 1470×796 frame: grow1
-0.4 ms leaving 128 tasks, grow128 2.0 ms leaving 11504 tasks one a ring,
-work 10.3 ms, pack 0.5 ms. It reaches into the runtime's text, so a new
-Bend may need its snippets updated; it is a diagnostic, not part of the
-build.
+frame's dispatch runs as one command buffer a kernel, and prints each
+kernel's time and the tasks left in the lanes' rings (`bend
+test/bench.bend -o build/bench.c && python3 test/trace.py build/bench.c &&
+./build/bench_trace`). It reaches into the runtime's text, written for
+2.0.25's; it does not find 2.0.32's yet.
 
 ## The frame's time, in the game
 
@@ -1018,11 +608,9 @@ through a shared tree, was
 [bendlang/bend#885](https://github.com/bendlang/bend/issues/885); Bend
 2.0.22 answered it with the array fork, and this repository carries that
 file's history from its first commit. Open upstream:
-[#920](https://github.com/bendlang/bend/issues/920), a WGSL lane so the page
-could run its `!` on WebGPU, and
-[#921](https://github.com/bendlang/bend/issues/921), a way to grab the mouse,
 [#923](https://github.com/bendlang/bend/issues/923), a way to go full
 screen, and [#925](https://github.com/bendlang/bend/issues/925), the shape
-of the frame's tree deciding the lanes' load, with a 90-line reproduction.
+of the frame's tree deciding the lanes' load, with a 90-line reproduction,
+which [#1132](https://github.com/bendlang/bend/pull/1132) answers.
 
 Written by Claude (Anthropic) with Adriel Santana.

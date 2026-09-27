@@ -19,7 +19,11 @@ from Bend 1. Read before you write:
 
 - `bend guide` (the language), `bend guide shaders` (what makes a `!` fast
 or slow, written by AIs for AIs from a 120 FPS demo) and `bend base` (the
-Base library's source). All ship with the compiler.
+Base library's source). All ship with the compiler, which here is the
+Makefile's `BEND`: 2.0.32 with two fixes not yet released, from a
+checkout at `../bend` (README, "Build and run"), so `bend guide` reads
+`bun ../bend/bend2/main.ts guide`. An older installed `bend` lacks what
+the game uses.
 - `README.md` (how the game works, the numbers, what costs what) and
 `ROADMAP.md` (the vision, the order of work, what was tried and failed).
 - `src/*.bend` as the examples of every construct you will need.
@@ -58,7 +62,7 @@ it. The frame is built by recursion, handed to `Window.frame`, and the
 window's own shader shows it. There is no framebuffer to write, no draw
 call, no texture to upload, nothing to bind.
 - **Parallelism is the recursion's shape.** A parallel let, `a b = f(x) f(y)`, says two calls are independent. One `!` at the root of the frame
-(`fork!` in `Render.frame`) hands the whole tree to the GPU. The same
+(`fork!` in `Frame.cast`) hands the whole tree to the GPU. The same
 defs run on Metal, on CUDA, on every CPU core, and on wasm workers in the
 page. You never write a kernel, a thread or a lock. "Parallelize whenever
 possible" means: shape the work as a balanced tree of independent calls
@@ -141,7 +145,11 @@ def's first lines with plain names, `(a, b) = r`.
 - `Nat.mul/div/mod` and `U32.from_nat/to_nat` exist; `U32.from_nat` is
 linear in its argument, cap it with `Nat.min` first.
 - `@unsafe` is for IO recursion the checker cannot see end (the benches).
-Do not reach for it in game code.
+Do not reach for it in game code. The one exception is `src/frame.bend`,
+the frame's tree, which hands the ring to both halves of a fork: the laws
+import none of it, so `PROOF.bend` prints ALL PROOFS CHECK, while a
+program's check prints SOME PROOFS FAIL and names the defs that reach it,
+which `make check` takes as a pass.
 
 The GPU (`!`), all measured here (see ROADMAP.md, "Tried, and worth
 nothing", and the README):
@@ -210,8 +218,8 @@ by default and `Water.with_looks` puts them in; 27 is the world in the
 water's mirror, 28 the caustic on its bed, 29 says the window holds
 partial water (`Render.with_partial`, from `World.partials`; the DDA is
 specialized on it, `~partial`), 30 remains spare.
-- A walk is the unit of cost: a DDA step is about 0.16 ms a frame at
-1470×796 wherever it happens (primary 60, shadow 24, mirror 32), because
+- A walk is the unit of cost: a DDA step is about 0.1 ms a frame at
+1470×796 (0.16 on 2.0.25) wherever it happens (primary 60, shadow 24, mirror 32), because
 the frame is its slowest lane. Count the steps a new look adds before
 writing it.
 - `Cam.sel`: selection in bits 0..3 (eight types and the bucket, 8), four

@@ -133,10 +133,11 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    offset of the texture's coordinate by time and place.
 6. **Light of the blocks.** Torches and a night that needs them.
 
-**The budget.** At 1470×796 a frame is 46 ms with a ray for every pixel
-and 12 ms at scale 2 (2026-09-25), which suits the pixel art; the far
-horizon took 7 → 12 of it. At 60 frames a second that leaves under 5 ms
-at scale 2 for the looks still to come. Every piece above says what it
+**The budget.** At 1470×796 a frame is 19 ms with a ray for every pixel
+and 6 ms at scale 2, which suits the pixel art (2026-09-27, on 2.0.32
+with #1132 and #1140; 48 and 13 on 2.0.25, where the far horizon took
+7 → 12 of the second). At 60 frames a second that leaves 10 ms at scale 2
+for the looks still to come, and 2 at 120. Every piece above says what it
 took of them in the profile table.
 
 **Ways to buy more of it**, in the order to try them; none is needed yet.
@@ -727,73 +728,46 @@ their fastest frames.
 
 **The routine, for every `bend update`:** `make check test bench profile`,
 rebuild the page with the rebased fork (`../bend-web`, the fork's
-`web-wasm` branch, the PR's head) and run `make page-test`, run
-`test/trace.py` once (its snippets match the runtime's text and may need
-an update). 2.0.25
-(2026-09-21): the gate passes as it did, the thirty checksums and the
-physics hash are the same, the frames are the same within a millisecond
-(order-swapped rounds), the trace's snippets still match. The page's
-fork rebased onto 2.0.25 and pushed the same night, after a bisect of the
-18 upstream commits found the page out of memory from 2.0.25's `select`
-sets (see the PR row below); the page is published from it.
+`web-wasm` branch) and run `make page-test`, run `test/trace.py` once (its
+snippets match the runtime's text and may need an update). 2.0.32 with
+#1132 and #1140 (2026-09-27): the thirty checksums and the physics hash
+are the same and the frames 2.5 times faster. Its check fails any file
+that relies on `@unsafe`, so the frame's tree moved to `src/frame.bend`,
+which the laws do not import, and `make check` takes that verdict for a
+program; `IO.args()` starts with the program's name; the trace's snippets
+no longer match. The page's fork is still on 2.0.25.
 
 **Work that is ours, when a feature asks for it:**
 
-- *Full screen by default at scale 2* (5 ms), scale 1 by choice (16 ms).
+- *Full screen by default at scale 2* (6 ms), scale 1 by choice (19 ms).
 - *The page.* 31 fps at 512² on ten wasm threads, 7 on one. The CPU is the
   ceiling there; the way up is the WebGPU lane, below.
 
 **Work that waits on the runtime:** the frame tree is binary, with halves
 past the edge run in place, because of how the Metal scheduler fills its
-lanes (#925). If that changes, measure the four-way tree again and go back
-to it if it ties: it reads better.
+lanes (#925). #1132 changes that: measure the four-way tree again on it
+and go back to it if it ties, since it reads better.
 
 ## Bend: waiting on a decision
 
-State on 2026-09-21, 16:00 UTC. No maintainer has answered any of these
-yet. Decisions upstream have come within a day or two, each with a written
-reason.
+State on 2026-09-27. The game builds with 2.0.32 and the two PRs below,
+from the `bendcraft` branch of AdrielSantana/bend (the Makefile's `BEND`);
+once both are released it goes back to the stock `bend`.
 
 | | what it is | state | if yes | if no |
 |---|---|---|---|---|
-| [PR #866](https://github.com/bendlang/bend/pull/866) | `-o x.html`: the runtime as WebAssembly, a worker a core, a Window on a canvas | ready for review, rebased onto 2.0.25 (2026-09-21); over the `comp.ts` cap by 83 tokens (main itself is 42 under it), said so in the PR; carries a one-line fix the page needs: 2.0.25's `io_wait` sizes its `select` sets by the highest fd, and Emscripten's `select` is a shim that `FD_ZERO`s whole `fd_set`s, 128 bytes into an 8-byte set | `make page` with the stock `bend`; drop `BEND_WEB` | the fork stays the page's compiler, rebased at every release |
-| [#920](https://github.com/bendlang/bend/issues/920) | a WGSL lane: `!` on WebGPU; the design, a prototype, 0.3 / 1.8 / 2.4 ms against 4.5 / 42 / 53 on ten wasm threads | open | write the emitter where they say it may live | write it in the fork |
-| [#925](https://github.com/bendlang/bend/issues/925) | Metal: the tree's arity decides the lanes' load (12 / 23-34 / 3 ms for the same leaves) | open | re-measure, maybe the four-way tree again | the binary tree stays; the README is the record |
-| [#921](https://github.com/bendlang/bend/issues/921) | Window: grab the mouse | open | mouse look without dragging | our own effect, below |
-| [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | our own effect, below; until then `make full` sizes the window to the screen |
+| [PR #1132](https://github.com/bendlang/bend/pull/1132) | Metal: the work pass after a grow runs each lane's own ring, #925's answer; 1.7-2.8 times faster frames | open | the stock `bend` | our branch, rebased at every release |
+| [PR #1140](https://github.com/bendlang/bend/pull/1140) | a device reads a shared array's redirect with one plain load, as before 2.0.32 ([#1139](https://github.com/bendlang/bend/issues/1139)); 3.6-4 times faster frames | open | the stock `bend` | our branch, rebased at every release |
+| [#1143](https://github.com/bendlang/bend/issues/1143) | Metal: `heap_free`'s error check, 7-12% of the allocating benches; numbers and risks, no PR | open | nothing here: the frame does not allocate | — |
+| [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | `make full` sizes the window to the screen |
 
-**Our own effects, if the Window asks stay unanswered.** `bend guide
-effects` is the manual: a def of type `IO(R)` whose body imports a `.c` and
-a `.js`; the C is spliced into the program after the runtime, so its
-symbols are in scope, and a custom effect may take one of Base's handles.
-On macOS the `Window` handle is the `NSWindow` itself, so full screen is a
-call on it, and a grabbed mouse is the cursor hidden and unhooked plus a
-second effect that reads the mouse's delta each frame. The page needs its
-own branch (pointer lock), since the web target compiles the same C. The
-price: the C names the runtime's internals, there is no ABI promise, and
-it is rebuilt and re-tested at every `bend update`. This is input at the
-edge, which is what effects are for; drawing stays in Bend. Wait some days
-for #921 and #923 first; if we write one, offer it upstream as the issue's
-implementation.
-
-A third answer is likely for the PR: closed for the repo's budget, with a
-branch to keep it in, as `hip` was offered in #891 and now exists. The
-comment that took it out of draft asks for a `web` branch in that case.
-Then: `gh pr edit 866 -R bendlang/bend --base web`, and the branch is kept
-rebased; that promise is made.
-
-The WGSL lane is the step that matters most for Bend on the web, and the
-one least likely to fit upstream: `comp.ts` is at 64,972 of its 65,000
-tokens, so the question to get answered in #920 is where such a lane may
-live. Ours to do either way: the emitter. The prototype's leaves were
-translated by hand; the next step is to emit WGSL from the same segments
-the C and Metal lanes come from, one leaf kind at a time, each checked
-against the C lane's checksums.
+The grabbed mouse (#921) came with 2.0.32, as `Window.grab` and
+`Look{dx, dy}`. The page target (PR #866) was closed and the WGSL lane
+(#920) closed as not planned: the page keeps its own compiler
+(`BEND_WEB`), which gets the grabbed mouse when it moves to 2.0.32.
 
 To see where things stand:
 
 ```sh
-gh pr view 866 -R bendlang/bend --json state,mergeStateStatus,baseRefName,comments
-for n in 920 921 923 925; do gh issue view $n -R bendlang/bend --json state,comments; done
-gh api repos/bendlang/bend/branches -q '.[].name'
+for n in 923 925 1132 1139 1140 1143; do gh issue view $n -R bendlang/bend --json state,comments; done
 ```

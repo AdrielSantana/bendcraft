@@ -1,6 +1,7 @@
 import Base
 import ../src/world.bend as World
 import ../src/player.bend as Player
+import ../src/frame.bend as Frame
 
 # The frame without a window: five frames with the camera turning 0.01 rad
 # a frame, a checksum of the image per frame, the time of the `!` and of
@@ -50,7 +51,7 @@ def bench(n, g):
     case 1n+m:
       do IO<Unit>:
         t0 : Nat <- IO.now()
-        r : Player.Game & Image = Player.view(g)
+        r : Player.Game & Image = Frame.view(g)
         t1 : Nat <- IO.now()
         bench_fin(m, t0, t1, r)
 

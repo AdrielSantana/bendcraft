@@ -1,6 +1,6 @@
 # PROOF.bend: every law of LAWS.bend, closed. `bend PROOF.bend` prints
-# "All terms check" when the rules hold, and fails on the first that does
-# not. Concrete laws reduce to the same value; the day period is proved
+# ALL PROOFS CHECK when the rules hold, and SOME PROOFS FAIL with the first
+# that does not. Concrete laws reduce to the same value; the day period is proved
 # for every word by induction over its low bits, below.
 
 import Base

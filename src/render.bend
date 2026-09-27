@@ -924,7 +924,7 @@ def looks() -> U32: 4293918751
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds
-# a cell of partial water, so the rays clip to planes (Player.view_w
+# a cell of partial water, so the rays clip to planes (Frame.view_w
 # sets it from the world's count); 30 is spare
 def looks_base() -> U32: 402653184
 
@@ -1177,96 +1177,3 @@ def t4a(+cam: Cam, +x: U32, +y: U32, r: Array<U32> & Image) -> Array<U32> & Imag
 
 def t4(+cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
   t4a(cam, x, y, t2(cam, w, x, y))
-
-# ---------- the fork ----------
-# Each level hands its one handle to four kids and joins the four that come
-# back; the images become a Qua.
-
-# the tree of a frame: see fork below
-def pair(l: Array<U32> & Image, r: Array<U32> & Image) -> Array<U32> & Image:
-  (wl, p) = l
-  (wr, q) = r
-  (Array.join(U32, wl, wr), Qua{p, q, Pix{0}, Pix{0}})
-
-def solo(l: Array<U32> & Image) -> Array<U32> & Image:
-  (wl, p) = l
-  (wl, Qua{p, Pix{0}, Pix{0}, Pix{0}})
-
-def merge_fin(p: Image, q: Image, j: Image) -> Image:
-  match j:
-    case Qua{r, s, c, d}:
-      Qua{p, q, r, s}
-    case Pix{z}:
-      Qua{p, q, Pix{0}, Pix{0}}
-
-def merge(i: Image, j: Image) -> Image:
-  match i:
-    case Qua{p, q, a, b}:
-      merge_fin(p, q, j)
-    case Pix{c}:
-      Pix{c}
-
-def quad2(t: Array<U32> & Image, b: Array<U32> & Image) -> Array<U32> & Image:
-  (wt, i) = t
-  (wb, j) = b
-  (Array.join(U32, wt, wb), merge(i, j))
-
-def top(t: Array<U32> & Image) -> Array<U32> & Image:
-  (wt, i) = t
-  (wt, merge(i, Pix{0}))
-
-# The tree of a frame is binary: a node at f = 2k is a square of 2h = 4 * 2^k
-# pixels and splits into its top and bottom rows, a row (f odd) into its left
-# and right squares of half h. A node exists only if its corner is inside
-# the render, and v says whether its second half is: a node with one half
-# inside runs that half in place, without a fork. The shape is for the GPU
-# runtime, which grows a frontier of tasks two-way a turn until its 128
-# lanes a group hold one each, then runs each task on its lane to the end:
-# a two-way tree fills the frontier with tasks of one size, and a half
-# that never becomes a task never skews it. The four-way tree, pruned,
-# left some lanes 64 leaves and took 110-150 ms on a 1470 x 796 frame
-# where this takes 16; unpruned it took 46.
-@unsafe
-def fork(+f: Nat, +wide: Bool, v: Bool, +cam: Cam, +w: Array<U32>, +rw: U32, +rh: U32, +h: U32, +x: U32, +y: U32) -> Array<U32> & Image:
-  match f:
-    case 0n:
-      t4(cam, w, x, y)
-    case 1n+g:
-      match wide:
-        case True{}:
-          match v:
-            case True{}:
-              +h2 = (h / 2 : U32)
-              +vy = ((y + h2 : U32) < rh : U32)
-              l r = fork(g, False{}, vy, cam, w, rw, rh, h2, x, y) fork(g, False{}, vy, cam, w, rw, rh, h2, (x + h : U32), y)
-              pair(l, r)
-            case False{}:
-              +h2 = (h / 2 : U32)
-              solo(fork(g, False{}, ((y + h2 : U32) < rh : U32), cam, w, rw, rh, h2, x, y))
-        case False{}:
-          match v:
-            case True{}:
-              +vx = ((x + h : U32) < rw : U32)
-              t b = fork(g, True{}, vx, cam, w, rw, rh, h, x, y) fork(g, True{}, vx, cam, w, rw, rh, h, x, (y + h : U32))
-              quad2(t, b)
-            case False{}:
-              top(fork(g, True{}, ((x + h : U32) < rw : U32), cam, w, rw, rh, h, x, y))
-
-# the levels of fork that cover the larger side with 4x4 leaves
-def depth_at(fuel: Nat, +side: U32, +m: U32, +k: U32) -> U32:
-  match fuel:
-    case 0n:
-      k
-    case 1n+f:
-      Bool.pick(U32, (side >= m : U32), k, depth_at(f, (side * 2 : U32), m, (k + 1 : U32)))
-
-def depth(+rw: U32, +rh: U32) -> Nat:
-  U32.to_nat(depth_at(12n, 4, U32.max(rw, rh), 0))
-
-# the frame: one `!` over the lane cube, the camera shared as Data and the
-# ring as the array both sides may read
-@unsafe
-def frame(+cam: Cam, +ring: Array<U32>, +rw: U32, +rh: U32) -> Array<U32> & Image:
-  +d = depth(rw, rh)
-  +h = U32.shln(2, d)
-  fork!((d + d : Nat), False{}, (h < rh : U32), cam, ring, rw, rh, h, 0, 0)

@@ -1,5 +1,6 @@
 import Base
 import ./src/player.bend as Player
+import ./src/frame.bend as Frame
 import ./src/save.bend as Save
 
 # Bendcraft: an endless voxel world you can walk, jump, break and build,
@@ -11,14 +12,14 @@ import ./src/save.bend as Save
 # `bendcraft [W H [S]]`: a window of W x H, the render S times smaller on
 # each side (a power of two: the window's shader scales it up); 512 512 1
 # when nothing is said. On a 1920 x 1080 screen, `1920 1080 2` fills it
-# with 960 x 540 rays.
+# with 960 x 540 rays. The arguments start after the program's name.
 def size_of(xs: List<String>) -> U32 & (U32 & U32):
   match xs:
-    case Con{w, Con{h, Con{s, rest}}}:
+    case Con{p, Con{w, Con{h, Con{s, rest}}}}:
       (Save.num(w), (Save.num(h), U32.max(Save.num(s), 1)))
-    case Con{w, Con{h, rest}}:
+    case Con{p, Con{w, Con{h, rest}}}:
       (Save.num(w), (Save.num(h), 1))
-    case Con{w, rest}:
+    case Con{p, rest}:
       (512, (512, 1))
     case Nil{}:
       (512, (512, 1))
@@ -87,7 +88,7 @@ def elapsed(st: Stat, now: Nat) -> U32:
 def turn(window: Window, +st: Stat, g: Player.Game, rest: Window -> Stat -> Player.Game -> IO(Unit)) -> IO(Unit):
   do IO<Unit>:
     +ta : Nat <- IO.now()
-    r : Player.Game & Image = Player.view_stat(Player.advance(g, elapsed(st, ta)), stat_ms(st), stat_fps(st))
+    r : Player.Game & Image = Frame.view_stat(Player.advance(g, elapsed(st, ta)), stat_ms(st), stat_fps(st))
     tb : Nat <- IO.now()
     show(window, stat_add(st, ta, tb), r, rest)
 

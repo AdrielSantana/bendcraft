@@ -225,7 +225,7 @@ def no_silhouette(+fl: U32, +sun_y: F32) -> Bool:
 
 # Water at an arbitrary edited height, not the natural sea plane. The
 # ray can enter its top, begin submerged, or hit the bank before water.
-# the base carries the window's partial-water bit, as Player.view_w sets it
+# the base carries the window's partial-water bit, as Frame.view_w sets it
 def surface_ray_w(+fl: U32, +under: Bool, w: World.World) -> U32:
   World.W{ring, meta} = w
   World.Meta{m, ox, oz, q, +np, gone} = meta

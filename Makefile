@@ -1,5 +1,7 @@
 # Bendcraft. `make` builds the native game; `make run` starts it on the GPU.
-BEND ?= bend
+# Bend 2.0.32 with bendlang/bend#1132 and #1140, until they are released:
+# git clone -b bendcraft https://github.com/AdrielSantana/bend ../bend
+BEND ?= bun ../bend/bend2/main.ts
 PYTHON ?= python3
 # the web-wasm fork of the compiler (bendlang/bend#866), for the page
 BEND_WEB ?= ../bend-web/bend2/main.ts
@@ -19,27 +21,15 @@ SCALE ?= 2
 full: build/bendcraft
 	./build/bendcraft --gpu 2GB $$(swift -e 'import AppKit; let f = NSScreen.main!.visibleFrame; print(Int(f.width), Int(f.height) - 28)') $(SCALE)
 
-# the checker: the modules, the tests and the laws
+# the checker: the modules, the tests and the laws. A program relies on
+# @unsafe (Render.frame shares the ring with the GPU), so its verdict is
+# SOME PROOFS FAIL by design and a type error is anything else; the laws'
+# verdict must be ALL PROOFS CHECK
 check:
-	$(BEND) main.bend --check-only
-	$(BEND) test/physics.bend --check-only
-	$(BEND) test/terrain.bend --check-only
-	$(BEND) test/save.bend --check-only
-	$(BEND) test/day.bend --check-only
-	$(BEND) test/inventory.bend --check-only
-	$(BEND) test/water.bend --check-only
-	$(BEND) test/flow.bend --check-only
-	$(BEND) test/flow_view.bend --check-only
-	$(BEND) test/flow_bench.bend --check-only
-	$(BEND) test/ripples.bend --check-only
-	$(BEND) test/water_view.bend --check-only
-	$(BEND) test/mirror.bend --check-only
-	$(BEND) test/mirror_view.bend --check-only
-	$(BEND) test/sky.bend --check-only
-	$(BEND) test/bench.bend --check-only
-	$(BEND) test/profile.bend --check-only
-	$(BEND) test/readout.bend --check-only
-	$(BEND) test/far.bend --check-only
+	@for f in main.bend test/*.bend; do \
+	  out=$$($(BEND) $$f --check-only 2>&1) || echo "$$out" | grep -q 'on unsafe or foreign code:$$' \
+	    || { echo "$$f: $$out"; exit 1; }; \
+	done
 	$(BEND) PROOF.bend
 
 # the game without a window: events through feed and step

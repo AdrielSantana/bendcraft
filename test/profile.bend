@@ -2,6 +2,7 @@ import Base
 import ../src/world.bend as World
 import ../src/render.bend as Render
 import ../src/player.bend as Player
+import ../src/frame.bend as Frame
 
 # The profile: what costs what in a frame. For each size, one view (the
 # start of the untouched world) is rendered five times with every look on,
@@ -55,7 +56,7 @@ def frames(n, fl, more, lv, acc, ssum, g):
     case 1n+m:
       do IO<Player.Game & (Nat & U32)>:
         t0 : Nat <- IO.now()
-        r : Player.Game & Image = Player.view_more(g, fl, 0, more)
+        r : Player.Game & Image = Frame.view_more(g, fl, 0, more)
         t1 : Nat <- IO.now()
         frames_fin(m, fl, more, lv, acc, ssum, t0, t1, r)
 
@@ -158,7 +159,7 @@ def runs(n, i, lv, px, g):
 def profile_size(name: String, +rw: U32, +rh: U32) -> IO(Unit):
   do IO<Unit>:
     IO.print(name)
-    runs(24n, 0, (Render.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), Player.start_at(Player.res_of(rw, rh)))
+    runs(24n, 0, (Frame.depth(rw, rh) + 2n : Nat), (rw * rh * 5 : U32), Player.start_at(Player.res_of(rw, rh)))
 
 # Stars and the moon are skipped during the day. Measure them in their
 # active state too, looking upward so the moon is in the frame.
@@ -200,12 +201,12 @@ def main() -> IO(Unit):
     profile_size("960 x 540 (a 1920 x 1080 window at scale 2)", 960, 540)
     profile_size("1470 x 796 (a 14-inch MacBook, every pixel a ray)", 1470, 796)
     IO.print("Night at 1470 x 796, looking at the moon")
-    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Frame.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Lake at 1470 x 796, looking west")
-    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), lake(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Frame.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), lake(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Submerged at 1470 x 796, looking west")
-    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), submerged(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Frame.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), submerged(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Night lake at 1470 x 796, looking at the reflected moon")
-    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night_lake(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Frame.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), night_lake(Player.start_at(Player.res_of(1470, 796))))
     IO.print("Lake at 1470 x 796 with partial water in the window (the plane clip on)")
-    runs(24n, 0, (Render.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), partial_lake(Player.start_at(Player.res_of(1470, 796))))
+    runs(24n, 0, (Frame.depth(1470, 796) + 2n : Nat), (1470 * 796 * 5 : U32), partial_lake(Player.start_at(Player.res_of(1470, 796))))
