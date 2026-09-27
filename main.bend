@@ -116,6 +116,6 @@ def run(whs: U32 & (U32 & U32)) -> IO(Unit):
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    IO.print("WASD move | space jump | mouse look | click break | right click place | J/L break/place | 1-8 choose | P save | F frame time | Esc quit")
+    IO.print("WASD move | space jump | mouse look | click break | right click place | J/L break/place | 1-9 or wheel choose | P save | F frame time | Esc quit")
     xs : List<String> <- IO.args()
     run(size_of(xs))

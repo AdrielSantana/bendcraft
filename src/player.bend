@@ -10,7 +10,8 @@ import ./inventory.bend as Inventory
 #
 #   W A S D  move   space  jump   arrows  look   1-8  choose a block   9  the bucket
 #   P  save   Esc  quit (and save)
-#   mouse: look (the window holds it), left click breaks, right click places (or J / L)
+#   mouse: look (the window holds it), left click breaks, right click places (or J / L),
+#   the wheel chooses
 
 type Game is Type:
   G{w: World.World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
@@ -69,6 +70,17 @@ def on_button(g: Game, +b: U32, +down: Bool) -> Game:
     (edge .|. Bool.pick(U32, U32.is_eq(b, 0) && down, 1024, 0) .|. Bool.pick(U32, U32.is_eq(b, 1) && down, 2048, 0) : U32),
     sel, res, clock, bag}
 
+# the wheel moves the choice d slots on, around the nine
+def roll(+sel: U32, +d: U32) -> U32:
+  ((sel + d) % 9 : U32)
+
+# a scroll up chooses the slot before, down the slot after, one an event
+# whatever its size, as a trackpad's points would spin the hotbar
+def on_scroll(g: Game, +dy: F32) -> Game:
+  G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  G{w, px, py, pz, yaw, pit, vy, held, edge,
+    roll(sel, Bool.pick(U32, (dy > 0.0 : F32), 8, Bool.pick(U32, (dy < 0.0 : F32), 1, 0))), res, clock, bag}
+
 # the mouse turns the camera, 0.0045 rad a point; y grows downwards
 def on_look(g: Game, dx: F32, dy: F32) -> Game:
   G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
@@ -95,6 +107,8 @@ def feed(evs: List<Event>, g: Game) -> Game:
       feed(rest, on_button(g, b, down))
     case Con{Look{dx, dy}, rest}:
       feed(rest, on_look(g, dx, dy))
+    case Con{Scroll{x, y, dx, dy}, rest}:
+      feed(rest, on_scroll(g, dy))
     case Con{Close{}, rest}:
       feed(rest, quit_now(g))
     case Con{e, rest}:

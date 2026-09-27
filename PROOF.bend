@@ -42,6 +42,7 @@ def Laws.trees_reject_submerged_ground(): {==}
 def Laws.trees_accept_dry_grass(): {==}
 def Laws.trees_reject_snow_heights(): {==}
 def Laws.unknown_key_is_no_bit(): {==}
+def Laws.wheel_goes_around(): {==}
 def Laws.stat_reads_back(): {==}
 def Laws.stat_stops_at_its_room(): {==}
 def Laws.stat_zero_is_the_game(): {==}

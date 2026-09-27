@@ -57,6 +57,9 @@ def selected(g: Player.Game) -> U32:
 def press(code: U32, g: Player.Game) -> Player.Game:
   Player.step(Player.feed([Key{code, True{}}], g))
 
+def wheel(dx: F32, dy: F32, g: Player.Game) -> Player.Game:
+  Player.step(Player.feed([Scroll{256, 256, dx, dy}], g))
+
 def cell_type(ok: Bool, expected: U32, r: World.World & U32) -> Bool:
   (w, actual) = r
   ok && U32.is_eq(actual, expected)
@@ -166,6 +169,11 @@ def main() -> IO(Unit):
       "the HUD shows the bucket's full cells, 99+ at a hundred, above the readout's numbers")
     # the bucket, the ninth slot
     Lib.expect(U32.is_eq(selected(press(57, fixture(Inventory.empty(), 0))), 8), "9 chooses the bucket")
+    Lib.expect(U32.is_eq(selected(wheel(0.0, 0.1, fixture(Inventory.empty(), 0))), 8)
+      && U32.is_eq(selected(wheel(0.0, (0.0 - 40.0 : F32), fixture(Inventory.empty(), 8))), 0)
+      && U32.is_eq(selected(wheel(0.0, (0.0 - 1.0 : F32), fixture(Inventory.empty(), 3))), 4)
+      && U32.is_eq(selected(wheel(3.0, 0.0, fixture(Inventory.empty(), 3))), 3),
+      "the wheel chooses a slot on an event, up the one before, around the nine, and sideways none")
     Lib.expect(U32.is_eq(amount(press(106, wet(255, 0n)), 64, 10, 65), 0) && Nat.is_eq(pail_of(press(106, wet(255, 0n))), 255n)
       && cell(press(106, wet(255, 0n)), List.set(&2, Nat, Inventory.empty(), 8n, 255n), Player.pk_u(64, 10, 66), True{}, 3),
       "a click with the bucket takes the water cell before the sand whole, 255 units, and breaks no sand")

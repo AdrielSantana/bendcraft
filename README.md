@@ -7,7 +7,7 @@ on the GPU through Metal, or on every core of your machine as WebAssembly.
 **Play it in the browser:** https://adrielsantana.github.io/bendcraft/
 
 `W A S D` walk · `space` jumps, and swims up in water · the mouse looks, dragged in the browser (or the arrows) ·
-click breaks · right click places (or `J` / `L`) · `1`–`8` choose the block
+click breaks · right click places (or `J` / `L`) · `1`–`8` or the wheel choose the block
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
 bucket: a click takes a cell of water, a right click pours one · `P`
 saves · `F` shows the frame's time · `Esc` quits and saves.
@@ -538,7 +538,7 @@ and reads back without touching its neighbours, and the device's read (a
 select, since the GPU never shifts by a variable) agrees with the host's;
 the terrain's layers are what they should be, a trunk packs as wood with
 leaves over it and grass under it, and the packed word the loader writes
-reads back the same; a key the game does not know sets no bit;
+reads back the same; a key the game does not know sets no bit, and the wheel goes around the nine slots;
 the readout's numbers read back from their word and stop at their room.
 The day phase
 returns after a whole turn for every `U32` clock value, including overflow,
@@ -587,8 +587,8 @@ its columns live above it, the render reads the word the host wrote, a
 column is its run and its canopy, its top is the higher of the two,
 leaves inside the run are the run's, a far column's types are the
 window's for the ground, the trunk and the sea, the sea is its plane
-over a lower ground, and it is not solid. There are 132 laws:
-eight universal claims and 124 concrete
+over a lower ground, and it is not solid. There are 133 laws:
+eight universal claims and 125 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;
