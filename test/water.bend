@@ -258,23 +258,23 @@ def main() -> IO(Unit):
       "the water's colour darkens with the depth under the surface, by day and by night")
     Lib.expect(Lib.near(Water.lit_path(3.0, (0.0 - 1.0 : F32)), 6.0, 0.0001) && Lib.near(Water.lit_path(3.0, 0.0), 3.0, 0.0001)
       && Lib.near(Water.lit_path(3.0, 0.5), 3.0, 0.0001), "the bed's light went down before it came up the ray")
-    Lib.expect((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) >= 0.5 : F32)
-      && (Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) <= 2.1 : F32)
-      && Bool.not(Lib.near(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), Water.caustic(4000000, 61.1, 66.2, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), 0.001)),
+    Lib.expect((Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) >= 0.5 : F32)
+      && (Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0) <= 2.1 : F32)
+      && Bool.not(Lib.near(Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), Water.caustic(4000000, 700, 61.1, 66.2, 0.0, (0.0 - 1.0 : F32), 0.9, 1.0), 0.001)),
       "the caustic brightens and darkens the bed within bounds, and differs from point to point")
-    Lib.expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 6.0, (0.0 - 1.0 : F32), 0.9, 1.0), 1.0)
-      && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), (0.0 - 0.5 : F32), 1.0), 1.0)
-      && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, 0.1, 0.9, 1.0), 1.0),
+    Lib.expect(F32.is_eq(Water.caustic(4000000, 700, 60.4, 66.7, 6.0, (0.0 - 1.0 : F32), 0.9, 1.0), 1.0)
+      && F32.is_eq(Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), (0.0 - 0.5 : F32), 1.0), 1.0)
+      && F32.is_eq(Water.caustic(4000000, 700, 60.4, 66.7, 0.0, 0.1, 0.9, 1.0), 1.0),
       "the caustic is gone six blocks down, at night, and looking along or up through the surface")
-    Lib.expect(Lib.near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
-        Water.caustic(Water.frame_base((4000000 + 128 : U32), 700), 59.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0), 0.0001)
-      && Lib.near(Water.caustic(Water.frame_base(4000000, 700), 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
-        Water.caustic(Water.frame_base((4000000 + 1 : U32), 700), 60.4, 65.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0), 0.0001),
+    Lib.expect(Lib.near(Water.caustic(4000000, 700, 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
+        Water.caustic((4000000 + 128 : U32), 700, 59.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0), 0.0001)
+      && Lib.near(Water.caustic(4000000, 700, 60.4, 66.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0),
+        Water.caustic((4000000 + 1 : U32), 700, 60.4, 65.7, 1.0, (0.0 - 0.7 : F32), 0.9, 1.0), 0.0001),
       "a ring shift along either axis cannot drag the caustic")
-    Lib.expect(F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.0), 1.0)
-      && Lib.near((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.45) - 1.0 : F32),
-        ((Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9) - 1.0) / 2.0 : F32), 0.0001)
-      && F32.is_eq(Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9), Water.caustic(4000000, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 3.0))
+    Lib.expect(F32.is_eq(Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.0), 1.0)
+      && Lib.near((Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.45) - 1.0 : F32),
+        ((Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9) - 1.0) / 2.0 : F32), 0.0001)
+      && F32.is_eq(Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 0.9), Water.caustic(4000000, 700, 60.4, 66.7, 0.0, (0.0 - 1.0 : F32), 0.9, 3.0))
       && F32.is_eq(Render.thickness(2.0, 1.5, (0.0 - 0.5 : F32)), 0.75) && F32.is_eq(Render.thickness(0.0, 0.2, (0.0 - 0.5 : F32)), 9.0),
       "the caustic grows with the water over the bed: none under no water, half under half a block, whole from nine tenths; a submerged eye's bed counts as deep")
     Lib.expect(partial_ok(True{}, 102, 64.5, 14.5, 64.5, 1, False{}, 4.1, 0.4, True{})

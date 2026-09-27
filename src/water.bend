@@ -3,18 +3,15 @@ import ./sky.bend as Sky
 import ./util.bend as Util
 
 # Array indices wrap at 2^18 words: only 14 column-address bits matter.
-# The next 13 carry milliseconds in an 8.192-second ripple loop; bits
-# 27..30 are looks the flags word has no room for, put there by the camera
-# (27: the world in the water's mirror, 28: the caustic on its bed).
-# None of these high bits changes a world load.
+# Bits 27..30 are looks the flags word has no room for, put there by the
+# camera (27: the world in the water's mirror, 28: the caustic on its
+# bed); none of them changes a world load. The ripples loop every 8.192
+# seconds of the game's clock.
 def phase(t: U32) -> U32: (t .&. 8191 : U32)
-def frame_base(+base: U32, clock: U32) -> U32:
-  ((base .&. 16383) .|. (phase(clock) * 16384) : U32)
 def mirror_on(base: U32) -> Bool: Util.on(base, 134217728)
 def caustic_on(base: U32) -> Bool: Util.on(base, 268435456)
 def with_looks(base: U32, more: U32) -> U32:
-  ((base .&. 2281701375) .|. (more .&. 2013265920) : U32)
-def clock(base: U32) -> U32: (base / 16384 % 8192 : U32)
+  ((base .&. 16383) .|. (more .&. 2013265920) : U32)
 def lattice(base: U32, x: U32, z: U32) -> U32:
   ((base + x * 128 + z) .&. 16383 : U32)
 
@@ -162,8 +159,8 @@ def thread(n: F32) -> F32:
 # cell, a whole block, keeps them whole). No walk and no world read: four
 # hashes an octave. The factor multiplies the bed's colour; 1.0 leaves it
 # alone.
-def caustic(+base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, sun_y: F32, +thick: F32) -> F32:
-  +angle = (U32.to_f32(clock(base)) * (6.2831853 / 8192.0) : F32)
+def caustic(+base: U32, +ck: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, sun_y: F32, +thick: F32) -> F32:
+  +angle = (U32.to_f32(phase(ck)) * (6.2831853 / 8192.0) : F32)
   +sx = (0.8 * F32.sin(angle) : F32)
   +sz = (0.8 * F32.cos(angle) : F32)
   +a = thread(value((base * 2 : U32), (x * 2.0 + 512.0 + sx : F32), (z * 2.0 + 512.0 + sz : F32)))
@@ -208,12 +205,12 @@ def tilted(+dx: F32, +dy: F32, +dz: F32, +strength: F32, s: Slope) -> Reflection
 # The ripples fade with distance, against a far shimmer, and in the last
 # degrees before the horizon, where `lifted` keeps a grazing ray's mirror
 # over the water.
-def reflected(on: Bool, +base: U32, x: F32, z: F32, distance: F32,
+def reflected(on: Bool, +base: U32, +ck: U32, x: F32, z: F32, distance: F32,
               +dx: F32, +dy: F32, +dz: F32) -> Reflection:
   match on:
     case False{}: flat(dx, dy, dz)
     case True{}:
-      +angle = (U32.to_f32(clock(base)) * (6.2831853 / 8192.0) : F32)
+      +angle = (U32.to_f32(phase(ck)) * (6.2831853 / 8192.0) : F32)
       +fade = (F32.clamp((0.0 - dy * 16.0 : F32), 0.0, 1.0)
         * (1.0 - F32.clamp((distance / 32.0 : F32), 0.0, 1.0)) : F32)
       tilted(dx, dy, dz, (0.15 * fade : F32),

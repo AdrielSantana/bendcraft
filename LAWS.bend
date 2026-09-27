@@ -466,40 +466,31 @@ law ripple_clock_returns_after_a_turn:
 law ripple_clock_wraps_with_the_day:
   {(Water.phase((Day.length() - 1 : U32)), Water.phase(Day.advance((Day.length() - 1 : U32), 1))) == (8191, 0) : U32 & U32}
 
-law ripple_clock_reads_back:
-  {(Water.clock(Water.frame_base(4294967295, 0)), Water.clock(Water.frame_base(4294967295, 8191))) == (0, 8191) : U32 & U32}
-
-law ripple_address_keeps_the_ring:
-  {(World.col_at(Water.frame_base(4294967295, 8191), 127, 127) % 262144 : U32) == (World.col_at(4294967295, 127, 127) % 262144 : U32) : U32}
-
 law ripple_lattice_follows_recentering:
-  {(Water.lattice(Water.frame_base(16383, 8191), 65, 64), Water.lattice(Water.frame_base((16383 + 129 : U32), 0), 64, 63)) == (8383, 8383) : U32 & U32}
+  {(Water.lattice(16383, 65, 64), Water.lattice((16383 + 129 : U32), 64, 63)) == (8383, 8383) : U32 & U32}
 
 law ripple_flag_is_independent:
   {(Water.ripples_on(1048576), Water.ripples_on(25165824), Water.ripples_on(Render.looks())) == (True{}, False{}, True{}) : Bool & (Bool & Bool)}
 
 # --- the world in the water's mirror ------------------------------------------
-# Its look rides in bit 27 of the camera's base, put there after the ripple
-# clock: it reads back, it is off when not asked for whatever the address
-# held, and it touches neither the ring's address nor the clock.
+# Its look rides in bit 27 of the camera's base: it reads back, it is off
+# when not asked for whatever the address held, and it does not touch the
+# ring's address.
 
 law mirror_look_reads_back:
-  {Water.mirror_on(Water.with_looks(Water.frame_base(16383, 8191), Render.looks_base())) == True{} : Bool}
+  {Water.mirror_on(Water.with_looks(16383, Render.looks_base())) == True{} : Bool}
 
 law mirror_look_is_off_unasked:
-  {Water.mirror_on(Water.with_looks(Water.frame_base(4294967295, 8191), 0)) == False{} : Bool}
+  {Water.mirror_on(Water.with_looks(4294967295, 0)) == False{} : Bool}
 
 law mirror_look_keeps_the_ring:
-  {(World.col_at(Water.with_looks(Water.frame_base(4294967295, 8191), 4294967295), 127, 127) % 262144 : U32) == (World.col_at(4294967295, 127, 127) % 262144 : U32) : U32}
-
-law mirror_look_keeps_the_clock:
-  {Water.clock(Water.with_looks(Water.frame_base(16383, 5000), 4294967295)) == 5000 : U32}
+  {(World.col_at(Water.with_looks(4294967295, 4294967295), 127, 127) % 262144 : U32) == (World.col_at(4294967295, 127, 127) % 262144 : U32) : U32}
 
 law caustic_look_reads_back:
-  {Water.caustic_on(Water.with_looks(Water.frame_base(16383, 8191), Render.looks_base())) == True{} : Bool}
+  {Water.caustic_on(Water.with_looks(16383, Render.looks_base())) == True{} : Bool}
 
 law caustic_look_is_off_unasked:
-  {Water.caustic_on(Water.with_looks(Water.frame_base(4294967295, 8191), 134217728)) == False{} : Bool}
+  {Water.caustic_on(Water.with_looks(4294967295, 134217728)) == False{} : Bool}
 
 # --- the flow: one transfer ----------------------------------------------
 # (what moves is a function of two amounts, down what fits (World.fits

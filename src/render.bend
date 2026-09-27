@@ -739,7 +739,7 @@ def mirror_world(world: Bool, +distant: Bool, +fm: U32, +fl: U32, +base: U32, +p
       (w, bottom) = r
       mirror_walk(distant, bottom, m, fl, base, fm, px, (py + 0.01 : F32), pz, rx, ry, rz, far, eye, lx, ly, lz, w)
 
-def mirrored(go: Bool, +distant: Bool, +fm: U32, +fl: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+def mirrored(go: Bool, +distant: Bool, +fm: U32, +ck: U32, +fl: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
              +entry: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
   match go:
     case False{}:
@@ -748,7 +748,7 @@ def mirrored(go: Bool, +distant: Bool, +fm: U32, +fl: U32, +base: U32, +ox: F32,
     case True{}:
       mirror_world(Water.mirror_on(base), distant, fm, fl, base, (ox + dx * entry : F32), (oy + dy * entry : F32), (oz + dz * entry : F32),
         entry, oy, lx, ly, lz,
-        Water.reflected(Water.ripples_on(fl), base, (ox + dx * entry : F32), (oz + dz * entry : F32), entry, dx, dy, dz), r)
+        Water.reflected(Water.ripples_on(fl), base, ck, (ox + dx * entry : F32), (oz + dz * entry : F32), entry, dx, dy, dz), r)
 
 def shade_go(sky: Bool, +distant: Bool, +word: U32, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
@@ -772,22 +772,22 @@ def shade_mode(steps: Bool, hits: Bool, sky: Bool, +distant: Bool, +word: U32, w
         case False{}:
           shade_go(sky, distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, c, t, fl, lx, ly, lz)
 
-# the bed's light under the water: the caustic, on a block a wet ray met,
-# a look of its own (bit 28 of the camera's base). At night its factor is
-# 1.0 (Sky.daylight is 0 from 0.12 under the horizon), and the sun's
-# height is the same for every pixel, so skipping it there costs no
-# divergence and changes no byte.
 # the water over the bed: the wet path's height for an eye in the air,
 # whole for a submerged one (its path starts at the eye, not the surface)
 def thickness(+entry: F32, +depth: F32, +dy: F32) -> F32:
   Bool.pick(F32, (entry > 0.0 : F32), (depth * Util.absf(dy) : F32), 9.0)
 
-def bed(on: Bool, +base: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, +ly: F32, +thick: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+# the bed's light under the water: the caustic, on a block a wet ray met,
+# a look of its own (bit 28 of the camera's base). At night its factor is
+# 1.0 (Sky.daylight is 0 from 0.12 under the horizon), and the sun's
+# height is the same for every pixel, so skipping it there costs no
+# divergence and changes no byte.
+def bed(on: Bool, +base: U32, +ck: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, +ly: F32, +thick: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   match on:
     case False{}: r
     case True{}:
       (w, c) = r
-      (w, dim(c, Water.caustic(base, x, z, drop, dy, ly, thick)))
+      (w, dim(c, Water.caustic(base, ck, x, z, drop, dy, ly, thick)))
 
 # What the ray met, under the water it went through: the window's hit or
 # the far walk's (distant), the water's surface met by either, and its
@@ -798,8 +798,8 @@ def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +to
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
   Water.shade(wet, fl, v, oy, dy, lx, ly, lz, top, t, (hitw > 0 : U32), Water.Trace{entry, depth},
-    mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
-      bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
+    mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, ck, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
+      bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, ck, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
         shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz))))
 
 # the far walk's hit, under the water the window's walk and its own
@@ -916,9 +916,9 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
 # sel holds selection in its low four bits, then four seven-bit counts;
 # items holds the other four. Counts are capped for the HUD. stat holds
 # the readout's numbers and the bucket's full cells (stat_of, with_pail).
-# base keeps the ring's low 14 bits and a 13-bit ripple clock; far the
-# far map's base (World.far_cam); clock the game's, whose days the
-# weather follows.
+# base keeps the ring's low 14 bits; far the far map's base
+# (World.far_cam); clock the game's, whose days the weather follows and
+# whose milliseconds the ripples.
 type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32}
 
@@ -937,7 +937,7 @@ def with_partial(+more: U32, some: Bool) -> U32:
 def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, more: U32, sel: U32, items: U32, stat: U32,
            +fl: U32, rw: U32, rh: U32, +clock: U32) -> Cam:
   +cycle = Util.on(fl, 33554432)
-  Cam{px, py, pz, yaw, pit, Water.with_looks(Water.frame_base(base, clock), more), far, sel, items, stat, fl, rw, rh,
+  Cam{px, py, pz, yaw, pit, Water.with_looks(base, more), far, sel, items, stat, fl, rw, rh,
       Bool.pick(F32, cycle, Day.sun_x(clock), 0.48),
       Bool.pick(F32, cycle, Day.sun_y(clock), 0.8),
       Bool.pick(F32, cycle, Day.sun_z(clock), 0.36), clock}

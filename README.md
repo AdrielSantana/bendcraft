@@ -278,8 +278,9 @@ Its analytic gradient takes four hashes and no extra world loads; the
 normal fades with distance, to limit shimmer, and in the last degrees
 before the horizon; a mirrored ray that a steep ripple would send under
 the water is lifted back over it and made a unit again, so the tilt stays
-strong where reflections are strongest. Its 8192-ms loop divides the day,
-with no jump when the saved day clock wraps. Flag 20 disables ripples.
+strong where reflections are strongest. Its 8192-ms loop reads the game's
+clock in the camera and divides its day and its word, with no jump at
+either's wrap. Flag 20 disables ripples.
 
 The world is in that mirror too, by a second ray: a pixel that shows a
 water top walks the ring again from where it met the water, along the
@@ -432,7 +433,7 @@ test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
-test/ripples.bend  clock/address packing, stable world noise, normals and wrap continuity
+test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
 test/mirror.bend   the mirror's walk over a placed brick, its reach and fade, the byte a miss keeps
 test/mirror_view.bend four views with the world in the mirror and without, for test/mirror.py
@@ -559,8 +560,8 @@ mean since. The two numbers ride to the GPU in a word of their own,
 ring-address words while the camera was kept at 14 words; the fifteenth
 word measured free, so the splices and their 22 laws went, 2026-09-22;
 the sixteenth, `Cam.far`, the far map's address, measured free too).
-Only 14 low address bits affect the ring's wrapping array reads; bits
-14..26 carry the ripple clock.
+Only 14 low address bits affect the ring's wrapping array reads, and the
+camera keeps only those.
 The HUD draws the readout with glyphs of 3 × 5 picked by divisions
 and masks (no table, no variable shift). With the readout off the frame
 is the same bit for bit: the bench's checksums and its times did not move.
@@ -596,14 +597,14 @@ Five surface laws cover independent flags and packing
 the top-entry bit with all 61 step counts and four face codes. Float tests
 cover Fresnel endpoints and growth, reflected sun/moon, signed entry,
 submerged eyes, foreground banks and distant fog.
-Six ripple laws include the 8192-ms period for every clock word,
-boundary packing checks, flag independence and
-integer recentering. Windowless tests exhaust all 8192 phase values,
-16384 ring addresses and 257 FPS inputs, and check unit normals,
+Four ripple laws: the 8192-ms period for every clock word, its loop
+whole in a day, flag independence and integer recentering. Windowless
+tests exhaust 16384 ring addresses under the looks' bits and 257 FPS
+inputs, and check unit normals,
 grazing reflection, positive/negative recentering and temporal continuity.
-Four mirror laws keep its look in bit 27 of the base word: it reads back,
-it is off unless asked for, and the ring address and the ripple clock
-pass through it untouched. Windowless tests walk the
+Three mirror laws keep its look in bit 27 of the base word: it reads
+back, it is off unless asked for, and the ring address passes through it
+untouched. Windowless tests walk the
 mirror's ray to a placed brick along an axis and across, past its reach,
 and to the sky, and check the fade and the byte a miss leaves alone.
 Two more keep the caustic's look in bit 28. Sixteen amount laws: a column
@@ -624,8 +625,8 @@ its columns live above it, the render reads the word the host wrote, a
 column is its run and its canopy, its top is the higher of the two,
 leaves inside the run are the run's, a far column's types are the
 window's for the ground, the trunk and the sea, the sea is its plane
-over a lower ground, and it is not solid. There are 133 laws:
-eight universal claims and 125 concrete
+over a lower ground, and it is not solid. There are 130 laws:
+eight universal claims and 122 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

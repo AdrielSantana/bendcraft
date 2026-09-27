@@ -233,14 +233,11 @@ def Laws.ripple_clock_returns_after_a_turn(t):
       {==}
 
 def Laws.ripple_clock_wraps_with_the_day(): {==}
-def Laws.ripple_clock_reads_back(): {==}
-def Laws.ripple_address_keeps_the_ring(): {==}
 def Laws.ripple_lattice_follows_recentering(): {==}
 def Laws.ripple_flag_is_independent(): {==}
 def Laws.mirror_look_reads_back(): {==}
 def Laws.mirror_look_is_off_unasked(): {==}
 def Laws.mirror_look_keeps_the_ring(): {==}
-def Laws.mirror_look_keeps_the_clock(): {==}
 def Laws.caustic_look_reads_back(): {==}
 def Laws.caustic_look_is_off_unasked(): {==}
 def Laws.a_side_takes_half_the_difference(): {==}

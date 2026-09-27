@@ -214,10 +214,10 @@ horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask 
 plus 64, plus those remainders, plus 256 (`Render.run_far`).
 - `Cam.clock`: the game's clock, milliseconds across the days
 (`Day.advance` no longer wraps a day; its word wraps after 4096); the
-weather (`Clouds.weather`) and the wind (`Clouds.corner_x`) read it.
-- `Cam.base`: low 14 bits address the ring; bits 14..26 hold the ripple
-clock modulo 8192 ms. The array wraps addresses, so the clock's bits
-cannot affect world reads. Bits 27..30 are the
+weather (`Clouds.weather`), the wind (`Clouds.corner_x`) and the
+ripples' 8192-ms loop (`Water.phase`) read it.
+- `Cam.base`: low 14 bits address the ring, and the camera keeps only
+those of the corner's word (`Water.with_looks`). Bits 27..30 are the
 looks `Cam.fl` has no room for: `Render.looks_base()` holds the ones on
 by default and `Water.with_looks` puts them in; 27 is the world in the
 water's mirror, 28 the caustic on its bed, 29 says the window holds

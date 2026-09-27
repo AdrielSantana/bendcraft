@@ -36,5 +36,5 @@ def main() -> IO(Unit):
       && (Water.reach(19.0, 0.6, 0.0, (0.0 - 0.8 : F32)) > 0.79 : F32), "the mirror fades into the sky over the last quarter of the reach")
     Lib.expect(U32.is_eq(Water.in_mirror(False{}, 123456, 654321, 0.5), 123456), "a miss leaves the mirrored sky's byte alone")
     Lib.expect(U32.is_eq(Water.in_mirror(True{}, 0, 16777215, 1.0), 0) && U32.is_eq(Water.in_mirror(True{}, 0, 16777215, 0.0), 16777215), "a hit fades into the sky behind it with the fog")
-    Lib.expect(Water.mirror_on(Water.with_looks(Water.frame_base(16383, 8191), Render.looks_base()))
-      && Bool.not(Water.mirror_on(Water.with_looks(Water.frame_base(4294967295, 8191), 0))), "the look rides in the base's bit 27 and nowhere else")
+    Lib.expect(Water.mirror_on(Water.with_looks(16383, Render.looks_base()))
+      && Bool.not(Water.mirror_on(Water.with_looks(4294967295, 0))), "the look rides in the base's bit 27 and nowhere else")

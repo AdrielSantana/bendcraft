@@ -476,9 +476,9 @@ a Bend update, that breaks a rule fails the gate. The laws to come:
 - *The picture:* the bench's thirty checksums. A change that should not
   change the image cannot.
 
-Today's 133 laws include day and ripple periods for every `U32` clock word
+Today's 130 laws include day and ripple periods for every `U32` clock word
 and six universal inventory laws, with counts as `Nat` and slots as a list.
-The other 125 laws are concrete checks, including water surface packing,
+The other 122 laws are concrete checks, including water surface packing,
 lake floors, dry tree roots, HUD packing, the bucket, the far map's
 addresses, types and sea, and save/quit edges. Floats stay in the windowless tests: the checker does not compute them.
 
