@@ -8,6 +8,7 @@ import ../src/world.bend as World
 import ../src/player.bend as Player
 import ../src/save.bend as Save
 import ../src/clouds.bend as Clouds
+import ../src/rain.bend as Rain
 
 def blocked(r: Array<U32> & Bool) -> Bool:
   (w, got) = r
@@ -76,6 +77,27 @@ def spans(r: F32 & F32) -> Bool:
   (+lo, +hi) = r
   (lo >= 0.0 : F32) && (lo < 0.1 : F32) && (hi > 0.8 : F32) && (hi <= 1.0 : F32)
 
+# level rays all around an eye at (ox, 20.5, 64.5) at the clock t, over a
+# colour, each met reach blocks out: how many the rain touched
+def wet_rays(n: Nat, +i: U32, +ox: F32, +t: U32, +reach: F32, +count: U32, r: Array<U32> & U32) -> U32:
+  match n:
+    case 0n:
+      (w, c) = r
+      (count + Bool.pick(U32, U32.is_ne(c, 6789), 1, 0) : U32)
+    case 1n+k:
+      (w, c) = r
+      +a = (U32.to_f32(i) * 0.049087385 : F32)
+      wet_rays(k, (i + 1 : U32), ox, t, reach, (count + Bool.pick(U32, U32.is_ne(c, 6789), 1, 0) : U32),
+        Rain.fall(True{}, t, 0, 0, ox, 20.5, 64.5, F32.sin(a), 0.0, F32.cos(a), reach, 0.8, (w, 6789)))
+
+# the first column along the row z = 64.5 with no cloud over it
+def gap(n: Nat, +t: U32, +x: F32) -> F32:
+  match n:
+    case 0n:
+      x
+    case 1n+k:
+      Bool.pick(F32, F32.is_eq(Clouds.cover(0, t, x, 64.5, 0.0, 0.0), 0.0), x, gap(k, t, (x + 1.0 : F32)))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     Lib.expect(U32.is_ne(Sky.gradient(True{}, 0.0, 0.8), Sky.gradient(True{}, 1.0, 0.8)), "sky has a vertical gradient")
@@ -96,6 +118,15 @@ def main() -> IO(Unit):
       && U32.is_eq(Clouds.overcast(False{}, 1048576, 0.8, 6789), 6789)
       && U32.is_ne(Clouds.over(True{}, 0, 1048576, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 6789), 6789),
       "a heavy sky greys the sky and its fog and veils its sun, moon and stars, a fair one leaves them, and none with the clouds off")
+    Lib.expect(Rain.raining(1203323) && Bool.not(Rain.raining(3145728)) && Bool.not(Rain.raining(Day.morning())),
+      "it rains on the second morning, overcast, and not on a fair day nor on the first morning")
+    Lib.expect((wet_rays(128n, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^19n], 6789)) > 0 : U32)
+      && U32.is_eq(wet_rays(128n, 0, 64.5, 1203323, 100.0, 0, ([33554432 : U32^19n], 6789)), 0)
+      && U32.is_eq(wet_rays(128n, 0, 64.5, 1203323, 1.5, 0, ([0 : U32^19n], 6789)), 0),
+      "rain falls around an eye under a cloud and the open sky, none under a roof over every column, none behind a wall a block and a half away")
+    Lib.expect(F32.is_eq(Clouds.cover(0, 1203323, gap(120n, 1203323, 0.5), 64.5, 0.0, 0.0), 0.0)
+      && U32.is_eq(wet_rays(128n, 0, gap(120n, 1203323, 0.5), 1203323, 100.0, 0, ([0 : U32^19n], 6789)), 0),
+      "on the same morning, an eye under a gap in the clouds stays dry")
     Lib.expect((Sky.gradient(True{}, 0.5, (0.0 - 1.0 : F32)) < Sky.gradient(True{}, 0.5, 1.0) : U32), "night sky is darker")
     Lib.expect(F32.is_eq(Sky.fog(0, 40.0, 5.0, 5.0), 0.0), "fog flags disable both terms")
     Lib.expect(F32.is_eq(Sky.fog(8, 120.0, 30.0, 30.0), 1.0), "distant terrain reaches sky colour")

@@ -88,6 +88,11 @@ def height(+n: F32, +b: F32) -> F32:
 def rough(+x: F32, +z: F32, +b: F32) -> F32:
   height(broad(wrap(x), wrap(z)), b)
 
+# how high the cloud over the column at (x, z), or a way (ax, az) from it,
+# reaches in the slab, 0 in the open
+def cover(+fm: U32, +ck: U32, +x: F32, +z: F32, +ax: F32, +az: F32) -> F32:
+  rough((x + corner_x(fm, ck) + ax : F32), (z + corner_z(fm) + az : F32), bias(weather(ck)))
+
 # what the ray still sees through (tr), and the light it met, weighed by
 # what each step hid (w, wl)
 type Puff is Data:
@@ -160,7 +165,7 @@ def shade(on: Bool, +fm: U32, +ck: U32, +x: F32, +y: F32, +z: F32, +lx: F32, +ly
       +wx = weather(ck)
       +slant = F32.max(ly, 0.3)
       +t = ((middle() - y) / F32.max(ly, 0.05) : F32)
-      +c = rough((x + corner_x(fm, ck) + lx * t : F32), (z + corner_z(fm) + lz * t : F32), bias(wx))
+      +c = cover(fm, ck, x, z, (lx * t : F32), (lz * t : F32))
       (0.55 + 0.45 * F32.exp((0.0 - sigma(wx) * c * (top() - bottom()) * 0.25 / slant : F32)) : F32)
 
 # the sky and its fog under the weather: a heavy one greys them, by day

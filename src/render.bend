@@ -6,6 +6,7 @@ import ./sky.bend as Sky
 import ./inventory.bend as Inventory
 import ./water.bend as Water
 import ./clouds.bend as Clouds
+import ./rain.bend as Rain
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -797,10 +798,11 @@ def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +to
   Water.Trace{+entry, +depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
+  Rain.fall(Util.on(fl, 512) && Rain.raining(ck), ck, fw, base, ox, oy, oz, dx, dy, dz, Bool.pick(F32, wet, entry, t), ly,
   Water.shade(wet, fl, v, oy, dy, lx, ly, lz, top, t, (hitw > 0 : U32), Water.Trace{entry, depth},
     mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, ck, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
       bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, ck, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
-        shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz))))
+        shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz)))))
 
 # the far walk's hit, under the water the window's walk and its own
 # crossed; the surface is the far walk's where the window's walk stayed
@@ -910,7 +912,7 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
 # flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
-# what. Bit 7 is the clouds, 8 their shadows; bits 9..19 are spare; bit 20 enables ripples. Bits 21..24
+# what. Bit 7 is the clouds, 8 their shadows, 9 the rain; bits 10..19 are spare; bit 20 enables ripples. Bits 21..24
 # hold water (21), water fog (22), Fresnel (23) and sky reflection (24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low four bits, then four seven-bit counts;
@@ -923,7 +925,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4293919135
+def looks() -> U32: 4293919647
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds

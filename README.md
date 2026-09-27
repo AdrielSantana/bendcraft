@@ -366,6 +366,14 @@ sun's line from it crosses the slab's middle, and loses to a thin cloud a
 little of its sun, to a heavy one down to 0.55 of it, a shade darker
 than a block's shadow. The water's mirror does not show them yet.
 
+**The rain** falls when the weather passes 0.62, from the cloud over the
+eye: as much as that cloud holds, so a gap between clouds stays dry
+(`src/rain.bend`). Its streaks stand on three cylinders about the eye, 2,
+4 and 7 blocks out, placed by the ray's bearing and falling 12 blocks a
+second; a ray shows one in front of what it met or of the water's
+surface, and only where no block stands over the point, which one read
+of that column's solid mask tells.
+
 **Collecting and building** use eight natural counts in `Game`. A successful
 break reads the cell's actual type and credits that slot; a successful
 placement debits the selected slot. Empty spending, occupied cells and
@@ -415,7 +423,8 @@ main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
-src/clouds.bend    the clouds' coverage, their march along a sky ray, their shadow
+src/clouds.bend    the clouds' coverage, their march along a sky ray, their shadow, the weather
+src/rain.bend      the rain's streaks about the eye, under the cloud over it and the open sky
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
@@ -431,7 +440,7 @@ test/lib.bend      what every windowless test needs: expect, ticks, one event, s
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
-test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather
+test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
@@ -454,7 +463,7 @@ site/              the page: notes.mjs post-processes the built index.html
 make check      # the modules, the tests, the laws
 make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
-make profile    # each look off, by size; also night, lake, submerged, night lake, partial water
+make profile    # each look off, by size; also night, rain, lake, submerged, night lake, partial water
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
 make clouds     # twelve PNGs and build/clouds-contact.png; Pillow
 make water      # sixteen PNGs and a ripple animation; Python with Pillow
@@ -500,7 +509,7 @@ alone, and prints the `!` a frame; then it renders the view twice more
 with numbers for pixels, how many rays reach a block and how many DDA
 steps a ray walks to its hit, each pixel weighed by the square it stands
 for. Its views are the bench's at four sizes, then at 1470×796 night
-looking at the moon, a lake looking west, under its water, the night lake
+looking at the moon, the rain of the second morning, a lake looking west, under its water, the night lake
 with the moon in it, and the lake with partial water in the window. The
 least of four rounds alternated with the build before the clouds, as
 above, ms a frame:
@@ -532,7 +541,9 @@ frame being its slowest lane: the shadow's 24 steps, the mirror's 32, and
 the clouds' 12, each of them six hashed lattices and a step's light. The
 clouds are the dearest look: 6 ms in the bench's view, whose top is sky,
 and 15 where the whole frame is, since a sky ray's lane marches them all;
-off, they cost nothing. Their shadow, one read a lit block, takes 1. Water
+off, they cost nothing. Their shadow, one read a lit block, takes 1. The
+rain takes 1.4 where it rains (the second morning: all on 31.0, rain off
+29.6, clouds off 22.0) and nothing where it does not. Water
 comes next, 3 to 5 ms, because it tracks the wet intervals along every
 ray's 60 steps. Two lessons of the first profile hold: a ray that stopped
 at its hit walked a third of the steps and made the frame slower, the

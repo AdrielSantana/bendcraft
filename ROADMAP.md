@@ -142,8 +142,10 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    the wind carries the clouds along x; a heavy sky greys the sky and the
    fog and veils the sun, and its clouds' shadow dims the ground all over.
    The camera carries the clock, its seventeenth word.
-6. **Rain from heavy clouds.** Streaks under a cloud heavy enough, stopped
-   by a roof (the column's solid mask), with its flag and profile line.
+6. **Rain from heavy clouds — done (2026-09-27).** Streaks about the eye
+   on three cylinders, from the cloud over it when the weather is heavy,
+   stopped by a roof (one read of the column's solid mask). Still to do:
+   splashes, wet ground, and rain in the water's mirror.
 7. **Vegetation.** Tall grass and flowers as two crossed planes inside a
    voxel, leaves with holes: a ray that meets alpha goes on. Wind as an
    offset of the texture's coordinate by time and place.
@@ -494,8 +496,8 @@ finished world.
 4. the far horizon: its first level, a word a column to 128 blocks, done
    2026-09-22, seamless 2026-09-25; coarser levels past it wait on the reach wanted
 5. clouds and their shadows — done, 2026-09-27
-6. the weather over the days and the wind — done, 2026-09-27; rain from
-   heavy clouds
+6. the weather over the days, the wind and rain from heavy clouds — done,
+   2026-09-27
 7. vegetation
 8. light of the blocks
 9. survival and crafting
