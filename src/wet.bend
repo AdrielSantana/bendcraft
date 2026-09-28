@@ -31,13 +31,13 @@ def puddle(+fm: U32, +x: F32, +z: F32, +wet: F32) -> F32:
   +n = (0.65 * Clouds.lattice(a, b, 0.5, 128, 509) + 0.35 * Clouds.lattice(a, b, 1.0, 256, 601) : F32)
   Util.smooth(F32.clamp(((n - 1.0 + 0.45 * wet) * 8.0 : F32), 0.0, 1.0))
 
-# how wet a face is: the world's wetness, if no block of its air cell's
-# column (its mask) is over the cell at cy. The air cell is open, so its
-# column's highest block is under cy or over cy + 1, and the log2's
-# rounding cannot tell them wrong. A distant face's air is not in the
-# window, and is taken as open.
-def soaking(+distant: Bool, +wet: F32, +cy: F32, +mask: U32) -> F32:
-  Bool.pick(F32, distant || (F32.log2(U32.to_f32(mask)) < (cy + 0.5 : F32) : F32), wet, 0.0)
+# what of the rain, or of the wet it left, reaches the cell at cy: all of
+# it if no block of the cell's column (its mask) is over it, none under a
+# roof. The cell is open (air, or water), so its column's highest block
+# is under cy or over cy + 1, and the log2's rounding cannot tell them
+# wrong. A distant cell is not in the window, and is taken as open.
+def reached(+distant: Bool, +amount: F32, +cy: F32, +mask: U32) -> F32:
+  Bool.pick(F32, distant || (F32.log2(U32.to_f32(mask)) < (cy + 0.5 : F32) : F32), amount, 0.0)
 
 # the face's colour c, fogged by f towards v, soaked by soak and under a
 # puddle by pud: darker where it is lit, and what its mirror shows over

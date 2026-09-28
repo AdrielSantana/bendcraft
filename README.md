@@ -380,11 +380,12 @@ within 0.02 of a block, in front of what it met or of the water's
 surface, and only where no block stands over them, which the column's
 solid mask, read once a step, tells. A drop near the eye is wide and a
 far one thin, and walking passes them by. On still water, the lake's
-and the puddles', the drops ring (`Water.rings`): in every half of a
-block one falls in 0.8 seconds, in as many halves as it rains, at a
-place and a time the half's hash on the ripples' world lattice chooses,
-and its ring's steep wave spreads 0.17 of a block and fades, tilting the
-mirror as the ripples do.
+and the puddles', with no block over it (`Wet.reached`, the column's
+mask read once, as for a wet face), the drops ring (`Water.rings`): in
+every half of a block one falls in 0.8 seconds, in as many halves as it
+rains, at a place and a time the half's hash on the ripples' world
+lattice chooses, and its ring's steep wave spreads 0.17 of a block and
+fades, tilting the mirror as the ripples do.
 
 **The wet** is what the rain leaves (`src/wet.bend`). A face with no
 block over the air before it, which that column's solid mask tells in

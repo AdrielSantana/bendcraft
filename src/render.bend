@@ -730,6 +730,16 @@ def behind(world: Bool, +distant: Bool, +fm: U32, +ck: U32, +fl: U32, +base: U32
   mirror_world(world, distant, fm, fl, base, px, py, pz, far, eye, lx, ly, lz, Water.Reflection{rx, ry, rz, cosine},
     Clouds.mirrored(fl, fm, ck, px, py, pz, rx, ry, rz, lx, ly, lz), r)
 
+# the water's top at p under the rain, whose rings reach it only where no
+# block of its column (mask) is over its cell, as the wet reaches a face
+def sheltered(+distant: Bool, +fm: U32, +ck: U32, +rain: F32, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32,
+              +dx: F32, +dy: F32, +dz: F32, +entry: F32, +oy: F32, +lx: F32, +ly: F32, +lz: F32, +bottom: U32,
+              r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
+  (w, mask) = r
+  behind(Water.mirror_on(base), distant, fm, ck, fl, base, px, py, pz, entry, oy, lx, ly, lz,
+    Water.reflected(Water.ripples_on(fl), base, ck, Wet.reached(distant, rain, F32.floor((py - 0.01 : F32)), mask), px, pz, entry, dx, dy, dz),
+    (w, bottom))
+
 def mirrored(go: Bool, +distant: Bool, +fm: U32, +ck: U32, +rain: F32, +fl: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
              +entry: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
   match go:
@@ -737,9 +747,11 @@ def mirrored(go: Bool, +distant: Bool, +fm: U32, +ck: U32, +rain: F32, +fl: U32,
       (w, bottom) = r
       (w, Water.Mirror{bottom, Water.flat(dx, dy, dz), 0})
     case True{}:
-      behind(Water.mirror_on(base), distant, fm, ck, fl, base, (ox + dx * entry : F32), (oy + dy * entry : F32), (oz + dz * entry : F32),
-        entry, oy, lx, ly, lz,
-        Water.reflected(Water.ripples_on(fl), base, ck, rain, (ox + dx * entry : F32), (oz + dz * entry : F32), entry, dx, dy, dz), r)
+      (w, bottom) = r
+      +px = (ox + dx * entry : F32)
+      +pz = (oz + dz * entry : F32)
+      sheltered(distant, fm, ck, rain, fl, base, px, (oy + dy * entry : F32), pz, dx, dy, dz, entry, oy, lx, ly, lz, bottom,
+        Array.get(U32, w, World.col_at(base, Util.f2u(px), Util.f2u(pz))))
 
 # ---------- the wet: what the rain leaves on a face (src/wet.bend) ----------
 # The air cell's column tells whether the rain reaches the face; a
@@ -759,7 +771,7 @@ def soaked(+distant: Bool, +wet: F32, +base: U32, +fm: U32, +ck: U32, +cx: F32, 
            +t: F32, +oy: F32, m: Water.Reflection, +v: U32, +f: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +c: U32,
            r: Array<U32> & U32) -> Array<U32> & U32:
   (w, mask) = r
-  +soak = Wet.soaking(distant, wet, cy, mask)
+  +soak = Wet.reached(distant, wet, cy, mask)
   +pud = Bool.pick(F32, puddly, Wet.puddle(fm, x, z, soak), 0.0)
   sheened(v, f, soak, pud,
     behind((pud > 0.0 : F32) && Water.mirror_on(base), distant, fm, ck, fl, base,

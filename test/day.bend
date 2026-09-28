@@ -126,6 +126,24 @@ def by_pillar(+more: U32, +x: F32) -> U32:
     (Array.set(U32, Array.set(U32, [0 : U32^19n], World.col_at(0, (Util.f2u(x) + 1 : U32), 64), 4294967295),
       World.col_at(0, (Util.f2u(x) + 1 : U32), 65), 4294967295), 6789)))
 
+def bent(r: Array<U32> & Water.Mirror) -> F32:
+  (w, m) = r
+  Water.Mirror{bottom, n, colour} = m
+  Water.Reflection{x, y, z, cosine} = n
+  x
+
+# how many of n points on water at 12 along z = 64.3, seen from 4 blocks
+# over it in the second morning, mirror a ray the rain's rings bent, in a
+# world whose every word is `word`
+def ringed(n: Nat, +x: F32, +word: U32, +count: U32) -> U32:
+  match n:
+    case 0n:
+      count
+    case 1n+k:
+      ringed(k, (x + 0.07 : F32), word, (count + Bool.pick(U32,
+        F32.is_eq(bent(Render.mirrored(True{}, False{}, 0, 1203323, 1.0, Render.looks(), 0, x, 16.0, 64.3, 0.0, (0.0 - 1.0 : F32), 0.0, 4.0, 0.48, 0.8, 0.36, ([word : U32^19n], 0))),
+          bent(Render.mirrored(True{}, False{}, 0, 1203323, 0.0, Render.looks(), 0, x, 16.0, 64.3, 0.0, (0.0 - 1.0 : F32), 0.0, 4.0, 0.48, 0.8, 0.36, ([word : U32^19n], 0)))), 0, 1) : U32))
+
 # the first x along z = 64.5 from x where a puddle of the wettest ground
 # covers the whole top
 def puddled(n: Nat, +x: F32) -> F32:
@@ -196,6 +214,8 @@ def main() -> IO(Unit):
       "puddles cover some of the ground's tops in the rain, less as it dries, and none on dry ground")
     Lib.expect(U32.is_ne(by_pillar(Render.looks_base(), puddled(512n, 0.5)), by_pillar(0, puddled(512n, 0.5))),
       "a puddle mirrors a pillar standing by it with the world in the mirror, the sky alone without")
+    Lib.expect((ringed(64n, 64.0, 0, 0) > 0 : U32) && U32.is_eq(ringed(64n, 64.0, 33554432, 0), 0),
+      "the rain rings water under the open sky, and none under a roof")
     Lib.expect(F32.is_eq(Clouds.cover(0, 1203323, gap(120n, 1203323, 0.5), 64.5, 0.0, 0.0), 0.0)
       && dry(rays(128n, 0, 0, 0, gap(120n, 1203323, 0.5), 1203323, 100.0, 0, ([0 : U32^19n], 0))),
       "on the same morning, an eye under a gap in the clouds stays dry")
