@@ -368,11 +368,14 @@ than a block's shadow. The water's mirror does not show them yet.
 
 **The rain** falls when the weather passes 0.62, from the cloud over the
 eye: as much as that cloud holds, so a gap between clouds stays dry
-(`src/rain.bend`). Its streaks stand on three cylinders about the eye, 2,
-4 and 7 blocks out, placed by the ray's bearing and falling 12 blocks a
-second; a ray shows one in front of what it met or of the water's
-surface, and only where no block stands over the point, which one read
-of that column's solid mask tells.
+(`src/rain.bend`). Its drops are in the world, three a column, thin
+vertical streaks at places the column's hashes choose on the ripples'
+world lattice, falling 12 blocks a second. A ray walks the 11 columns it
+crosses first, as the render's walk does, and shows the drops it passes
+within 0.02 of a block, in front of what it met or of the water's
+surface, and only where no block stands over them, which the column's
+solid mask, read once a step, tells. A drop near the eye is wide and a
+far one thin, and walking passes them by.
 
 **Collecting and building** use eight natural counts in `Game`. A successful
 break reads the cell's actual type and credits that slot; a successful
@@ -424,7 +427,7 @@ src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/clouds.bend    the clouds' coverage, their march along a sky ray, their shadow, the weather
-src/rain.bend      the rain's streaks about the eye, under the cloud over it and the open sky
+src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
@@ -542,8 +545,9 @@ the clouds' 12, each of them six hashed lattices and a step's light. The
 clouds are the dearest look: 6 ms in the bench's view, whose top is sky,
 and 15 where the whole frame is, since a sky ray's lane marches them all;
 off, they cost nothing. Their shadow, one read a lit block, takes 1. The
-rain takes 1.4 where it rains (the second morning: all on 31.0, rain off
-29.6, clouds off 22.0) and nothing where it does not. Water
+rain takes about 5 where it rains (the second morning: all on 35.0, rain
+off 30.2), its 11 columns and 33 drops a ray, and nothing where it does
+not. Water
 comes next, 3 to 5 ms, because it tracks the wet intervals along every
 ray's 60 steps. Two lessons of the first profile hold: a ray that stopped
 at its hit walked a third of the steps and made the frame slower, the

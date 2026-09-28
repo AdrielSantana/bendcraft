@@ -142,10 +142,15 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    the wind carries the clouds along x; a heavy sky greys the sky and the
    fog and veils the sun, and its clouds' shadow dims the ground all over.
    The camera carries the clock, its seventeenth word.
-6. **Rain from heavy clouds — done (2026-09-27).** Streaks about the eye
-   on three cylinders, from the cloud over it when the weather is heavy,
-   stopped by a roof (one read of the column's solid mask). Still to do:
-   splashes, wet ground, and rain in the water's mirror.
+6. **Rain from heavy clouds — done (2026-09-27).** Drops in the world,
+   three a column, from the cloud over the eye when the weather is heavy;
+   a ray walks 11 columns and each column's solid mask keeps its drops
+   off under a roof. Streaks on cylinders about the eye, placed by the
+   ray's bearing, went first: they walked with the player and read as a
+   filter on the screen (said on trying it). The roof's test was a pow a
+   drop at first, 3 of its 8 ms at 1470×796; a log2 of the column's mask
+   does it once a column. Still to do: splashes, wet ground, and rain in
+   the water's mirror.
 7. **Vegetation.** Tall grass and flowers as two crossed planes inside a
    voxel, leaves with holes: a ray that meets alpha goes on. Wind as an
    offset of the texture's coordinate by time and place.
