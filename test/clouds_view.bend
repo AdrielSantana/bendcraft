@@ -8,7 +8,7 @@ import ./profile.bend as Profile
 # the clouds from the start's hill: at each time of day, towards the sun
 # and away from it, overhead, on a clear day and an overcast one, the
 # ground under their shadows, wet in the rain and after it, and the lake
-# in the rain, with each look off beside it
+# in the rain and the rain's rings on it, with each look off beside it
 def main() -> IO(Unit):
   do IO<Unit>:
     g : Player.Game = Player.start_at(Player.res_of(512, 288))
@@ -28,4 +28,5 @@ def main() -> IO(Unit):
     o : Player.Game <- Export.save("build/clouds-wet-off.tree", Frame.view_with(n, (Render.looks() .&. U32.not(1024) : U32)))
     q : Player.Game <- Export.save("build/clouds-drying.tree", Frame.view(Export.aim(o, 5400000, 2.4, (0.0 - 0.25 : F32))))
     u : Player.Game <- Export.save("build/clouds-lake-rain.tree", Frame.view(Export.aim(Profile.lake(q), 1203323, (0.0 - 1.5707963 : F32), (0.0 - 0.2 : F32))))
+    y : Player.Game <- Export.save("build/clouds-rings.tree", Frame.view(Export.aim(u, 1203323, (0.0 - 1.5707963 : F32), (0.0 - 1.1 : F32))))
     IO.pure(Unit, Unit{})

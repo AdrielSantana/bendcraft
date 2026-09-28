@@ -203,10 +203,36 @@ def tilted(+dx: F32, +dy: F32, +dz: F32, +strength: F32, s: Slope) -> Reflection
   lifted((dx + 2.0 * cosine * nx * inv : F32), (dy + 2.0 * cosine * inv : F32),
     (dz + 2.0 * cosine * nz * inv : F32), cosine)
 
-# The ripples fade with distance, against a far shimmer, and in the last
-# degrees before the horizon, where `lifted` keeps a grazing ray's mirror
-# over the water.
-def reflected(on: Bool, +base: U32, +ck: U32, x: F32, z: F32, distance: F32,
+def plus(a: Slope, b: Slope) -> Slope:
+  Slope{ax, az} = a
+  Slope{bx, bz} = b
+  Slope{(ax + bx : F32), (az + bz : F32)}
+
+# The rain's rings on still water at (x, z): in every half of a block a
+# drop falls once in 0.8 seconds, in as many of them as it rains, at a
+# place and a time the half's hash chooses, and its ring spreads 0.17 of a
+# block out and fades, inside its half; the slope of the ring's wave, 0
+# elsewhere. The halves sit on the ripples' world lattice scaled by two,
+# as the caustic's octaves do, and the drops of a half take turns by a
+# step of 97 through their 256.
+def rings(+base: U32, +ck: U32, +rain: F32, +x: F32, +z: F32) -> Slope:
+  +sx = (x * 2.0 + 512.0 : F32)
+  +sz = (z * 2.0 + 512.0 : F32)
+  +h = Sky.star_hash(lattice((base * 2 : U32), Util.f2u(sx), Util.f2u(sz)), 71)
+  +o = (ck + h / 65536 % 256 * 3 : U32)
+  +age = (U32.to_f32((o % 800 : U32)) * 0.00125 : F32)
+  +falls = (U32.to_f32(((h / 16777216 + o / 800 * 97) % 256 : U32)) * 0.00390625 < rain : F32)
+  +ex = ((Util.fracf(sx) - 0.4 - U32.to_f32((h % 256 : U32)) * 0.00078431 : F32) * 0.5 : F32)
+  +ez = ((Util.fracf(sz) - 0.4 - U32.to_f32((h / 256 % 256 : U32)) * 0.00078431 : F32) * 0.5 : F32)
+  +d = F32.max(F32.sqrt((ex * ex + ez * ez : F32)), 0.001)
+  +s = F32.clamp(((d - 0.17 * age) * 33.333332 : F32), (0.0 - 1.0 : F32), 1.0)
+  +k = Bool.pick(F32, falls, (12.0 * (1.0 - age) * s * (1.0 - s * s) / d : F32), 0.0)
+  Slope{(k * ex : F32), (k * ez : F32)}
+
+# The ripples, and the rain's rings as hard as it rains, fade with
+# distance, against a far shimmer, and in the last degrees before the
+# horizon, where `lifted` keeps a grazing ray's mirror over the water.
+def reflected(on: Bool, +base: U32, +ck: U32, +rain: F32, +x: F32, +z: F32, distance: F32,
               +dx: F32, +dy: F32, +dz: F32) -> Reflection:
   match on:
     case False{}: flat(dx, dy, dz)
@@ -215,8 +241,8 @@ def reflected(on: Bool, +base: U32, +ck: U32, x: F32, z: F32, distance: F32,
       +fade = (F32.clamp((0.0 - dy * 16.0 : F32), 0.0, 1.0)
         * (1.0 - F32.clamp((distance / 32.0 : F32), 0.0, 1.0)) : F32)
       tilted(dx, dy, dz, (0.15 * fade : F32),
-        slope(base, (x + 256.0 + 0.8 * F32.sin(angle) : F32),
-                    (z + 256.0 + 0.8 * F32.cos(angle) : F32)))
+        plus(slope(base, (x + 256.0 + 0.8 * F32.sin(angle) : F32), (z + 256.0 + 0.8 * F32.cos(angle) : F32)),
+          rings(base, ck, rain, x, z)))
 
 # About 2% reflection head-on, a mirror at grazing angles, as Schlick's
 # approximation has it, but by a cube and not his fifth power: the mirror

@@ -10,6 +10,7 @@ import ../src/save.bend as Save
 import ../src/clouds.bend as Clouds
 import ../src/rain.bend as Rain
 import ../src/wet.bend as Wet
+import ../src/water.bend as Water
 
 def blocked(r: Array<U32> & Bool) -> Bool:
   (w, got) = r
@@ -94,7 +95,7 @@ def rays(n: Nat, +i: U32, +fm: U32, +base: U32, +ox: F32, +t: U32, +reach: F32, 
       (w, c) = r
       +a = (U32.to_f32(i) * 0.049087385 : F32)
       rays(k, (i + 1 : U32), fm, base, ox, t, reach, (sum + c : U32),
-        Rain.fall(True{}, t, fm, base, ox, 20.5, 64.5, F32.sin(a), 0.0, F32.cos(a), reach, 0.8, (w, 6789)))
+        Rain.fall(True{}, Rain.falling(True{}, t), t, fm, base, ox, 20.5, 64.5, F32.sin(a), 0.0, F32.cos(a), reach, 0.8, (w, 6789)))
 
 def dry(+sum: U32) -> Bool:
   U32.is_eq(sum, 868992)
@@ -107,8 +108,8 @@ def shown(r: Array<U32> & U32) -> U32:
 # (x, 20, 64.5) of a world whose every word is `word`, seen at a slant at
 # the clock t
 def wet_face(+t: U32, +puddly: Bool, +x: F32, +word: U32) -> U32:
-  shown(Wet.soak((Wet.wetness(True{}, t) > 0.0 : F32), False{}, Wet.wetness(True{}, t), 0, 0, t, x, 20.0, 64.5, puddly, x, 64.5, 0.5,
-    0.3, 0.6, 0.2, 12345, 0.0, Render.looks(), 0.48, 0.8, 0.36, ([word : U32^19n], 6789)))
+  shown(Wet.soak((Wet.wetness(True{}, t) > 0.0 : F32), False{}, Wet.wetness(True{}, t), 0, 0, t, x, 20.0, 64.5, puddly, x, 64.5, 3.0,
+    Water.Reflection{0.3, 0.5, 0.2, 0.5}, 12345, 0.0, Render.looks(), 0.48, 0.8, 0.36, ([word : U32^19n], 6789)))
 
 # the first x along z = 64.5 from x where a puddle of the wettest ground
 # covers the whole top
@@ -155,7 +156,8 @@ def main() -> IO(Unit):
       && U32.is_eq(Clouds.overcast(False{}, 1048576, 0.8, 6789), 6789)
       && U32.is_ne(sun_seen(True{}, 1048576), sun_seen(False{}, 1048576)) && U32.is_eq(sun_seen(True{}, 3145728), sun_seen(False{}, 3145728)),
       "a heavy sky greys the sky and its fog and veils its sun, moon and stars, a fair one leaves them, and none with the clouds off")
-    Lib.expect(Rain.raining(1203323) && Bool.not(Rain.raining(3145728)) && Bool.not(Rain.raining(Day.morning())),
+    Lib.expect((Rain.falling(True{}, 1203323) > 0.0 : F32) && F32.is_eq(Rain.falling(True{}, 3145728), 0.0) && F32.is_eq(Rain.falling(True{}, Day.morning()), 0.0)
+      && F32.is_eq(Rain.falling(False{}, 1203323), 0.0),
       "it rains on the second morning, overcast, and not on a fair day nor on the first morning")
     Lib.expect(Bool.not(dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^19n], 0))))
       && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([33554432 : U32^19n], 0)))

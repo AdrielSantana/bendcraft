@@ -10,7 +10,7 @@ def same(a: Water.Reflection, b: Water.Reflection, +epsilon: F32) -> Bool:
   Lib.near(ax, bx, epsilon) && Lib.near(ay, by, epsilon) && Lib.near(az, bz, epsilon) && Lib.near(ac, bc, epsilon)
 
 def sample(base: U32, clock: U32, x: F32, z: F32) -> Water.Reflection:
-  Water.reflected(True{}, base, clock, x, z, 6.0, 0.8, (0.0 - 0.6 : F32), 0.0)
+  Water.reflected(True{}, base, clock, 0.0, x, z, 6.0, 0.8, (0.0 - 0.6 : F32), 0.0)
 
 # Every ring address survives the looks' bits, including a column offset
 # which wraps through the end of the array.
@@ -39,10 +39,44 @@ def normals(n: Nat, +i: U32) -> Bool:
       +dz = F32.cos(angle)
       +b = (16300 + i : U32)
       +t = (i * 127 : U32)
-      unit(Water.reflected(True{}, b, t, 63.375, 64.625, 0.0, (dx * 0.999999995 : F32), (0.0 - 0.0001 : F32), (dz * 0.999999995 : F32)))
-        && unit(Water.reflected(True{}, b, t, 63.375, 64.625, 4.0, (dx * 0.8 : F32), (0.0 - 0.6 : F32), (dz * 0.8 : F32)))
-        && unit(Water.reflected(True{}, b, t, 63.375, 64.625, 4.0, 0.0, (0.0 - 1.0 : F32), 0.0))
+      unit(Water.reflected(True{}, b, t, 0.0, 63.375, 64.625, 0.0, (dx * 0.999999995 : F32), (0.0 - 0.0001 : F32), (dz * 0.999999995 : F32)))
+        && unit(Water.reflected(True{}, b, t, 0.0, 63.375, 64.625, 4.0, (dx * 0.8 : F32), (0.0 - 0.6 : F32), (dz * 0.8 : F32)))
+        && unit(Water.reflected(True{}, b, t, 0.0, 63.375, 64.625, 4.0, 0.0, (0.0 - 1.0 : F32), 0.0))
         && normals(k, (i + 1 : U32))
+
+def still(s: Water.Slope) -> Bool:
+  Water.Slope{x, z} = s
+  F32.is_eq(x, 0.0) && F32.is_eq(z, 0.0)
+
+def alike(a: Water.Slope, b: Water.Slope) -> Bool:
+  Water.Slope{ax, az} = a
+  Water.Slope{bx, bz} = b
+  Lib.near(ax, bx, 0.0001) && Lib.near(az, bz, 0.0001)
+
+# n points along a slant of the lake at n clocks, in a rain r: how many
+# ring, whether every point on the side of a half rings none, and whether
+# each rings as the same point does in a window moved a column along both
+# axes
+def ringing(n: Nat, +i: U32, +r: F32, +count: U32, +edges: Bool, +moved: Bool) -> U32 & (Bool & Bool):
+  match n:
+    case 0n:
+      (count, (edges, moved))
+    case 1n+k:
+      +x = (64.0 + U32.to_f32(i) * 0.0137 : F32)
+      +z = (64.0 + U32.to_f32(i) * 0.0291 : F32)
+      +t = (i * 37 : U32)
+      ringing(k, (i + 1 : U32), r, (count + Bool.pick(U32, still(Water.rings(16383, t, r, x, z)), 0, 1) : U32),
+        edges && still(Water.rings(16383, t, r, (64.0 + U32.to_f32((i % 30 : U32)) * 0.5 : F32), z)),
+        moved && alike(Water.rings(16383, t, r, x, z), Water.rings((16383 + 129 : U32), t, r, (x - 1.0 : F32), (z - 1.0 : F32))))
+
+def fst_of(q: U32 & (Bool & Bool)) -> U32:
+  (count, rest) = q
+  count
+
+def rings_ok(q: U32 & (Bool & Bool)) -> Bool:
+  (+count, rest) = q
+  (edges, moved) = rest
+  (count > 5 : U32) && (count < 256 : U32) && edges && moved
 
 def main() -> IO(Unit):
   do IO<Unit>:
@@ -54,7 +88,9 @@ def main() -> IO(Unit):
     Lib.expect(Bool.not(same(sample(0, 0, 64.375, 63.625), sample(0, 2048, 64.375, 63.625), 0.001)), "the game clock moves the normal")
     Lib.expect(same(sample(0, 8191, 64.375, 63.625), sample(0, 0, 64.375, 63.625), 0.0002)
       && same(sample(0, 100, 64.375, 63.625), sample(0, 8292, 64.375, 63.625), 0.0), "ripple wrap is continuous and a full period is identical")
-    Lib.expect(same(Water.reflected(False{}, 4294967295, 8191, 64.375, 63.625, 0.0, 0.8, (0.0 - 0.6 : F32), 0.0),
+    Lib.expect(same(Water.reflected(False{}, 4294967295, 8191, 0.0, 64.375, 63.625, 0.0, 0.8, (0.0 - 0.6 : F32), 0.0),
       Water.Reflection{0.8, 0.6, 0.0, 0.6}, 0.0), "ripples off restores the exact flat reflection")
-    Lib.expect(same(Water.reflected(True{}, 4294967295, 8191, 64.375, 63.625, 32.0, 0.8, (0.0 - 0.6 : F32), 0.0),
+    Lib.expect(same(Water.reflected(True{}, 4294967295, 8191, 0.0, 64.375, 63.625, 32.0, 0.8, (0.0 - 0.6 : F32), 0.0),
       Water.Reflection{0.8, 0.6, 0.0, 0.6}, 0.00001), "distant ripples fade before the fog horizon")
+    Lib.expect(rings_ok(ringing(512n, 0, 1.0, 0, True{}, True{})) && U32.is_eq(fst_of(ringing(512n, 0, 0.0, 0, True{}, True{})), 0),
+      "in the rain drops ring still water here and there, each ring inside its half of a block and fixed in the world, and none when dry")

@@ -17,8 +17,13 @@ import ./clouds.bend as Clouds
 def amount(+wx: F32) -> F32:
   F32.clamp(((wx - 0.62) * 3.5 : F32), 0.0, 1.0)
 
-def raining(+ck: U32) -> Bool:
-  (amount(Clouds.weather(ck)) > 0.0 : F32)
+# how hard it rains, with the look on
+def falling(on: Bool, +ck: U32) -> F32:
+  match on:
+    case False{}:
+      0.0
+    case True{}:
+      amount(Clouds.weather(ck))
 
 # a drop of the column (cx, cz), by its hash h: where the ray passes
 # nearest to its line (s along the ray), a streak 0.04 of a block wide
@@ -75,16 +80,16 @@ def rained(+c: U32, +ly: F32, r: Array<U32> & F32) -> Array<U32> & U32:
   (w, Util.mix(c, Util.mix(Util.rgb(52, 58, 70), Util.rgb(190, 198, 210), Sky.daylight(ly)), (0.45 * wt : F32)))
 
 # the rain over what the ray met, reach blocks out: grey streaks, lighter
-# by day, as many as the cloud over the eye holds, in the 11 columns the
-# ray crosses first
-def fall(on: Bool, +ck: U32, +fm: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+# by day, as many as the cloud over the eye holds of how hard it rains, in
+# the 11 columns the ray crosses first
+def fall(on: Bool, +rain: F32, +ck: U32, +fm: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
          +reach: F32, +ly: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   match on:
     case False{}:
       r
     case True{}:
       (w, c) = r
-      +much = (amount(Clouds.weather(ck)) * F32.clamp((Clouds.cover(fm, ck, ox, oz, 0.0, 0.0) * 2.5 : F32), 0.0, 1.0) : F32)
+      +much = (rain * F32.clamp((Clouds.cover(fm, ck, ox, oz, 0.0, 0.0) * 2.5 : F32), 0.0, 1.0) : F32)
       +fx = F32.floor(ox)
       +fz = F32.floor(oz)
       +ux = (1.0 / F32.max(Util.absf(dx), 0.0001) : F32)

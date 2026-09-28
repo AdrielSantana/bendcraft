@@ -377,7 +377,12 @@ crosses first, as the render's walk does, and shows the drops it passes
 within 0.02 of a block, in front of what it met or of the water's
 surface, and only where no block stands over them, which the column's
 solid mask, read once a step, tells. A drop near the eye is wide and a
-far one thin, and walking passes them by.
+far one thin, and walking passes them by. On still water, the lake's
+and the puddles', the drops ring (`Water.rings`): in every half of a
+block one falls in 0.8 seconds, in as many halves as it rains, at a
+place and a time the half's hash on the ripples' world lattice chooses,
+and its ring's steep wave spreads 0.17 of a block and fades, tilting the
+mirror as the ripples do.
 
 **The wet** is what the rain leaves (`src/wet.bend`). A face with no
 block over the air before it, which that column's solid mask tells in
@@ -387,9 +392,10 @@ stone, sand, brick) puddles gather where a noise over the world's
 columns, in cells of two columns and of one, passes a level the wetness
 lowers: darker still, they mirror the sky with its sun, moon and stars
 (`Clouds.mirrored`, the sky pixel's without the clouds' march), almost
-whole at a glance. The wetness is the rain's amount, or 0.7 of what fell
-a quarter day before, or 0.4 of what fell half a day before, so the
-ground stays wet after the rain and dries, its puddles shrinking first.
+whole at a glance, and shiver with the rain's rings. The wetness is the
+rain's amount, or 0.7 of what fell a quarter day before, or 0.4 of what
+fell half a day before, so the ground stays wet after the rain and
+dries, its puddles shrinking first.
 A dry world reads nothing; a far face is taken as open, and a face seen
 through water shows none of it.
 
@@ -445,7 +451,7 @@ src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/clouds.bend    the clouds' coverage, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
 src/wet.bend       wet faces and puddles under the open sky, in the rain and after it
-src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the mirror, the caustic
+src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the rain's rings, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the mirror's walk, a pixel
@@ -462,7 +468,7 @@ test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain, the wet and its puddles
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
-test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity
+test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity, the rain's rings
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
 test/mirror.bend   the mirror's walk over a placed brick, its reach and fade, the byte a miss keeps
 test/mirror_view.bend four views with the world in the mirror and without, for test/mirror.py
@@ -483,7 +489,7 @@ site/              the page: notes.mjs post-processes the built index.html
 make check      # the modules, the tests, the laws
 make test       # physics, save and load, terrain, windowless
 make bench      # five frames on Metal, untouched and with 300 blocks placed
-make profile    # each look off, by size; also night, rain, lake, submerged, night lake, partial water
+make profile    # each look off, by size; also night, rain, the lake in the rain, lake, submerged, night lake, partial water
 make sky        # six PNGs and build/sky-contact.png; Python with Pillow
 make clouds     # twelve PNGs and build/clouds-contact.png; Pillow
 make water      # sixteen PNGs and a ripple animation; Python with Pillow
@@ -529,7 +535,7 @@ alone, and prints the `!` a frame; then it renders the view twice more
 with numbers for pixels, how many rays reach a block and how many DDA
 steps a ray walks to its hit, each pixel weighed by the square it stands
 for. Its views are the bench's at four sizes, then at 1470×796 night
-looking at the moon, the rain of the second morning, a lake looking west, under its water, the night lake
+looking at the moon, the rain of the second morning, the lake in that rain, a lake looking west, under its water, the night lake
 with the moon in it, and the lake with partial water in the window. The
 least of four rounds alternated with the build before the clouds, as
 above, ms a frame:

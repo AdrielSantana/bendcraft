@@ -196,6 +196,11 @@ def rain(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   Player.G{w, px, py, pz, 0.9272952, 0.1, vy, held, edge, sel, res, 1203323, bag}
 
+# The lake in that rain: its rings, and the puddles on its shore.
+def rain_lake(g: Player.Game) -> Player.Game:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, 51.5, 16.0, 66.5, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32), vy, held, edge, sel, res, 1203323, bag}
+
 def main() -> IO(Unit):
   do IO<Unit>:
     profile_size("512 x 512", 512, 512)
@@ -204,6 +209,7 @@ def main() -> IO(Unit):
     profile_size("1470 x 796 (a 14-inch MacBook, every pixel a ray)", 1470, 796)
     profile_view("Night at 1470 x 796, looking at the moon", 1470, 796, night(wide()))
     profile_view("Rain at 1470 x 796, the second morning", 1470, 796, rain(wide()))
+    profile_view("Lake in the rain at 1470 x 796", 1470, 796, rain_lake(wide()))
     profile_view("Lake at 1470 x 796, looking west", 1470, 796, lake(wide()))
     profile_view("Submerged at 1470 x 796, looking west", 1470, 796, submerged(wide()))
     profile_view("Night lake at 1470 x 796, looking at the reflected moon", 1470, 796, night_lake(wide()))
