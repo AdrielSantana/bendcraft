@@ -349,9 +349,13 @@ sky at 120 blocks (`Sky.reach`), where the far walk stops; its map ends
 columns, not the window's (`src/clouds.bend`). A coverage over the
 ground's plane, value noise of four octaves that repeats every 256
 columns, raises each cloud's top from a flat base. A sky pixel's ray
-marches the slab in 12 steps; a step reads the coverage, and its two
-broad octaves again five blocks towards the sun, which light the side the
-sun sees, while the cloud above a step dims it. The march reads them
+marches the slab in 16 steps, a block of its height each; a step reads
+the coverage at its end, and its two broad octaves again five blocks
+towards the sun, which light the side the sun sees, while the cloud
+above a step dims it. Under a cloud's top the density is a ramp, and a
+step takes its mean between the step's two ends: a flat ray's step spans
+many columns, and read at one point the slab showed in layers, the faint
+stripes of the horizon's clouds. The march reads them
 from the world's array: at the world's birth the octaves are written
 above the far map (`Clouds.map_at`), a word a column holding the broad
 ones' byte at its corner and at the three after it along x and z, and
@@ -374,7 +378,7 @@ little of its sun, to a heavy one down to 0.55 of it, a shade darker
 than a block's shadow. A mirror, the lake's or a puddle's, glimpses them
 (`Clouds.glimpsed`): one read of the broad coverage where its ray crosses
 the slab's middle, through the cloud's height along the ray and lit
-halfway, in place of the twelve steps a sky pixel marches.
+halfway, in place of the sixteen steps a sky pixel marches.
 
 **The rain** falls when the weather passes 0.62, from the cloud over the
 eye: as much as that cloud holds, so a gap between clouds stays dry
@@ -575,12 +579,15 @@ after 31.3.
 The rays alone are two fifths of a frame. After them come the walks a
 look adds, since a DDA step costs about the same wherever it happens, the
 frame being its slowest lane: the shadow's 24 steps, the mirror's 32, and
-the clouds' 12, each of them three reads of their map and a step's
-light. The clouds take 3 ms in the bench's view, whose top is sky, and 5
-where the whole frame is, since a sky ray's lane marches them all (six
-more rounds of those rows alone: 25.2 and 16.8 all on, 22.4 and 11.8
-clouds off); off, they cost nothing. A step hashed its six lattices
-before the map, 6 and 17 ms. Their shadow, one read a lit block, takes 1. The
+the clouds' 16, each of them three reads of their map, the density's
+mean along it and a step's light. The clouds take 3 ms in the bench's
+view, whose top is sky, and 7 where the whole frame is, since a sky
+ray's lane marches them all; off, they cost nothing. A step hashed its
+six lattices before the map, 6 and 17 ms. The table is the map's, whose
+12 steps read the density at one point: the 16 averaged ones took 2 ms
+more where the frame is all sky and none in the bench's view (six
+alternated rounds of those rows alone, 17.6 against 19.8 and 25.6
+against 25.8). Their shadow, one read a lit block, takes 1. The
 rain takes about 5 where it rains (the second morning: all on 35.0, rain
 off 30.2), its 11 columns and 33 drops a ray, and nothing where it does
 not. The wet it leaves takes about 3.5 more, a column's read, a glimpse

@@ -6,7 +6,7 @@ import ./sky.bend as Sky
 # plane, a value noise of four octaves that repeats every 256 columns,
 # raises each cloud's top from its flat base: a cloud is
 # where the height in the slab is under the coverage. A sky pixel's ray
-# marches the slab in 12 steps, each a coverage read and one more a few
+# marches the slab in 16 steps, each a coverage read and one more a few
 # blocks towards the sun, which lights the side the sun sees, from the
 # world's map of the coverage (map_at); the ground reads the coverage
 # once, where the sun's line from it crosses the slab's middle. The
@@ -173,13 +173,25 @@ def coverage(w: Array<U32>, +x: F32, +z: F32, +ax: F32, +az: F32) -> Array<U32> 
 type Puff is Data:
   Puff{tr: F32, w: F32, wl: F32}
 
-# a step: the cloud's density where the ray is, and its light: what the
-# cloud over it lets through from above, and more on the side the sun
-# sees, where the cloud thins towards the sun (ax, az). The fine octaves
-# fade as the step grows (detail): a step over many columns aliases them.
-# The step reads the coverage (r) where the ray is, and the next one's.
-def march(fuel: Nat, +x: F32, +y: F32, +z: F32, +sx: F32, +sy: F32, +sz: F32, +ax: F32, +az: F32, +k: F32, +detail: F32, +b: F32,
-          +tr: F32, +hid: F32, +wl: F32, r: Array<U32> & Cover) -> Array<U32> & Puff:
+# the density's ramp under a cloud's top, clamp(e, 0, 1): its
+# antiderivative, and its mean along a step whose ends are a and b
+def ramp(+e: F32) -> F32:
+  +c = F32.clamp(e, 0.0, 1.0)
+  (c * c * 0.5 + F32.max((e - 1.0 : F32), 0.0) : F32)
+
+def span(+a: F32, +b: F32) -> F32:
+  Bool.pick(F32, (Util.absf((b - a : F32)) < 0.001 : F32), F32.clamp((0.5 * (a + b) : F32), 0.0, 1.0), ((ramp(b) - ramp(a)) / (b - a) : F32))
+
+# a step, a block up the slab (h in it): the cloud's density along it,
+# its ramp (e) at the step's end and where it began (e0) averaged, since
+# a flat ray's step spans many columns and one read of it showed the
+# slab in layers; and its light at the end: what the cloud over it lets
+# through from above, and more on the side the sun sees, where the cloud
+# thins towards the sun (ax, az). The fine octaves fade as the step
+# grows (detail): a step over many columns aliases them. The step reads
+# the coverage (r) at its end, and the next one's.
+def march(fuel: Nat, +x: F32, +h: F32, +z: F32, +sx: F32, +sz: F32, +ax: F32, +az: F32, +k: F32, +detail: F32, +b: F32,
+          +tr: F32, +hid: F32, +wl: F32, +e0: F32, r: Array<U32> & Cover) -> Array<U32> & Puff:
   match fuel:
     case 0n:
       (w, cv) = r
@@ -187,14 +199,13 @@ def march(fuel: Nat, +x: F32, +y: F32, +z: F32, +sx: F32, +sy: F32, +sz: F32, +a
     case 1n+f:
       (w, cv) = r
       Cover{+n, +fine, +sun} = cv
-      +h = ((y - bottom()) * per() : F32)
       +c = height((n + detail * (fine - 0.115) : F32), b)
-      +d = F32.clamp(((c - h) * 12.0 + 0.5 : F32), 0.0, 1.0)
-      +a = (1.0 - F32.exp((0.0 - d * k : F32)) : F32)
+      +e = ((c - h) * 12.0 : F32)
+      +a = (1.0 - F32.exp((0.0 - span(e0, e) * k : F32)) : F32)
       +side = (height(n, b) - height(sun, b) : F32)
       +lit = F32.clamp((0.25 + 0.75 * F32.exp((F32.min((h - c : F32), 0.0) * 3.0 : F32)) + 1.2 * side : F32), 0.0, 1.0)
       +g = (tr * a : F32)
-      march(f, (x + sx : F32), (y + sy : F32), (z + sz : F32), sx, sy, sz, ax, az, k, detail, b, (tr - g : F32), (hid + g : F32), (wl + g * lit : F32),
+      march(f, (x + sx : F32), (h + per() : F32), (z + sz : F32), sx, sz, ax, az, k, detail, b, (tr - g : F32), (hid + g : F32), (wl + g * lit : F32), e,
         coverage(w, (x + sx : F32), (z + sz : F32), ax, az))
 
 # the clouds' colour over the sky: white to the sun by day, rose and gold
@@ -216,8 +227,9 @@ def marched(+v: U32, +sky: U32, +t0: F32, +wx: F32, +dx: F32, +dy: F32, +dz: F32
   (w, p) = r
   (w, puffed(v, sky, t0, wx, dx, dy, dz, lx, ly, lz, p))
 
-# a sky pixel's clouds, over the sky it shows with its heavens; a ray too
-# flat to reach the slab near enough has faded before it
+# a sky pixel's clouds, over the sky it shows with its heavens, marched
+# from the slab's bottom, whose first read ends no step (e0 far under the
+# ramp); a ray too flat to reach the slab near enough has faded before it
 def over(on: Bool, w: Array<U32>, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
          +lx: F32, +ly: F32, +lz: F32, +sky: U32) -> Array<U32> & U32:
   match on:
@@ -227,15 +239,14 @@ def over(on: Bool, w: Array<U32>, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F3
       +wx = weather(ck)
       +up = F32.max(dy, 0.02)
       +t0 = ((bottom() - oy) / up : F32)
-      +dt = ((top() - bottom()) / up * 0.0833333 : F32)
-      +s = (t0 + 0.5 * dt : F32)
-      +x = (ox + blown(fm, ck) + dx * s : F32)
-      +z = (oz + corner_z(fm) + dz * s : F32)
+      +dt = (1.0 / up : F32)
+      +x = (ox + blown(fm, ck) + dx * t0 : F32)
+      +z = (oz + corner_z(fm) + dz * t0 : F32)
       +ax = (lx * 5.0 : F32)
       +az = (lz * 5.0 : F32)
       marched(v, sky, t0, wx, dx, dy, dz, lx, ly, lz,
-        march(12n, x, (oy + up * s : F32), z, (dx * dt : F32), (up * dt : F32), (dz * dt : F32), ax, az, (dt * sigma(wx) : F32),
-          F32.clamp((1.6 - dt * 0.15 : F32), 0.0, 1.0), bias(wx), 1.0, 0.0, 0.0, coverage(w, x, z, ax, az)))
+        march(17n, x, 0.0, z, (dx * dt : F32), (dz * dt : F32), ax, az, (dt * sigma(wx) : F32),
+          F32.clamp((1.6 - dt * 0.15 : F32), 0.0, 1.0), bias(wx), 1.0, 0.0, 0.0, (0.0 - 1000000.0 : F32), coverage(w, x, z, ax, az)))
 
 # the sun's light on the ground under the clouds: what the cloud over it
 # lets through along the sun's line, through its whole height, over the
@@ -282,7 +293,7 @@ def above(w: Array<U32>, +fl: U32, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F
 # the clouds a mirror at (ox, oy, oz) shows along (dx, dy, dz), over the
 # sky it shows: one read of their broad coverage where the ray crosses
 # the slab's middle, through the cloud's height along the ray and lit
-# halfway, in place of the twelve steps a sky pixel marches
+# halfway, in place of the sixteen steps a sky pixel marches
 def glimpsed(on: Bool, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
              +lx: F32, +ly: F32, +lz: F32, +sky: U32) -> U32:
   match on:

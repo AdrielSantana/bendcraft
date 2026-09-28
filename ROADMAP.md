@@ -127,7 +127,7 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
 4. **Clouds with volume — done (2026-09-27).** Cumulus in a slab from 62
    to 78 over the world's columns: a coverage of four octaves that repeats
    every 256 columns raises each cloud's top from a flat base, and a sky
-   ray marches the slab in 12 steps, lit from above and from the side the
+   ray marches the slab in 16 steps, lit from above and from the side the
    sun sees; the ground's sun is dimmed by one read of the coverage where
    its line to the sun crosses the slab, by the cloud's density (README).
    The slab sits well over today's hills: the world reads as a miniature
@@ -137,8 +137,14 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    makes a step three reads in place of 24 hashes, and took the clouds
    from 6 to 3 ms at 1470×796 in the bench's view and from 17 to 5 where
    the whole frame is sky (a march without hashes had read 5 and 15).
-   Still to do: the faint stripes of a ray almost level, whose step spans
-   many columns.
+   The stripes of a ray almost level (2026-09-27): its step spans many
+   columns, and one read a step showed the slab in layers. A step now
+   rises a block and averages the density's ramp between its two ends,
+   16 of them. Tried first: a start jittered by the ray's hash turned the
+   layers into grain; 24 steps thinned them; the averaging at 12 steps
+   left a few. Both showed the ramp's flaw, half its density at the
+   slab's bottom under no cloud, which 12 steps from their middles never
+   read: a veil over the whole sky.
 5. **Weather — done (2026-09-27).** The clock counts the days, and the
    weather goes from clear to overcast over them, a noise over half days;
    the wind carries the clouds along x; a heavy sky greys the sky and the
