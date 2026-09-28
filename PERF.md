@@ -238,7 +238,12 @@ means revisiting that rule first. What the runtime allows, from
     A blade is set up once a frame where the walks set it up once for
     each of the some 500 rays crossing its cell, and a pixel tests the
     blades over its tile, not the cells its ray crosses. A second renderer
-    beside the ray caster, and a pass to bin.
+    beside the ray caster, and a pass to bin. Estimated and not built
+    (2026-09-28): a pixel of the near carpet would still test the 16 to 20
+    blades whose boxes cover its tile, about as many as the walk tests, so
+    the saving is the setup and the walk's steps, while binning on the
+    host costs some 2 ms a frame whatever the size: 1 to 2 ms at scale 2,
+    10 to 13 at 1470×796.
 - **20. Two passes.** The rays' hits as a tree the shading walks, the old
     image's way down the frame tree: smaller kernels, more of them in
     flight. A dispatch's floor is about 3 ms at scale 2, so it must buy
