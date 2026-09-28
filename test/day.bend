@@ -35,10 +35,32 @@ def fixture(t: U32) -> Player.Game:
   Player.G{World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}},
     64.5, 30.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, Player.res512(), t, Inventory.empty()}
 
+def shown(r: Array<U32> & U32) -> U32:
+  (w, c) = r
+  c
+
+def clouds_map() -> Array<U32>:
+  Clouds.load(256n, [0 : U32^19n], 0)
+
 # a ray from the eye at (64.5, 30, 64.5) of a window whose corner is 0
 # mod 256, and the same ray from a window 10 columns further along x
 def cloud_at(+fm: U32, +ox: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
-  Clouds.over(True{}, fm, 154747, 12345, ox, 30.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 6789)
+  shown(Clouds.over(True{}, clouds_map(), fm, 154747, 12345, ox, 30.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 6789))
+
+# the march's reads along a line of the clouds' columns against the
+# octaves they hold: the broad within a byte's step, the fine within
+# what blending between columns loses of its smaller cells
+def agrees(n: Nat, +x: F32, +ok: Bool, r: Array<U32> & Clouds.Cover) -> Bool:
+  match n:
+    case 0n:
+      ok
+    case 1n+k:
+      (w, cv) = r
+      Clouds.Cover{+c, +f, +s} = cv
+      +z = (x * 0.61 : F32)
+      +good = Lib.near(c, Clouds.broad(x, z), 0.004) && Lib.near(f, Clouds.fine(x, z), 0.01)
+        && Lib.near(s, Clouds.broad(Clouds.wrap((x + 2.0 : F32)), Clouds.wrap((z - 1.5 : F32))), 0.004)
+      agrees(k, (x + 1.37 : F32), ok && good, Clouds.coverage(w, (x + 1.37 : F32), ((x + 1.37 : F32) * 0.61 : F32), 2.0, (0.0 - 1.5 : F32)))
 
 # the clouds the same eye's mirror, on the water at 12, shows
 def glimpse_at(+fm: U32, +ox: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
@@ -105,10 +127,6 @@ def rays(n: Nat, +i: U32, +fm: U32, +base: U32, +ox: F32, +t: U32, +reach: F32, 
 
 def dry(+sum: U32) -> Bool:
   U32.is_eq(sum, 868992)
-
-def shown(r: Array<U32> & U32) -> U32:
-  (w, c) = r
-  c
 
 # a face of the colour 6789, a top of the ground or not, over the air cell
 # (x, 20, 64.5) of a world whose every word is `word`, seen at a slant at
@@ -178,8 +196,10 @@ def main() -> IO(Unit):
       && (U32.is_ne(glimpse_at(0, 64.5, 0.0, 1.0, 0.0), 6789) || U32.is_ne(glimpse_at(0, 64.5, 0.3, 0.6, 0.2), 6789)
         || U32.is_ne(glimpse_at(0, 64.5, (0.0 - 0.5 : F32), 0.4, 0.7), 6789)),
       "a cloud, and its glimpse in a mirror, stays over its column when the window moves under it")
-    Lib.expect(U32.is_eq(Clouds.over(False{}, 0, 154747, 12345, 64.5, 30.0, 64.5, 0.3, 0.6, 0.2, 0.48, 0.8, 0.36, 6789), 6789)
-      && U32.is_eq(Clouds.over(True{}, 0, 3145728, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 6789), 6789),
+    Lib.expect(agrees(186n, 0.5, True{}, Clouds.coverage(clouds_map(), 0.5, 0.305, 2.0, (0.0 - 1.5 : F32))),
+      "the clouds' map holds their coverage: the march reads it as the octaves give it")
+    Lib.expect(U32.is_eq(shown(Clouds.over(False{}, clouds_map(), 0, 154747, 12345, 64.5, 30.0, 64.5, 0.3, 0.6, 0.2, 0.48, 0.8, 0.36, 6789)), 6789)
+      && U32.is_eq(shown(Clouds.over(True{}, clouds_map(), 0, 3145728, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 6789)), 6789),
       "with the clouds off, or under the horizon on a fair day, the sky shows as it was")
     Lib.expect(row(shaded(86n, 0.0, 1.0, True{})) && F32.is_eq(Clouds.shade(False{}, 0, 154747, 10.0, 20.0, 10.0, 0.0, 1.0, 0.0), 1.0),
       "a cloud dims the sun on the ground under it, never below a heavy cloud's 0.55, and none with its look off")

@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `e4d560da19dd097bd616863b2a164be2` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `0bf740b666c7cc910d290e59bc2cbd2a` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -288,6 +288,14 @@ The first far map was 64x64 cells of 4x4 columns, each its highest
 block: a tree made a pillar of leaves, and a cell near the window's edge
 looked four blocks wide. A coarser level belongs where its cell is a
 few pixels, not where the window's walk ends.
+- The clouds' map (`Clouds.map_at`): above the far map, 2^16 words of
+the broad octaves, a word a column mod 256 holding their byte (330 a
+unit) at its corner and at the three after it along x and z, so one
+read is a cell to blend; then 2^16 words of the fine ones; the array's
+last 2^16 are spare. `World.load_world` fills it at the world's birth
+and nothing changes it: the wind and the window move the lookup alone.
+The march reads it, three words a step; a single read (the ground's
+shadow, a mirror's glimpse, the rain's) computes the octaves.
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
 queued columns' marked cells, bottom up; `Flow.advance` runs it from
 `Player.advance` every 256 ms of the day's clock (4096 a turn, so the

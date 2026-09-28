@@ -66,8 +66,8 @@ make publish                                   # the same onto the gh-pages bran
 owner. Since 2.0.22 an `@unsafe` def may hand one array to both sides of a
 fork anyway, two handles to one block that `Array.join` gives back, so the
 columns around the player live in the low 2^18 words of an `Array<U32>`
-of 2^19 (above them, the far map below): sixteen words a
-column, the first a mask whose bit `y` says "there is a block at height
+of 2^19 (above them, the far map and the clouds' map below): sixteen
+words a column, the first a mask whose bit `y` says "there is a block at height
 `y`", the next four the types of its 32 solid blocks, four bits each. Word
 six is a separate water mask; words seven to fourteen hold the amount of
 water in each cell, 0 to 255 units in a byte, the mask's bit set exactly
@@ -351,7 +351,13 @@ ground's plane, value noise of four octaves that repeats every 256
 columns, raises each cloud's top from a flat base. A sky pixel's ray
 marches the slab in 12 steps; a step reads the coverage, and its two
 broad octaves again five blocks towards the sun, which light the side the
-sun sees, while the cloud above a step dims it. The light a step stops
+sun sees, while the cloud above a step dims it. The march reads them
+from the world's array: at the world's birth the octaves are written
+above the far map (`Clouds.map_at`), a word a column holding the broad
+ones' byte at its corner and at the three after it along x and z, and
+another word the fine ones', so a step's three reads blend a cell each
+in place of the 24 hashes that computing them takes. A single read, the
+ground's or a mirror's, computes them. The light a step stops
 falls off as through fog, and the fine octaves fade as a step grows, at a
 flat ray, where they would alias into stripes. Their colour follows the
 sun: white by day, rose and gold at its rising and setting, grey-blue
@@ -452,7 +458,7 @@ main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
-src/clouds.bend    the clouds' coverage, their march along a sky ray, their shadow, the weather
+src/clouds.bend    the clouds' coverage and its map, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
 src/wet.bend       how wet the world is, where puddles lie, their rings, the sheen; the render reads the air and walks the mirror
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the rain's rings, the mirror, the caustic
@@ -506,21 +512,22 @@ make page-test  # the page in headless Chrome, hashes and fps
 ## Numbers
 
 Apple M5, the game closed, twelve rounds alternated with stock Bend 2.0.25
-and the order swapped every round (2026-09-27); the clouds' column, eight
-rounds alternated with the build before them, the same day, and the
-weather's after it. The bench
+and the order swapped every round (2026-09-27); the last column, eight
+rounds alternated with the build before the clouds' map (5, 5, 8, 12, 27
+and 47 ms, the clouds, the weather, the rain and the wet), the same day.
+The bench
 times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map |
 |---|---|---|---|
 | 512×512 | 5 ms | 3 ms | 4 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms | 5 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 7 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 12 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms |
 | 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms |
-| 1920×1080 | 91 ms | 33 ms | 45 ms |
+| 1920×1080 | 91 ms | 33 ms | 40 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796 when #1140 was measured: its fix of
 a race ([#975](https://github.com/bendlang/bend/issues/975)) made every
@@ -541,23 +548,23 @@ steps a ray walks to its hit, each pixel weighed by the square it stands
 for. Its views are the bench's at four sizes, then at 1470×796 night
 looking at the moon, the rain of the second morning, the lake in that rain, a lake looking west, under its water, the night lake
 with the moon in it, and the lake with partial water in the window. The
-least of four rounds alternated with the build before the clouds, as
-above, ms a frame:
+least of four rounds alternated with the build before the clouds' map,
+ms a frame:
 
 | | bench's view, 735×398 | bench's view, 1470×796 | lake | night lake | night, all sky |
 |---|---|---|---|---|---|
-| all on | 8.0 | 26.8 | 26.0 | 23.8 | 26.2 |
-| shadow off | 7.4 | 24.2 | 24.4 | 23.0 | 27.0 |
-| occlusion off | 7.2 | 24.8 | 24.2 | 21.2 | 27.2 |
-| texture off | 7.2 | 26.0 | 26.6 | 23.4 | 26.8 |
-| water off | 6.8 | 22.4 | 22.8 | 18.8 | 23.6 |
-| sky reflection off | 7.2 | 25.2 | 25.0 | 21.2 | 27.4 |
-| world mirror off | 7.2 | 24.8 | 25.4 | 22.4 | 26.8 |
-| caustic off | 7.6 | 26.0 | 26.6 | 23.8 | 27.2 |
-| clouds off | 6.0 | 20.8 | 20.4 | 16.8 | 11.6 |
-| cloud shadows off | 7.4 | 25.8 | 26.0 | 22.4 | 27.4 |
-| rays alone | 3.8 | 11.2 | 10.0 | 9.0 | 8.6 |
-| all on, before the clouds | 6.2 | 20.8 | 19.6 | 15.8 | 11.6 |
+| all on | 7.2 | 28.0 | 25.4 | 22.4 | 17.8 |
+| shadow off | 6.6 | 24.0 | 23.0 | 22.4 | 18.0 |
+| occlusion off | 7.2 | 25.2 | 23.8 | 21.8 | 18.2 |
+| texture off | 7.6 | 25.8 | 25.6 | 23.0 | 18.0 |
+| water off | 6.2 | 20.8 | 21.0 | 16.0 | 15.8 |
+| sky reflection off | 6.6 | 23.0 | 22.0 | 18.4 | 18.2 |
+| world mirror off | 7.0 | 24.6 | 25.2 | 21.6 | 18.0 |
+| caustic off | 7.6 | 26.0 | 24.8 | 23.4 | 18.0 |
+| clouds off | 6.8 | 23.4 | 23.4 | 19.6 | 12.6 |
+| cloud shadows off | 7.2 | 26.0 | 25.2 | 23.4 | 17.6 |
+| rays alone | 4.0 | 12.0 | 11.0 | 9.8 | 8.8 |
+| all on, before the clouds' map | 9.2 | 29.2 | 28.8 | 27.6 | 29.0 |
 
 The other looks (distance and height fog, HUD, day cycle, gradient, sun,
 glow, stars, moon, water fog, Fresnel, ripples) are arithmetic on a pixel
@@ -568,10 +575,12 @@ after 31.3.
 The rays alone are two fifths of a frame. After them come the walks a
 look adds, since a DDA step costs about the same wherever it happens, the
 frame being its slowest lane: the shadow's 24 steps, the mirror's 32, and
-the clouds' 12, each of them six hashed lattices and a step's light. The
-clouds are the dearest look: 6 ms in the bench's view, whose top is sky,
-and 15 where the whole frame is, since a sky ray's lane marches them all;
-off, they cost nothing. Their shadow, one read a lit block, takes 1. The
+the clouds' 12, each of them three reads of their map and a step's
+light. The clouds take 3 ms in the bench's view, whose top is sky, and 5
+where the whole frame is, since a sky ray's lane marches them all (six
+more rounds of those rows alone: 25.2 and 16.8 all on, 22.4 and 11.8
+clouds off); off, they cost nothing. A step hashed its six lattices
+before the map, 6 and 17 ms. Their shadow, one read a lit block, takes 1. The
 rain takes about 5 where it rains (the second morning: all on 35.0, rain
 off 30.2), its 11 columns and 33 drops a ray, and nothing where it does
 not. The wet it leaves takes about 3.5 more, a column's read, a glimpse

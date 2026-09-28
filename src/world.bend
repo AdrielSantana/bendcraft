@@ -1,5 +1,6 @@
 import Base
 import ./util.bend as Util
+import ./clouds.bend as Clouds
 
 # THE WORLD: endless, seeded, and one array of it shared by every pixel.
 #
@@ -547,10 +548,10 @@ def load_grid(n: Nat, ring: Array<U32>, +x: U32) -> Array<U32>:
     case 1n+k:
       load_grid(k, load_cells(64n, ring, x, 0, 0, 1), (x + 4 : U32))
 
-# the window and the far map around it, from a corner
+# the window, the far map around it and the clouds' map, from a corner
 def load_world(w: World, +x: U32, +z: U32) -> World:
   W{ring, meta} = w
-  load_all(128n, W{load_grid(64n, load_far(256n, ring, far_corner(x), far_corner(z)), 0), meta}, x, z)
+  load_all(128n, W{Clouds.load(256n, load_grid(64n, load_far(256n, ring, far_corner(x), far_corner(z)), 0), 0), meta}, x, z)
 
 # the far map for the render: its corner's remainders by 256, x's over z's
 def far_cam(meta: Meta) -> U32:

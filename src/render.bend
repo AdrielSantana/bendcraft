@@ -835,7 +835,7 @@ def shade_go(sky: Bool, +distant: Bool, +word: U32, w: Array<U32>, +base: U32, +
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match sky:
     case True{}:
-      (w, Clouds.above(fl, fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz))
+      Clouds.above(w, fl, fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz)
     case False{}:
       shade_face(distant, w, base, fw, ck, word, v, oy, t, fl, dx, dy, dz, lx, ly, lz, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
 
@@ -960,13 +960,17 @@ def run_water(on: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32,
     case False{}: run_dda(~False{}, ~False{}, w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
     case True{}: run_partial(Util.on(base, 536870912), w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 
-# A ray that misses the loaded box reads the world zero times (and counts
-# no step and no hit under the profile's flags).
+def blank(+counts: Bool, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, c) = r
+  (w, Bool.pick(U32, counts, 0, c))
+
+# A ray that misses the loaded box reads the world zero times but for the
+# clouds' map (and counts no step and no hit under the profile's flags).
 def shoot(go: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32,
           +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match go:
     case False{}:
-      (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), Clouds.above(fl, fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz), 0))
+      blank(((fl .&. 96) > 0 : U32), Clouds.above(w, fl, fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz))
     case True{}:
       run_water(Util.on(fl, 2097152), w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 

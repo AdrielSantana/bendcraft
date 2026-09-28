@@ -132,11 +132,13 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    its line to the sun crosses the slab, by the cloud's density (README).
    The slab sits well over today's hills: the world reads as a miniature
    of Minecraft's (see the game's step 4). A mirror glimpses them, one
-   read of their coverage (2026-09-27). Still to do: the faint stripes of
-   a ray almost level, whose step spans many columns; and a coverage
-   computed on the host into the world's array, as the far map is, which
-   would make a step a few reads in place of 24 hashes: they cost 6 ms at
-   1470×796 in the bench's view and 15 where the whole frame is sky.
+   read of their coverage (2026-09-27). The coverage's map (2026-09-27):
+   written into the world's array at its birth, as the far map is, it
+   makes a step three reads in place of 24 hashes, and took the clouds
+   from 6 to 3 ms at 1470×796 in the bench's view and from 17 to 5 where
+   the whole frame is sky (a march without hashes had read 5 and 15).
+   Still to do: the faint stripes of a ray almost level, whose step spans
+   many columns.
 5. **Weather — done (2026-09-27).** The clock counts the days, and the
    weather goes from clear to overcast over them, a noise over half days;
    the wind carries the clouds along x; a heavy sky greys the sky and the
@@ -160,10 +162,11 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
 8. **Light of the blocks.** Torches and a night that needs them.
 
 **The budget.** At 1470×796 a frame is 24 ms with a ray for every pixel
-and 7 ms at scale 2, which suits the pixel art (2026-09-27, on 2.0.32
-with #1132 and #1140; the clouds took 19 → 24 and 6 → 7, the far
-horizon 7 → 12 of the second on 2.0.25). At 60 frames a second that
-leaves 9 ms at scale 2 for the looks still to come, and 1 at 120. Every
+and 6 ms at scale 2, which suits the pixel art (2026-09-27, on 2.0.32
+with #1132 and #1140; the clouds took 19 → 24 and 6 → 7, the weather,
+the rain and the wet then 27 and 8, and the clouds' map gave back 3 and
+2; the far horizon took 7 → 12 of the second on 2.0.25). At 60 frames a second that
+leaves 10 ms at scale 2 for the looks still to come, and 2 at 120. Every
 piece above says what it took of them in the profile table.
 
 **Ways to buy more of it**, in the order to try them; none is needed yet.
