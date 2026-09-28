@@ -131,13 +131,12 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    sun sees; the ground's sun is dimmed by one read of the coverage where
    its line to the sun crosses the slab, by the cloud's density (README).
    The slab sits well over today's hills: the world reads as a miniature
-   of Minecraft's (see the game's step 4). Still to do: the clouds in the
-   water's mirror, which shows the weather's sky without them; the faint
-   stripes of a ray almost level, whose step spans many columns; and a
-   coverage computed on the host into the world's array, as the far map
-   is, which would make a step a few reads in place of 24 hashes: they
-   cost 6 ms at 1470×796 in the bench's view and 15 where the whole
-   frame is sky.
+   of Minecraft's (see the game's step 4). A mirror glimpses them, one
+   read of their coverage (2026-09-27). Still to do: the faint stripes of
+   a ray almost level, whose step spans many columns; and a coverage
+   computed on the host into the world's array, as the far map is, which
+   would make a step a few reads in place of 24 hashes: they cost 6 ms at
+   1470×796 in the bench's view and 15 where the whole frame is sky.
 5. **Weather — done (2026-09-27).** The clock counts the days, and the
    weather goes from clear to overcast over them, a noise over half days;
    the wind carries the clouds along x; a heavy sky greys the sky and the

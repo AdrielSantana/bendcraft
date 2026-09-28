@@ -23,6 +23,16 @@ def walk(w: World.World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: 
   World.W{ring, +meta} = w
   met(Render.run_glance(32n, ring, World.base(meta), ox, oy, oz, dx, dy, dz), col, t)
 
+def colour(r: Array<U32> & U32) -> U32:
+  (w, c) = r
+  c
+
+# what the mirror at (ox, 30.5, 70.5) shows along x over the sky 123456,
+# with no fog
+def shows(w: World.World, +ox: F32) -> U32:
+  World.W{ring, +meta} = w
+  colour(Render.mirror_walk(False{}, 123456, 0, World.base(meta), 0, ox, 30.5, 70.5, 1.0, 0.0, 0.0, 0.0, 30.5, 0.5, 0.8, 0.0, ring))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     Lib.expect(walk(walled(Player.start()), 55.5, 30.5, 70.5, 1.0, 0.0, 0.0, 1, 4.5), "the walk meets a block's x face where it stands")
@@ -34,7 +44,8 @@ def main() -> IO(Unit):
     Lib.expect(Lib.near(Water.reach(21.0, 1.0, 0.0, 0.0), 0.0, 0.0001) && Lib.near(Water.reach(24.5, 1.0, 0.0, 0.0), 0.5, 0.0001)
       && Lib.near(Water.reach(28.0, 0.0, 0.0, (0.0 - 1.0 : F32)), 1.0, 0.0001) && Lib.near(Water.reach(40.0, 1.0, 0.0, 0.0), 1.0, 0.0001)
       && (Water.reach(19.0, 0.6, 0.0, (0.0 - 0.8 : F32)) > 0.79 : F32), "the mirror fades into the sky over the last quarter of the reach")
-    Lib.expect(U32.is_eq(Water.in_mirror(False{}, 123456, 654321, 0.5), 123456), "a miss leaves the mirrored sky's byte alone")
-    Lib.expect(U32.is_eq(Water.in_mirror(True{}, 0, 16777215, 1.0), 0) && U32.is_eq(Water.in_mirror(True{}, 0, 16777215, 0.0), 16777215), "a hit fades into the sky behind it with the fog")
+    Lib.expect(U32.is_eq(shows(walled(Player.start()), 20.5), 123456) && U32.is_eq(shows(walled(Player.start()), 31.5), 123456)
+      && U32.is_ne(shows(walled(Player.start()), 55.5), 123456),
+      "the mirror shows the sky behind it byte for byte where it meets nothing, a near block over it, and one at its reach's end faded into it")
     Lib.expect(Water.mirror_on(Water.with_looks(16383, Render.looks_base()))
       && Bool.not(Water.mirror_on(Water.with_looks(4294967295, 0))), "the look rides in the base's bit 27 and nowhere else")

@@ -197,7 +197,24 @@ def above(+fl: U32, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +
           +lx: F32, +ly: F32, +lz: F32) -> U32:
   over(Util.on(fl, 128), fm, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, heavens(Util.on(fl, 128), fl, ck, v, dx, dy, dz, lx, ly, lz))
 
-# what a mirror shows of the sky along (dx, dy, dz): the sky and its
-# heavens, without the clouds' march
-def mirrored(+fl: U32, +ck: U32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> U32:
-  heavens(Util.on(fl, 128), fl, ck, sky(fl, ck, dx, dy, dz, lx, ly, lz), dx, dy, dz, lx, ly, lz)
+# the clouds a mirror at (ox, oy, oz) shows along (dx, dy, dz), over the
+# sky it shows: one read of their broad coverage where the ray crosses
+# the slab's middle, through the cloud's height along the ray and lit
+# halfway, in place of the twelve steps a sky pixel marches
+def glimpsed(on: Bool, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+             +lx: F32, +ly: F32, +lz: F32, +sky: U32) -> U32:
+  match on:
+    case False{}:
+      sky
+    case True{}:
+      +wx = weather(ck)
+      +up = F32.max(dy, 0.02)
+      +t0 = ((middle() - oy) / up : F32)
+      +tr = F32.exp((0.0 - sigma(wx) * cover(fm, ck, ox, oz, (dx * t0 : F32), (dz * t0 : F32)) * (top() - bottom()) / up : F32))
+      puffed(v, sky, t0, wx, dx, dy, dz, lx, ly, lz, Puff{tr, (1.0 - tr : F32), (0.6 * (1.0 - tr) : F32)})
+
+# what a mirror at (ox, oy, oz) shows of the sky along (dx, dy, dz): the
+# sky, its heavens and a glimpse of the clouds
+def mirrored(+fl: U32, +fm: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> U32:
+  +s = sky(fl, ck, dx, dy, dz, lx, ly, lz)
+  glimpsed(Util.on(fl, 128), fm, ck, s, ox, oy, oz, dx, dy, dz, lx, ly, lz, heavens(Util.on(fl, 128), fl, ck, s, dx, dy, dz, lx, ly, lz))

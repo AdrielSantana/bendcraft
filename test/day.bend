@@ -39,8 +39,13 @@ def fixture(t: U32) -> Player.Game:
 def cloud_at(+fm: U32, +ox: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
   Clouds.over(True{}, fm, 154747, 12345, ox, 30.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 6789)
 
+# the clouds the same eye's mirror, on the water at 12, shows
+def glimpse_at(+fm: U32, +ox: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
+  Clouds.glimpsed(True{}, fm, 154747, 12345, ox, 12.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 6789)
+
 def fixed(+dx: F32, +dy: F32, +dz: F32) -> Bool:
   U32.is_eq(cloud_at(0, 64.5, dx, dy, dz), cloud_at(2560, 54.5, dx, dy, dz))
+    && U32.is_eq(glimpse_at(0, 64.5, dx, dy, dz), glimpse_at(2560, 54.5, dx, dy, dz))
 
 # the sun's disc, looked at on the day t, with the clouds' looks or not
 def sun_seen(on: Bool, +t: U32) -> U32:
@@ -141,8 +146,10 @@ def main() -> IO(Unit):
     Lib.expect(U32.is_ne(Sky.gradient(True{}, 0.0, 0.8), Sky.gradient(True{}, 1.0, 0.8)), "sky has a vertical gradient")
     Lib.expect(fixed(0.0, 1.0, 0.0) && fixed(0.3, 0.6, 0.2) && fixed((0.0 - 0.5 : F32), 0.4, 0.7) && fixed(0.1, 0.9, (0.0 - 0.4 : F32))
       && (U32.is_ne(cloud_at(0, 64.5, 0.0, 1.0, 0.0), 6789) || U32.is_ne(cloud_at(0, 64.5, 0.3, 0.6, 0.2), 6789)
-        || U32.is_ne(cloud_at(0, 64.5, (0.0 - 0.5 : F32), 0.4, 0.7), 6789)),
-      "a cloud stays over its column when the window moves under it")
+        || U32.is_ne(cloud_at(0, 64.5, (0.0 - 0.5 : F32), 0.4, 0.7), 6789))
+      && (U32.is_ne(glimpse_at(0, 64.5, 0.0, 1.0, 0.0), 6789) || U32.is_ne(glimpse_at(0, 64.5, 0.3, 0.6, 0.2), 6789)
+        || U32.is_ne(glimpse_at(0, 64.5, (0.0 - 0.5 : F32), 0.4, 0.7), 6789)),
+      "a cloud, and its glimpse in a mirror, stays over its column when the window moves under it")
     Lib.expect(U32.is_eq(Clouds.over(False{}, 0, 154747, 12345, 64.5, 30.0, 64.5, 0.3, 0.6, 0.2, 0.48, 0.8, 0.36, 6789), 6789)
       && U32.is_eq(Clouds.over(True{}, 0, 3145728, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 6789), 6789),
       "with the clouds off, or under the horizon on a fair day, the sky shows as it was")

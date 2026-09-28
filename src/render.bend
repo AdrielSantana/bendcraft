@@ -677,91 +677,105 @@ def shade_face(+distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +w
 # 32 steps. What it meets gets the block's colour, its texture and its
 # face's tone, with no occlusion and no shadow ray: ripples and fog blur
 # the rest, and it fades into the sky towards the end of the walk's reach.
-# Only a pixel that shows a water top pays for it.
+# Only a pixel that shows a water top pays for it. The mirror shows the
+# world where its ray met a block, fogged into the sky behind it, and that
+# sky alone where it met none: the same arithmetic as before the world was
+# in it, so a miss is the same byte.
 
 # the block the mirror's ray met: its type's colour, the texture, the
 # face's tone, darker when the face is turned from the sun; over far
 # water the ray walks the far map, to the glance's reach
-def glance_fin(+distant: Bool, bottom: U32, m: Water.Reflection, +fl: U32, +hy: U32, side: Bool, yf: F32, u: F32, wf: F32,
-               tone: F32, f: F32, r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
+def glance_fin(+distant: Bool, +sky: U32, +fl: U32, +hy: U32, side: Bool, yf: F32, u: F32, wf: F32,
+               tone: F32, f: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
-  (w, Water.Mirror{bottom, m, True{}, dim(blockcol(Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy)), side, yf),
-    (tone * tex_if(Util.on(fl, 4), u, wf) : F32)), f})
+  (w, Util.mix(dim(blockcol(Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy)), side, yf),
+    (tone * tex_if(Util.on(fl, 4), u, wf) : F32)), sky, f))
 
-def glance_face(+distant: Bool, +word: U32, bottom: U32, m: Water.Reflection, +fl: U32, +base: U32, +dx: F32, +dy: F32, +dz: F32,
-                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +t: F32, w: Array<U32>, fc: Face) -> Array<U32> & Water.Mirror:
+def glance_face(+distant: Bool, +word: U32, +sky: U32, +fl: U32, +base: U32, +dx: F32, +dy: F32, +dz: F32,
+                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +t: F32, w: Array<U32>, fc: Face) -> Array<U32> & U32:
   Face{px, +py, pz, +ax, +ay, +hx, +hy, +hz, cx, cy, cz, +da, u, wf, +tone} = fc
-  glance_fin(distant, bottom, m, fl, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf,
+  glance_fin(distant, sky, fl, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf,
     (tone * (0.18 + 0.82 * Sky.daylight(ly)) * Bool.pick(F32, sunny(da, ax, ay, lx, ly, lz), 1.0, 0.6) : F32),
     F32.max(Sky.fog(fl, (far + t : F32), eye, py), Water.reach(t, dx, dy, dz)),
     type_of(distant, w, base, word, hx, hy, hz))
 
-def glance_look(got: Bool, +distant: Bool, +word: U32, bottom: U32, m: Water.Reflection, +fl: U32, +base: U32,
+def glance_look(got: Bool, +distant: Bool, +word: U32, +sky: U32, +fl: U32, +base: U32,
                 +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +c: U32, +t: F32, w: Array<U32>) -> Array<U32> & Water.Mirror:
+                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +c: U32, +t: F32, w: Array<U32>) -> Array<U32> & U32:
   match got:
     case False{}:
-      (w, Water.Mirror{bottom, m, False{}, 0, 1.0})
+      (w, sky)
     case True{}:
-      glance_face(distant, word, bottom, m, fl, base, dx, dy, dz, far, eye, lx, ly, lz, t, w, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
+      glance_face(distant, word, sky, fl, base, dx, dy, dz, far, eye, lx, ly, lz, t, w, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
 
-def far_glance_open(bottom: U32, m: Water.Reflection, +fl: U32, +base: U32,
+def far_glance_open(+sky: U32, +fl: U32, +base: U32,
                     +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-                    +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Far) -> Array<U32> & Water.Mirror:
+                    +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Far) -> Array<U32> & U32:
   (w, fr) = r
   Far{+hit, word, t, tr} = fr
-  glance_look((hit > 0 : U32), True{}, word, bottom, m, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, hit, t, w)
+  glance_look((hit > 0 : U32), True{}, word, sky, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, hit, t, w)
 
-def glance_past(past: Bool, bottom: U32, m: Water.Reflection, +fl: U32, +base: U32, +fm: U32,
+def glance_past(past: Bool, +sky: U32, +fl: U32, +base: U32, +fm: U32,
                 +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +c: U32, +t: F32, w: Array<U32>) -> Array<U32> & Water.Mirror:
+                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +c: U32, +t: F32, w: Array<U32>) -> Array<U32> & U32:
   match past:
     case False{}:
-      glance_look((c > 0 : U32), False{}, 0, bottom, m, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, c, t, w)
+      glance_look((c > 0 : U32), False{}, 0, sky, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, c, t, w)
     case True{}:
-      far_glance_open(bottom, m, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz,
+      far_glance_open(sky, fl, base, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz,
         run_far(32n, w, fm, ox, oy, oz, dx, dy, dz, window_exit(ox, oz, dx, dz), reach_of(28.0, dx, dy, dz), False{}, Water.Trace{0.0, 0.0}))
 
 # the window's glance, and if it ended past the window's side the far walk
-def glance_open(bottom: U32, m: Water.Reflection, +fl: U32, +base: U32, +fm: U32,
+def glance_open(+sky: U32, +fl: U32, +base: U32, +fm: U32,
                 +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Glance) -> Array<U32> & Water.Mirror:
+                +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Glance) -> Array<U32> & U32:
   (w, g) = r
   Glance{+c, +t} = g
-  glance_past((c < 1 : U32) && Bool.not(inside(128.0, (ox + dx * t : F32), (oz + dz * t : F32))), bottom, m, fl, base, fm,
+  glance_past((c < 1 : U32) && Bool.not(inside(128.0, (ox + dx * t : F32), (oz + dz * t : F32))), sky, fl, base, fm,
     ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, c, t, w)
 
-def mirror_walk(distant: Bool, bottom: U32, m: Water.Reflection, +fl: U32, +base: U32, +fm: U32, +px: F32, +py: F32, +pz: F32,
-                +rx: F32, +ry: F32, +rz: F32, +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>) -> Array<U32> & Water.Mirror:
+def mirror_walk(distant: Bool, +sky: U32, +fl: U32, +base: U32, +fm: U32, +px: F32, +py: F32, +pz: F32,
+                +rx: F32, +ry: F32, +rz: F32, +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>) -> Array<U32> & U32:
   match distant:
     case False{}:
-      glance_open(bottom, m, fl, base, fm, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz, run_glance(32n, w, base, px, py, pz, rx, ry, rz))
+      glance_open(sky, fl, base, fm, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz, run_glance(32n, w, base, px, py, pz, rx, ry, rz))
     case True{}:
-      far_glance_open(bottom, m, fl, base, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz,
+      far_glance_open(sky, fl, base, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz,
         run_far(32n, w, fm, px, py, pz, rx, ry, rz, 0.0, reach_of(28.0, rx, ry, rz), False{}, Water.Trace{0.0, 0.0}))
+
+def framed(bottom: U32, m: Water.Reflection, r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
+  (w, colour) = r
+  (w, Water.Mirror{bottom, m, colour})
 
 # the world in the mirror is a look of its own (bit 27 of the camera's
 # base); its walk starts a hair over the water, in the air the ray came through
 def mirror_world(world: Bool, +distant: Bool, +fm: U32, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32,
-                 +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +m: Water.Reflection,
+                 +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +m: Water.Reflection, +sky: U32,
                  r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
   match world:
     case False{}:
       (w, bottom) = r
-      (w, Water.Mirror{bottom, m, False{}, 0, 1.0})
+      (w, Water.Mirror{bottom, m, sky})
     case True{}:
       Water.Reflection{+rx, +ry, +rz, cosine} = m
       (w, bottom) = r
-      mirror_walk(distant, bottom, m, fl, base, fm, px, (py + 0.01 : F32), pz, rx, ry, rz, far, eye, lx, ly, lz, w)
+      framed(bottom, m, mirror_walk(distant, sky, fl, base, fm, px, (py + 0.01 : F32), pz, rx, ry, rz, far, eye, lx, ly, lz, w))
+
+# the sky behind the mirror at p, along its ray m
+def behind(world: Bool, +distant: Bool, +fm: U32, +ck: U32, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32,
+           +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, m: Water.Reflection, r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
+  Water.Reflection{+rx, +ry, +rz, +cosine} = m
+  mirror_world(world, distant, fm, fl, base, px, py, pz, far, eye, lx, ly, lz, Water.Reflection{rx, ry, rz, cosine},
+    Clouds.mirrored(fl, fm, ck, px, py, pz, rx, ry, rz, lx, ly, lz), r)
 
 def mirrored(go: Bool, +distant: Bool, +fm: U32, +ck: U32, +rain: F32, +fl: U32, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
              +entry: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & Water.Mirror:
   match go:
     case False{}:
       (w, bottom) = r
-      (w, Water.Mirror{bottom, Water.flat(dx, dy, dz), False{}, 0, 1.0})
+      (w, Water.Mirror{bottom, Water.flat(dx, dy, dz), 0})
     case True{}:
-      mirror_world(Water.mirror_on(base), distant, fm, fl, base, (ox + dx * entry : F32), (oy + dy * entry : F32), (oz + dz * entry : F32),
+      behind(Water.mirror_on(base), distant, fm, ck, fl, base, (ox + dx * entry : F32), (oy + dy * entry : F32), (oz + dz * entry : F32),
         entry, oy, lx, ly, lz,
         Water.reflected(Water.ripples_on(fl), base, ck, rain, (ox + dx * entry : F32), (oz + dz * entry : F32), entry, dx, dy, dz), r)
 
@@ -814,7 +828,7 @@ def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +to
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147482615 : U32), fl)
   +rain = Rain.falling(Util.on(fl, 512), ck)
   Rain.fall((rain > 0.0 : F32), rain, ck, fw, base, ox, oy, oz, dx, dy, dz, Bool.pick(F32, wet, entry, t), ly,
-  Water.shade(wet, fl, ck, v, oy, dy, lx, ly, lz, top, t, (hitw > 0 : U32), Water.Trace{entry, depth},
+  Water.shade(wet, fl, v, oy, dy, ly, top, t, (hitw > 0 : U32), Water.Trace{entry, depth},
     mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, ck, rain, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
       bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, ck, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
         shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz)))))
