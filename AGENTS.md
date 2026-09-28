@@ -205,7 +205,7 @@ from a ray to the clouds, read about 1 ms at 1470×796 and none at scale 2.
 
 ## The code's fixed points
 
-- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain; bits 10..19 are spare.
+- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet; bits 11..19 are spare.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
 horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
@@ -214,7 +214,7 @@ horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask 
 plus 64, plus those remainders, plus 256 (`Render.run_far`).
 - `Cam.clock`: the game's clock, milliseconds across the days
 (`Day.advance` no longer wraps a day; its word wraps after 4096); the
-weather (`Clouds.weather`), the wind (`Clouds.corner_x`) and the
+weather (`Clouds.weather`), the wind (`Clouds.blown`) and the
 ripples' 8192-ms loop (`Water.phase`) read it.
 - `Cam.base`: low 14 bits address the ring, and the camera keeps only
 those of the corner's word (`Water.with_looks`). Bits 27..30 are the

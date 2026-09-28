@@ -9,6 +9,7 @@ import ../src/player.bend as Player
 import ../src/save.bend as Save
 import ../src/clouds.bend as Clouds
 import ../src/rain.bend as Rain
+import ../src/wet.bend as Wet
 
 def blocked(r: Array<U32> & Bool) -> Bool:
   (w, got) = r
@@ -39,6 +40,10 @@ def cloud_at(+fm: U32, +ox: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
 
 def fixed(+dx: F32, +dy: F32, +dz: F32) -> Bool:
   U32.is_eq(cloud_at(0, 64.5, dx, dy, dz), cloud_at(2560, 54.5, dx, dy, dz))
+
+# the sun's disc, looked at on the day t, with the clouds' looks or not
+def sun_seen(on: Bool, +t: U32) -> U32:
+  Clouds.heavens(on, 134217728, t, 12345, 0.48, 0.8, 0.36, 0.48, 0.8, 0.36)
 
 # the sun's light on the ground along a row of columns: the least of it,
 # and whether every column's lies between a heavy cloud's and the open's
@@ -94,6 +99,34 @@ def rays(n: Nat, +i: U32, +fm: U32, +base: U32, +ox: F32, +t: U32, +reach: F32, 
 def dry(+sum: U32) -> Bool:
   U32.is_eq(sum, 868992)
 
+def shown(r: Array<U32> & U32) -> U32:
+  (w, c) = r
+  c
+
+# a face of the colour 6789, a top of the ground or not, over the air cell
+# (x, 20, 64.5) of a world whose every word is `word`, seen at a slant at
+# the clock t
+def wet_face(+t: U32, +puddly: Bool, +x: F32, +word: U32) -> U32:
+  shown(Wet.soak((Wet.wetness(True{}, t) > 0.0 : F32), False{}, Wet.wetness(True{}, t), 0, 0, t, x, 20.0, 64.5, puddly, x, 64.5, 0.5,
+    0.3, 0.6, 0.2, 12345, 0.0, Render.looks(), 0.48, 0.8, 0.36, ([word : U32^19n], 6789)))
+
+# the first x along z = 64.5 from x where a puddle of the wettest ground
+# covers the whole top
+def puddled(n: Nat, +x: F32) -> F32:
+  match n:
+    case 0n:
+      x
+    case 1n+k:
+      Bool.pick(F32, (Wet.puddle(0, x, 64.5, 1.0) >= 1.0 : F32), x, puddled(k, (x + 0.25 : F32)))
+
+# how many of n points on a slant across the columns hold a puddle
+def puddles(n: Nat, +x: F32, +wet: F32, +count: U32) -> U32:
+  match n:
+    case 0n:
+      count
+    case 1n+k:
+      puddles(k, (x + 0.37 : F32), wet, (count + Bool.pick(U32, (Wet.puddle(0, x, (x * 0.61 : F32), wet) > 0.0 : F32), 1, 0) : U32))
+
 # the first column along the row z = 64.5 with no cloud over it
 def gap(n: Nat, +t: U32, +x: F32) -> F32:
   match n:
@@ -120,7 +153,7 @@ def main() -> IO(Unit):
       "the weather goes from clear to overcast within sixteen days, with no jump at the clock's wrap, and the first morning is fair")
     Lib.expect(U32.is_ne(Clouds.overcast(True{}, 1048576, 0.8, 6789), 6789) && U32.is_eq(Clouds.overcast(True{}, 3145728, 0.8, 6789), 6789)
       && U32.is_eq(Clouds.overcast(False{}, 1048576, 0.8, 6789), 6789)
-      && U32.is_ne(Clouds.over(True{}, 0, 1048576, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 6789), 6789),
+      && U32.is_ne(sun_seen(True{}, 1048576), sun_seen(False{}, 1048576)) && U32.is_eq(sun_seen(True{}, 3145728), sun_seen(False{}, 3145728)),
       "a heavy sky greys the sky and its fog and veils its sun, moon and stars, a fair one leaves them, and none with the clouds off")
     Lib.expect(Rain.raining(1203323) && Bool.not(Rain.raining(3145728)) && Bool.not(Rain.raining(Day.morning())),
       "it rains on the second morning, overcast, and not on a fair day nor on the first morning")
@@ -131,6 +164,17 @@ def main() -> IO(Unit):
     Lib.expect(U32.is_eq(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^19n], 0)), rays(128n, 0, 256, 128, 63.5, 1203323, 100.0, 0, ([0 : U32^19n], 0)))
       && U32.is_ne(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^19n], 0)), rays(128n, 0, 0, 0, 64.87, 1203323, 100.0, 0, ([0 : U32^19n], 0))),
       "the drops are the world's: the same when the window moves a column under the eye, others when the eye moves through them")
+    Lib.expect((Wet.wetness(True{}, 1203323) > 0.5 : F32) && F32.is_eq(Rain.amount(Clouds.weather(1769472)), 0.0) && (Wet.wetness(True{}, 1769472) > 0.0 : F32)
+      && F32.is_eq(Wet.wetness(True{}, 2293760), 0.0) && F32.is_eq(Wet.wetness(True{}, 3145728), 0.0) && F32.is_eq(Wet.wetness(True{}, Day.morning()), 0.0)
+      && F32.is_eq(Wet.wetness(False{}, 1203323), 0.0),
+      "the ground is wet in the rain and a while after it, dry on a fair day and on the first morning, and never with its look off")
+    Lib.expect(U32.is_ne(wet_face(1203323, False{}, 64.5, 0), 6789)
+      && U32.is_ne(wet_face(1203323, True{}, puddled(512n, 0.5), 0), wet_face(1203323, False{}, puddled(512n, 0.5), 0))
+      && U32.is_eq(wet_face(1203323, True{}, puddled(512n, 0.5), 33554432), 6789) && U32.is_eq(wet_face(3145728, True{}, puddled(512n, 0.5), 0), 6789),
+      "in the rain a face under the open sky darkens and shines and a puddle more, one under a roof stays as it was, and so does one on a fair day")
+    Lib.expect((puddles(512n, 0.5, 1.0, 0) > 51 : U32) && (puddles(512n, 0.5, 1.0, 0) < 307 : U32)
+      && (puddles(512n, 0.5, 0.4, 0) < puddles(512n, 0.5, 1.0, 0) : U32) && U32.is_eq(puddles(512n, 0.5, 0.0, 0), 0),
+      "puddles cover some of the ground's tops in the rain, less as it dries, and none on dry ground")
     Lib.expect(F32.is_eq(Clouds.cover(0, 1203323, gap(120n, 1203323, 0.5), 64.5, 0.0, 0.0), 0.0)
       && dry(rays(128n, 0, 0, 0, gap(120n, 1203323, 0.5), 1203323, 100.0, 0, ([0 : U32^19n], 0))),
       "on the same morning, an eye under a gap in the clouds stays dry")

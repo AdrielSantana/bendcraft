@@ -49,12 +49,15 @@ def weather(+t: U32) -> F32:
   +v = (at((t / 524288 : U32), 45) * (1.0 - f) + at(((t / 524288 + 1) % 8192 : U32), 45) * f : F32)
   (v * v : F32)
 
-# the window's corner in the clouds' 256 columns, less the way the wind
-# carried them along x: their 256 columns in a half day
-def corner_x(+fm: U32, +t: U32) -> F32:
-  (U32.to_f32(((fm / 256 + 64) % 256 : U32)) - U32.to_f32((t % 524288 : U32)) * 0.00048828125 : F32)
+# the window's corner in the world's columns, mod 256
+def corner_x(+fm: U32) -> F32: U32.to_f32(((fm / 256 + 64) % 256 : U32))
 
 def corner_z(+fm: U32) -> F32: U32.to_f32(((fm % 256 + 64) % 256 : U32))
+
+# the corner in the clouds' columns: less the way the wind carried them
+# along x, their 256 columns in a half day
+def blown(+fm: U32, +t: U32) -> F32:
+  (corner_x(fm) - U32.to_f32((t % 524288 : U32)) * 0.00048828125 : F32)
 
 # value noise over cells of 1/k columns, n of them to the 256, so that it
 # repeats with the columns; x and z in 0..256
@@ -91,7 +94,7 @@ def rough(+x: F32, +z: F32, +b: F32) -> F32:
 # how high the cloud over the column at (x, z), or a way (ax, az) from it,
 # reaches in the slab, 0 in the open
 def cover(+fm: U32, +ck: U32, +x: F32, +z: F32, +ax: F32, +az: F32) -> F32:
-  rough((x + corner_x(fm, ck) + ax : F32), (z + corner_z(fm) + az : F32), bias(weather(ck)))
+  rough((x + blown(fm, ck) + ax : F32), (z + corner_z(fm) + az : F32), bias(weather(ck)))
 
 # what the ray still sees through (tr), and the light it met, weighed by
 # what each step hid (w, wl)
@@ -135,9 +138,8 @@ def puffed(+v: U32, +sky: U32, +t0: F32, +wx: F32, +dx: F32, +dy: F32, +dz: F32,
   +fade = (1.0 - Util.smooth(F32.clamp(((t0 - 180.0) * 0.004 : F32), 0.0, 1.0)) : F32)
   Util.mix(sky, Util.mix(Util.mix(dark, bright, light), v, F32.clamp((t0 * 0.0018 : F32), 0.0, 0.6)), ((1.0 - tr) * fade : F32))
 
-# a sky pixel's clouds, over the sky it shows, whose sun, moon and stars
-# a heavy sky veils; a ray too flat to reach the slab near enough has
-# faded before it
+# a sky pixel's clouds, over the sky it shows with its heavens; a ray too
+# flat to reach the slab near enough has faded before it
 def over(on: Bool, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
          +lx: F32, +ly: F32, +lz: F32, +sky: U32) -> U32:
   match on:
@@ -149,8 +151,8 @@ def over(on: Bool, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +d
       +t0 = ((bottom() - oy) / up : F32)
       +dt = ((top() - bottom()) / up * 0.0833333 : F32)
       +s = (t0 + 0.5 * dt : F32)
-      puffed(v, Util.mix(sky, v, gloom(wx)), t0, wx, dx, dy, dz, lx, ly, lz,
-        march(12n, (ox + corner_x(fm, ck) + dx * s : F32), (oy + up * s : F32), (oz + corner_z(fm) + dz * s : F32),
+      puffed(v, sky, t0, wx, dx, dy, dz, lx, ly, lz,
+        march(12n, (ox + blown(fm, ck) + dx * s : F32), (oy + up * s : F32), (oz + corner_z(fm) + dz * s : F32),
           (dx * dt : F32), (up * dt : F32), (dz * dt : F32), lx, lz, (dt * sigma(wx) : F32), F32.clamp((1.6 - dt * 0.15 : F32), 0.0, 1.0), bias(wx), 1.0, 0.0, 0.0))
 
 # the sun's light on the ground under the clouds: what the cloud over it
@@ -176,3 +178,26 @@ def overcast(on: Bool, +ck: U32, +ly: F32, +c: U32) -> U32:
       c
     case True{}:
       Util.mix(c, Util.mix(Util.rgb(24, 26, 32), Util.rgb(158, 164, 172), Sky.daylight(ly)), gloom(weather(ck)))
+
+# the sky seen along (dx, dy, dz), and the fog's colour that way
+def sky(+fl: U32, +ck: U32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> U32:
+  overcast(Util.on(fl, 128), ck, ly, Sky.atmosphere(fl, dx, dy, dz, lx, ly, lz))
+
+# the sun, the moon and the stars on the sky s along (dx, dy, dz), which
+# a heavy sky veils
+def heavens(on: Bool, +fl: U32, +ck: U32, +s: U32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> U32:
+  match on:
+    case False{}:
+      Sky.bodies(fl, s, dx, dy, dz, lx, ly, lz)
+    case True{}:
+      Util.mix(Sky.bodies(fl, s, dx, dy, dz, lx, ly, lz), s, gloom(weather(ck)))
+
+# what a sky pixel shows: v, the sky that way, with its heavens and clouds
+def above(+fl: U32, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+          +lx: F32, +ly: F32, +lz: F32) -> U32:
+  over(Util.on(fl, 128), fm, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, heavens(Util.on(fl, 128), fl, ck, v, dx, dy, dz, lx, ly, lz))
+
+# what a mirror shows of the sky along (dx, dy, dz): the sky and its
+# heavens, without the clouds' march
+def mirrored(+fl: U32, +ck: U32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> U32:
+  heavens(Util.on(fl, 128), fl, ck, sky(fl, ck, dx, dy, dz, lx, ly, lz), dx, dy, dz, lx, ly, lz)

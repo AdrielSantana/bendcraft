@@ -95,6 +95,7 @@ def plan() -> List<Run>:
    off("clouds off       ", 128, 0),
    off("cloud shadows off", 256, 0),
    off("rain off         ", 512, 0),
+   off("wet off          ", 1024, 0),
    off("world mirror off ", 0, 134217728),
    off("caustic off      ", 0, 268435456),
    Run{"rays alone       ", 1, 0, Render.looks_base()},

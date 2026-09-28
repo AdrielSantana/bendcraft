@@ -149,8 +149,11 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    ray's bearing, went first: they walked with the player and read as a
    filter on the screen (said on trying it). The roof's test was a pow a
    drop at first, 3 of its 8 ms at 1470×796; a log2 of the column's mask
-   does it once a column. Still to do: splashes, wet ground, and rain in
-   the water's mirror.
+   does it once a column. The wet it leaves — done (2026-09-27): a face
+   under the open sky darkens and mirrors the sky, and puddles gather on
+   the ground's tops, for a while after the rain too. Still to do:
+   splashes, rings in the puddles, the world in them, and rain in the
+   water's mirror.
 7. **Vegetation.** Tall grass and flowers as two crossed planes inside a
    voxel, leaves with holes: a ray that meets alpha goes on. Wind as an
    offset of the texture's coordinate by time and place.
@@ -501,8 +504,8 @@ finished world.
 4. the far horizon: its first level, a word a column to 128 blocks, done
    2026-09-22, seamless 2026-09-25; coarser levels past it wait on the reach wanted
 5. clouds and their shadows — done, 2026-09-27
-6. the weather over the days, the wind and rain from heavy clouds — done,
-   2026-09-27
+6. the weather over the days, the wind, rain from heavy clouds and the
+   wet it leaves — done, 2026-09-27
 7. vegetation
 8. light of the blocks
 9. survival and crafting

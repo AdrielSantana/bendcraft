@@ -7,6 +7,7 @@ import ./inventory.bend as Inventory
 import ./water.bend as Water
 import ./clouds.bend as Clouds
 import ./rain.bend as Rain
+import ./wet.bend as Wet
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -632,22 +633,29 @@ def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
     case False{}:
       1.0
 
-# the type read: one word through the handle, then the look
+# the type read: one word through the handle, then the look, soaked in
+# a wet world; the ground's tops (grass, dirt, stone, sand, brick) hold
+# puddles
 def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
           +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-          +lx: F32, +ly: F32, +lz: F32, +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+          +lx: F32, +ly: F32, +lz: F32, +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, +rx: F32, +ry: F32, +rz: F32, +glance: F32,
+          r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
   +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
   +col = dim(blockcol(what, side, yf), (tone * tex_if(Util.on(fl, 4), u, wf) : F32))
-  after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
-            Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, lx, ly, lz), Util.on(fl, 2),
-            shadow_if(Util.on(fl, 1), sunny, distant, w, base, fm, sx, sy, sz, lx, ly, lz))
+  +wet = Wet.wetness(Util.on(fl, 1024), ck)
+  Wet.soak((wet > 0.0 : F32), distant, wet, base, fm, ck, cx, cy, cz,
+    Bool.not(side) && (ry > 0.0 : F32) && ((what < 4 : U32) || U32.is_eq(what, 6)), u, wf, glance, rx, ry, rz, v, f, fl, lx, ly, lz,
+    after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
+              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, lx, ly, lz), Util.on(fl, 2),
+              shadow_if(Util.on(fl, 1), sunny, distant, w, base, fm, sx, sy, sz, lx, ly, lz)))
 
 # the look of the block behind the face: its unit steps of u and w in
-# space, where on the face for the blend of the four vertices, and the
-# shadow ray's start a hair before the face, in c
+# space, where on the face for the blend of the four vertices, the
+# shadow ray's start a hair before the face, in c, and the ray mirrored
+# by the face, with how flat it meets it
 def shade_face(+distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +word: U32, +v: U32, +oy: F32, +t: F32, +fl: U32,
-               +lx: F32, +ly: F32, +lz: F32, fc: Face) -> Array<U32> & U32:
+               +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, fc: Face) -> Array<U32> & U32:
   Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, +cx, +cy, +cz, +da, +u, +wf, +tone} = fc
   +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
   typed(distant, v, fl, base, fm, ck, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, (tone * (0.18 + 0.82 * Sky.daylight(ly)) : F32), Sky.fog(fl, t, oy, py),
@@ -656,6 +664,8 @@ def shade_face(+distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +w
         Bool.pick(F32, ax, (px + nudge : F32), px),
         Bool.pick(F32, ay, (py + nudge : F32), py),
         Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (pz + nudge : F32), pz),
+        Bool.pick(F32, ax, (0.0 - dx : F32), dx), Bool.pick(F32, ay, (0.0 - dy : F32), dy),
+        Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (0.0 - dz : F32), dz), (1.0 - Util.absf(da) : F32),
         type_of(distant, w, base, word, hx, hy, hz))
 
 # ---------- the mirror: the world seen in the water's top ----------
@@ -755,9 +765,9 @@ def shade_go(sky: Bool, +distant: Bool, +word: U32, w: Array<U32>, +base: U32, +
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match sky:
     case True{}:
-      (w, Clouds.over(Util.on(fl, 128), fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz)))
+      (w, Clouds.above(fl, fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz))
     case False{}:
-      shade_face(distant, w, base, fw, ck, word, v, oy, t, fl, lx, ly, lz, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
+      shade_face(distant, w, base, fw, ck, word, v, oy, t, fl, dx, dy, dz, lx, ly, lz, face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
 
 # the profile's pixels: the steps to the hit (flag 32), or 1 on a hit (64)
 def shade_mode(steps: Bool, hits: Bool, sky: Bool, +distant: Bool, +word: U32, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +v: U32,
@@ -797,7 +807,7 @@ def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +to
          +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, tr: Water.Trace, w: Array<U32>) -> Array<U32> & U32:
   Water.Trace{+entry, +depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
-  +ground_flags = Bool.pick(U32, wet, (fl .&. 2147483639 : U32), fl)
+  +ground_flags = Bool.pick(U32, wet, (fl .&. 2147482615 : U32), fl)
   Rain.fall(Util.on(fl, 512) && Rain.raining(ck), ck, fw, base, ox, oy, oz, dx, dy, dz, Bool.pick(F32, wet, entry, t), ly,
   Water.shade(wet, fl, v, oy, dy, lx, ly, lz, top, t, (hitw > 0 : U32), Water.Trace{entry, depth},
     mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, ck, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
@@ -885,7 +895,7 @@ def shoot(go: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy
           +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   match go:
     case False{}:
-      (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), Clouds.over(Util.on(fl, 128), fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, Sky.bodies(fl, v, dx, dy, dz, lx, ly, lz)), 0))
+      (w, Bool.pick(U32, ((fl .&. 96) < 1 : U32), Clouds.above(fl, fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz), 0))
     case True{}:
       run_water(Util.on(fl, 2097152), w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
 
@@ -912,7 +922,7 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
 # flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
-# what. Bit 7 is the clouds, 8 their shadows, 9 the rain; bits 10..19 are spare; bit 20 enables ripples. Bits 21..24
+# what. Bit 7 is the clouds, 8 their shadows, 9 the rain, 10 the wet; bits 11..19 are spare; bit 20 enables ripples. Bits 21..24
 # hold water (21), water fog (22), Fresnel (23) and sky reflection (24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low four bits, then four seven-bit counts;
@@ -925,7 +935,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4293919647
+def looks() -> U32: 4293920671
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds
@@ -975,7 +985,7 @@ def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32
   +dy = (fy + 0.9 * v * uy : F32)
   +dz = (fz + 0.9 * u * rz + 0.9 * v * uz : F32)
   +n = F32.max(norm3(dx, dy, dz), 0.00001)
-  clipped(w, base, far, ck, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), Clouds.overcast(Util.on(fl, 128), ck, ly, Sky.atmosphere(fl, (dx / n : F32), (dy / n : F32), (dz / n : F32), lx, ly, lz)), fl, lx, ly, lz)
+  clipped(w, base, far, ck, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), Clouds.sky(fl, ck, (dx / n : F32), (dy / n : F32), (dz / n : F32), lx, ly, lz), fl, lx, ly, lz)
 
 # a crosshair straight over the middle
 def cross_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> Bool:

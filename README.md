@@ -377,6 +377,20 @@ surface, and only where no block stands over them, which the column's
 solid mask, read once a step, tells. A drop near the eye is wide and a
 far one thin, and walking passes them by.
 
+**The wet** is what the rain leaves (`src/wet.bend`). A face with no
+block over the air before it, which that column's solid mask tells in
+one read, darkens where it is lit and takes a sheen of the sky it
+mirrors, more the flatter it is seen. On the ground's tops (grass, dirt,
+stone, sand, brick) puddles gather where a noise over the world's
+columns, in cells of two columns and of one, passes a level the wetness
+lowers: darker still, they mirror the sky with its sun, moon and stars
+(`Clouds.mirrored`, the sky pixel's without the clouds' march), almost
+whole at a glance. The wetness is the rain's amount, or 0.7 of what fell
+a quarter day before, or 0.4 of what fell half a day before, so the
+ground stays wet after the rain and dries, its puddles shrinking first.
+A dry world reads nothing; a far face is taken as open, and a face seen
+through water shows none of it.
+
 **Collecting and building** use eight natural counts in `Game`. A successful
 break reads the cell's actual type and credits that slot; a successful
 placement debits the selected slot. Empty spending, occupied cells and
@@ -428,6 +442,7 @@ src/inventory.bend natural counts, conserved cell/item transfers, packed HUD cou
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/clouds.bend    the clouds' coverage, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
+src/wet.bend       wet faces and puddles under the open sky, in the rain and after it
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
@@ -443,7 +458,7 @@ test/lib.bend      what every windowless test needs: expect, ticks, one event, s
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
-test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain
+test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain, the wet and its puddles
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
@@ -547,7 +562,8 @@ and 15 where the whole frame is, since a sky ray's lane marches them all;
 off, they cost nothing. Their shadow, one read a lit block, takes 1. The
 rain takes about 5 where it rains (the second morning: all on 35.0, rain
 off 30.2), its 11 columns and 33 drops a ray, and nothing where it does
-not. Water
+not. The wet it leaves takes about 1 more, a column's read a face, and
+nothing on a dry day. Water
 comes next, 3 to 5 ms, because it tracks the wet intervals along every
 ray's 60 steps. Two lessons of the first profile hold: a ray that stopped
 at its hit walked a third of the steps and made the frame slower, the
