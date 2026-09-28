@@ -66,7 +66,8 @@ make publish                                   # the same onto the gh-pages bran
 owner. Since 2.0.22 an `@unsafe` def may hand one array to both sides of a
 fork anyway, two handles to one block that `Array.join` gives back, so the
 columns around the player live in the low 2^18 words of an `Array<U32>`
-of 2^19 (above them, the far map and the clouds' map below): sixteen
+of 2^19 (above them, the far map, the clouds' map and the meadow's,
+below): sixteen
 words a column, the first a mask whose bit `y` says "there is a block at height
 `y`", the next four the types of its 32 solid blocks, four bits each. Word
 six is a separate water mask; words seven to fourteen hold the amount of
@@ -413,6 +414,33 @@ dries, its puddles shrinking first.
 A dry world reads nothing; a far face is taken as open, and a face seen
 through water shows none of it.
 
+**The meadow** is tall grass on the grass tops (`src/grass.bend`). The
+render's walk marks a ray's rim, where it first came into air over a
+solid block low enough to meet its grass (under `Grass.top()`, 0.6 of a
+block over the floor) and where it last left such air, and after it the
+ray walks the grass between, as far as what it met, on three grids of
+cells: four a block with six blades each to 12 blocks (three of them
+alone from 4), two a block with three wider blades from 10 to 22, and
+one a block with six wider still from 20 to 40, each fading into the
+next over two blocks. A cell's hash roots its blades anywhere in it,
+tapered stalks each leaning its own way, their tips pushed by the
+wind's gusts, and now and then a flower, a cup of five petals on a stem
+(dandelion, daisy, poppy, cornflower and clover, one kind to 8×8
+blocks). A blade stays inside its cell and under the grass's top, so a
+ray that crosses a cell meets all of it; it meets a blade where it
+passes it nearest, its edge as soft as the pixel is wide, and the walk
+stops once it sees no more than 5% through. The blades are lit where the
+ray met them, in the sun or a block's shadow, yellower at their tips,
+the sun shining through them when it is ahead, fogged and wet as there;
+their feet stand in their own shade, and past them, and past 40 blocks,
+a grass top is the meadow seen from afar: their colour and shade by how
+wild the meadow grows, greener or straw by how dry. Each column's patch,
+whether its floor is grass, how tall and thick its blades, how often
+they flower and in what, and the wind's phase, is a word of the meadow's
+map in the array's last 2^16 words (`Meadow.map_at`), written at the
+world's birth as the clouds' is and read once a block a walk. The
+meadow repeats every 256 columns, as the clouds do.
+
 **Collecting and building** use eight natural counts in `Game`. A successful
 break reads the cell's actual type and credits that slot; a successful
 placement debits the selected slot. Empty spending, occupied cells and
@@ -465,8 +493,10 @@ src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/clouds.bend    the clouds' coverage and its map, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
 src/wet.bend       how wet the world is, where puddles lie, their rings, the sheen; the render reads the air and walks the mirror
+src/meadow.bend    the meadow's map: how wild it grows, its flowers, the wind's phase, a word a column
+src/grass.bend     the meadow's blades and flowers, the walks that meet them, the meadow from afar
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the rain's rings, the mirror, the caustic
-src/util.bend      conversions, bit tests, smoothstep
+src/util.bend      conversions, bit tests, smoothstep, a colour mixed or dimmed
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
 src/render.bend    the DDA, the sun, the texture, the occlusion, the mirror's walk, a pixel
 src/frame.bend     the frame's tree, its one `!` and the game's view: all that relies on @unsafe
@@ -476,6 +506,7 @@ src/save.bend      the save file, and the tick that writes it
 LAWS.bend          the rules the checker proves; PROOF.bend closes them
 AGENTS.md          for an agent (or a person) about to write Bend here: the gate, the rules
 ROADMAP.md         the vision and what comes next: the look, the game, the laws, what waits on Bend
+PERF.md            what a ray caster can do to cost less, each technique measured alone
 test/lib.bend      what every windowless test needs: expect, ticks, one event, say
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
@@ -493,6 +524,7 @@ test/profile.bend  what costs what: each look off in turn, the rays' hits and st
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
 test/terrain.bend  noise rows, lake floor materials, dry roots, canopies, saved columns, the far map and its look
 test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea and its trace, the look, its shadow and mirror
+test/meadow.bend   the meadow's map, and rays through the grass, over it, over stone and down onto it
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -518,20 +550,22 @@ make page-test  # the page in headless Chrome, hashes and fps
 Apple M5, the game closed, twelve rounds alternated with stock Bend 2.0.25
 and the order swapped every round (2026-09-27); the last column, eight
 rounds alternated with the build before the clouds' map (5, 5, 8, 12, 27
-and 47 ms, the clouds, the weather, the rain and the wet), the same day.
+and 47 ms, the clouds, the weather, the rain and the wet), the same day;
+the meadow's, eight rounds alternated with the build before it
+(2026-09-28).
 The bench
 times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map |
-|---|---|---|---|
-| 512×512 | 5 ms | 3 ms | 4 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms |
-| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms |
-| 1920×1080 | 91 ms | 33 ms | 40 ms |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow |
+|---|---|---|---|---|
+| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms |
+| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796 when #1140 was measured: its fix of
 a race ([#975](https://github.com/bendlang/bend/issues/975)) made every
@@ -549,26 +583,29 @@ mirror and the caustic, bits 27 and 28 of the base word), then the rays
 alone, and prints the `!` a frame; then it renders the view twice more
 with numbers for pixels, how many rays reach a block and how many DDA
 steps a ray walks to its hit, each pixel weighed by the square it stands
-for. Its views are the bench's at four sizes, then at 1470×796 night
-looking at the moon, the rain of the second morning, the lake in that rain, a lake looking west, under its water, the night lake
-with the moon in it, and the lake with partial water in the window. The
-least of four rounds alternated with the build before the clouds' map,
-ms a frame:
+for. Its views are the bench's at four sizes, then at 1470×796 the
+meadow from the start's hill, night looking at the moon, the rain of the
+second morning, the lake in that rain, a lake looking west, under its
+water, the night lake with the moon in it, and the lake with partial
+water in the window. The least of four rounds on a busy machine
+(2026-09-28), ms a frame; the last row is four rounds alternated with
+the build before the meadow:
 
-| | bench's view, 735×398 | bench's view, 1470×796 | lake | night lake | night, all sky |
-|---|---|---|---|---|---|
-| all on | 7.2 | 28.0 | 25.4 | 22.4 | 17.8 |
-| shadow off | 6.6 | 24.0 | 23.0 | 22.4 | 18.0 |
-| occlusion off | 7.2 | 25.2 | 23.8 | 21.8 | 18.2 |
-| texture off | 7.6 | 25.8 | 25.6 | 23.0 | 18.0 |
-| water off | 6.2 | 20.8 | 21.0 | 16.0 | 15.8 |
-| sky reflection off | 6.6 | 23.0 | 22.0 | 18.4 | 18.2 |
-| world mirror off | 7.0 | 24.6 | 25.2 | 21.6 | 18.0 |
-| caustic off | 7.6 | 26.0 | 24.8 | 23.4 | 18.0 |
-| clouds off | 6.8 | 23.4 | 23.4 | 19.6 | 12.6 |
-| cloud shadows off | 7.2 | 26.0 | 25.2 | 23.4 | 17.6 |
-| rays alone | 4.0 | 12.0 | 11.0 | 9.8 | 8.8 |
-| all on, before the clouds' map | 9.2 | 29.2 | 28.8 | 27.6 | 29.0 |
+| | bench's view, 735×398 | bench's view, 1470×796 | meadow | lake | night lake | night, all sky |
+|---|---|---|---|---|---|---|
+| all on | 12.0 | 45.6 | 56.8 | 51.4 | 39.6 | 21.8 |
+| shadow off | 12.0 | 42.4 | 53.0 | 45.6 | 40.4 | 21.4 |
+| occlusion off | 11.8 | 44.2 | 55.8 | 48.0 | 38.6 | 21.2 |
+| texture off | 12.4 | 45.6 | 55.0 | 47.4 | 37.8 | 21.6 |
+| water off | 11.4 | 38.4 | 53.6 | 45.2 | 33.4 | 19.8 |
+| sky reflection off | 11.8 | 45.4 | 58.6 | 45.2 | 34.8 | 22.0 |
+| world mirror off | 12.4 | 44.4 | 59.0 | 49.4 | 36.0 | 21.6 |
+| caustic off | 12.6 | 45.4 | 57.4 | 51.6 | 40.0 | 21.8 |
+| clouds off | 12.4 | 46.2 | 49.4 | 48.6 | 35.8 | 14.0 |
+| cloud shadows off | 13.4 | 45.2 | 56.0 | 48.8 | 38.6 | 21.6 |
+| meadow off | 8.4 | 27.8 | 20.6 | 28.2 | 25.8 | 22.6 |
+| rays alone | 4.0 | 13.8 | 10.4 | 12.4 | 10.8 | 9.8 |
+| all on, before the meadow | 8.0 | 24.8 | | 28.0 | 23.6 | 19.8 |
 
 The other looks (distance and height fog, HUD, day cycle, gradient, sun,
 glow, stars, moon, water fog, Fresnel, ripples) are arithmetic on a pixel
@@ -576,8 +613,11 @@ and read within the noise of all on. In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 
-The rays alone are two fifths of a frame. After them come the walks a
-look adds, since a DDA step costs about the same wherever it happens, the
+The meadow is the dearest look: 4 ms of the bench's view at scale 2 and
+18 at 1470×796, 36 where the view is all meadow, and nothing where it is
+sky; its fine walk is most of it, and PERF.md splits it and holds what
+was tried to make it cheaper. The rays alone are a third of a frame.
+After them come the walks a look adds, since a DDA step costs about the same wherever it happens, the
 frame being its slowest lane: the shadow's 24 steps, the mirror's 32, and
 the clouds' 16, each of them three reads of their map, the density's
 mean along it and a step's light. The clouds take 3 ms in the bench's
@@ -685,8 +725,10 @@ its columns live above it, the render reads the word the host wrote, a
 column is its run and its canopy, its top is the higher of the two,
 leaves inside the run are the run's, a far column's types are the
 window's for the ground, the trunk and the sea, the sea is its plane
-over a lower ground, and it is not solid. There are 130 laws:
-eight universal claims and 122 concrete
+over a lower ground, and it is not solid. Two meadow laws: its map is
+the array's last 2^16 words, and a column's word reads back how wild the
+meadow grows, its flower and the wind's phase. There are 132 laws:
+eight universal claims and 124 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

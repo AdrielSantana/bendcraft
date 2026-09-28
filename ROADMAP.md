@@ -162,63 +162,29 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    the ground's tops, for a while after the rain too; the drops ring the
    puddles and the lake, and the puddles mirror the world. Still to do:
    splashes, and rain in the water's mirror.
-7. **Vegetation.** Tall grass and flowers as two crossed planes inside a
-   voxel, leaves with holes: a ray that meets alpha goes on. Wind as an
-   offset of the texture's coordinate by time and place.
+7. **Vegetation.** The meadow — done (2026-09-28): tall grass and
+   flowers on the grass tops, blades a ray walks on three grids of cells
+   to 40 blocks, their tips pushed by the wind's gusts, flowers in cups of
+   five petals, and past them the meadow seen from afar (README, "The
+   meadow"). Crossed planes inside a voxel were the plan and never were:
+   a blade anywhere in its cell, met where the ray passes it nearest,
+   keeps its edge soft at any angle and shows no quad. Dropped on seeing
+   them: the blades' shadows on each other, and flowers as balls. It is
+   the dearest look: the bench's fastest frames 6 → 10 ms at scale 2 and
+   23 → 40 at 1470×796, where the view is grass to the horizon; PERF.md
+   splits it and holds what was tried to make it cheaper. Still to do:
+   leaves with holes, a ray that meets alpha going on.
 8. **Light of the blocks.** Torches and a night that needs them.
 
-**The budget.** At 1470×796 a frame is 24 ms with a ray for every pixel
-and 6 ms at scale 2, which suits the pixel art (2026-09-27, on 2.0.32
+**The budget.** At 1470×796 a frame is 40 ms with a ray for every pixel
+and 10 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
 with #1132 and #1140; the clouds took 19 → 24 and 6 → 7, the weather,
-the rain and the wet then 27 and 8, and the clouds' map gave back 3 and
-2; the far horizon took 7 → 12 of the second on 2.0.25). At 60 frames a second that
-leaves 10 ms at scale 2 for the looks still to come, and 2 at 120. Every
-piece above says what it took of them in the profile table.
-
-**Ways to buy more of it**, in the order to try them; none is needed yet.
-
-- *Fewer rays, scaled up.* There already: scale 2, nearest neighbour,
-  which is the pixel art's own look. Its floor is the fixed part of a
-  dispatch, about 3 ms of growing and packing.
-- *The dear looks at a lower rate than the rays.* A primary ray for every
-  pixel keeps the blocks' edges sharp; a cloud march, a reflection or a
-  soft shadow is smooth, so a 2×2 block of pixels can share one, or one
-  pixel of the block can renew it each frame. Clouds are the classic case:
-  Horizon Zero Dawn renews one pixel in sixteen a frame.
-- *Noise and a denoiser,* as path tracers and Teardown do. Only once a
-  look is stochastic (soft shadows, jittered cloud steps): today's rays
-  are deterministic, so there is no noise to remove. The filter goes on
-  the light alone, never on the texture, or the pixel art smears.
-
-**Reading the last frame**, which the last two need. What the runtime
-allows, from `bend guide shaders` and the emitted C:
-
-- *A tile's own past is free.* The last image rides down the frame tree,
-  opened in four at every node (`Image.open(old)` in the guide's demo), so
-  each tile is handed its own square of it, owned: no sharing, no counts.
-  Enough for a still camera, and for renewing one pixel of a block a frame.
-- *Another tile's past is not.* A turning camera moves a point six pixels
-  or more a frame, out of its 4×4 tile, and a tree has no way up or
-  sideways: a tile holds what was handed down and nothing else. Sharing
-  the whole last image as a `+` tree instead makes the compiler count its
-  nodes, and sealing is per type, so every `Image` node pays, the new
-  frame's too (the guide measured 8.0 → 16.5 ms on its frame); and lanes
-  walking different paths diverge, which the early exit of the DDA already
-  showed us the price of.
-- *The way around is the world's way.* The ring is an `Array<U32>` every
-  lane reads at a plain load. The last frame can be one too, filled on the
-  host after the `!`: a parallel walk over a 1470×796 frame takes 1 to 2
-  ms here; the writes, which have one owner and so one thread, are not
-  measured. A ray then reads any old pixel by its index, and reprojects
-  exactly, since it knows where it hit.
-- Either way `main.bend` must call `Window.frame` itself, which hands the
-  image back, in place of `App.run`, which drops it.
-
-**Tried, and worth nothing here** (2026-09-21, so nobody tries again
-without a reason): typed picks, `pick(c, a: F32, b: F32)` and `word` for
-U32, in place of the 159 generic `Bool.pick` of the renderer, the world
-and the player, which `bend guide shaders` says box their words. Same
-checksums, same fastest frame at all six sizes, four alternated rounds.
+the rain and the wet then 27 and 8, the clouds' map gave back 3 and 2,
+and the meadow took 24 → 40 and 6 → 10; the far horizon took 7 → 12 of
+the second on 2.0.25). At 60 frames a second that leaves 6 ms at scale
+2 for the looks still to come, and none at 120. Every
+piece above says what it took of them in the profile table. What a ray
+caster can do to cost less, and what was tried: PERF.md.
 
 ## The game
 

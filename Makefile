@@ -46,6 +46,7 @@ test:
 	$(BEND) test/terrain.bend
 	$(BEND) test/readout.bend
 	$(BEND) test/far.bend
+	$(BEND) test/meadow.bend
 
 # five frames on the GPU, untouched and with 300 blocks placed, with checksums
 bench: test/bench.bend src/*.bend

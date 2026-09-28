@@ -8,6 +8,7 @@ import ./water.bend as Water
 import ./clouds.bend as Clouds
 import ./rain.bend as Rain
 import ./wet.bend as Wet
+import ./grass.bend as Grass
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -35,20 +36,9 @@ def vnoise(+u: F32, +v: F32) -> F32:
   +d = h01((i + 1 : U32), (j + 1 : U32))
   ((a * (1.0 - fu) + b * fu) * (1.0 - fv) + (c * (1.0 - fu) + d * fu) * fv : F32)
 
-# ---------- looks ----------
-
 # `U32.shln(a, n)` is O(n) -- a recursive shl per unit of n. So nothing here
 # ever shifts by a variable: the DDA carries the mask 1<<y and moves it one
 # bit per y step, and the type's nibble is picked with a select.
-
-def scale(+c: U32, +k: F32) -> U32:
-  F32.to_u32(F32.min((U32.to_f32(c) * k : F32), 255.0))
-
-def dim(+c: U32, +k: F32) -> U32:
-  +r = (c / 65536 : U32)
-  +g = (c / 256 % 256 : U32)
-  +b = (c % 256 : U32)
-  Util.rgb(scale(r, k), scale(g, k), scale(b, k))
 
 # ---------- DDA over the array ----------
 
@@ -177,14 +167,17 @@ def seg_end(partial: Bool, +next: F32, +hi: F32) -> F32:
     case False{}: next
     case True{}: F32.min(next, hi)
 
+# rim: where the ray first came into air over a solid block low enough to
+# meet its grass (Grass.top; under 0 none), and rim_end where it last
+# left such air: the meadow's grass stands between (rimmed)
 type Ray is Data:
-  Ray{hit: U32, t: F32, water: Water.Trace}
+  Ray{hit: U32, t: F32, rim: F32, rim_end: F32, water: Water.Trace}
 
 # The hit word carries six step bits above the two face bits, then the
 # first-water-top bit. Reflection needs no extra word through the DDA.
-def dda_end(+col: U32, +n: U32, t: F32, tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
+def dda_end(+col: U32, +n: U32, t: F32, rim: F32, rim_end: F32, tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
   (w, bits) = r
-  (w, Ray{(col + n * 4 : U32), t, tr})
+  (w, Ray{(col + n * 4 : U32), t, rim, rim_end, tr})
 
 # The loop walks its 60 steps whatever happens, the state frozen after the
 # hit (t stops moving there): an exit at the hit (or on leaving the box)
@@ -198,10 +191,10 @@ def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
         +ex: F32, +ey: F32, +ez: F32,
-        +axis: F32, +col: U32, +t: F32, +n: U32, +ymask: U32, +tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
+        +axis: F32, +col: U32, +t: F32, +rim: F32, +rim_end: F32, +n: U32, +ymask: U32, +tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
   match fuel:
     case 0n:
-      dda_end(col, n, t, tr, r)
+      dda_end(col, n, t, rim, rim_end, tr, r)
     case 1n+f:
       (w, words) = r
       Column{+bits, +wetbits, +partialbits, +lo, +hi} = words
@@ -225,7 +218,10 @@ def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
       +wet = inside && (ncol < 1 : U32) && Util.on(wetbits, ymask) && (ws < we : F32)
       nn = Water.crossed_top(water, wet, t, ws, we, axis, sy, tr, came_wet(partial, n),
         keep_wet(partial, Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n), inside && Util.on(wetbits, ymask)))
-      dda(~water, ~partial, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nn, nymask,
+      +over = inside && (col < 1 : U32) && Bool.not(Util.on(bits, ymask)) && Util.on(bits, U32.shr(ymask))
+        && Bool.pick(Bool, (sy > 0.0 : F32), ((my - t : F32) > ((1.0 - Grass.top()) * ey : F32) : F32), ((my - nt : F32) < (Grass.top() * ey : F32) : F32))
+      dda(~water, ~partial, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt,
+          Bool.pick(F32, over && (rim < 0.0 : F32), t, rim), Bool.pick(F32, over, nt, rim_end), nn, nymask,
           Water.crossed(water, wet, ws, we, tr),
           step_in(~water, ~partial, Bool.not(uy) && (ncol < 1 : U32), w, World.col_at(base, Util.f2u(nvx), Util.f2u(nvz)), nymask, Util.f2u(nvy), sy, nmy, ey,
             bits, wetbits, partialbits))
@@ -597,7 +593,7 @@ def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +fu: F32, +fw: F32, 
   +pm = vao(Util.on(m8, 1), Util.on(m8, 8), Util.on(m8, 64))
   +mm = vao(Util.on(m8, 2), Util.on(m8, 8), Util.on(m8, 128))
   +ao = ((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)
-  (w, Util.mix(dim(col, (ao * sun : F32)), v, f))
+  (w, Util.mix(Util.dim(col, (ao * sun : F32)), v, f))
 
 def ao(n: Nat, +distant: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +fm: U32, +m: U32, +bit: U32, +i: U32,
        +ox: F32, +oy: F32, +oz: F32, +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
@@ -624,7 +620,7 @@ def after_sun(+distant: Bool, +v: U32, +col: U32, +f: F32, +base: U32, +fm: U32,
          solid_in(distant, w, base, fm, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
     case False{}:
       (w, dark) = r
-      (w, Util.mix(dim(col, Bool.pick(F32, dark, 0.6, lit)), v, f))
+      (w, Util.mix(Util.dim(col, Bool.pick(F32, dark, 0.6, lit)), v, f))
 
 def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
   match on:
@@ -650,7 +646,7 @@ def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
 def glance_fin(+distant: Bool, +sky: U32, +fl: U32, +hy: U32, side: Bool, yf: F32, u: F32, wf: F32,
                tone: F32, f: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
-  (w, Util.mix(dim(blockcol(Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy)), side, yf),
+  (w, Util.mix(Util.dim(blockcol(Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy)), side, yf),
     (tone * tex_if(Util.on(fl, 4), u, wf) : F32)), sky, f))
 
 def glance_face(+distant: Bool, +word: U32, +sky: U32, +fl: U32, +base: U32, +dx: F32, +dy: F32, +dz: F32,
@@ -796,6 +792,15 @@ def facing_up(m: Water.Reflection) -> Bool:
   Water.Reflection{x, y, z, cosine} = m
   (y > 0.0 : F32)
 
+# a block's colour, lit by tone and textured by tex, but for a grass top
+# with the meadow on: the meadow seen from afar at (x, z), t from the eye
+def meadow_top(meadow: Bool, +fm: U32, +x: F32, +z: F32, +t: F32, +c: U32, +tone: F32, +tex: F32) -> U32:
+  match meadow:
+    case True{}:
+      Util.dim(Grass.afar(fm, x, z, t), tone)
+    case False{}:
+      Util.dim(c, (tone * tex : F32))
+
 # the type read: one word through the handle, then the look, soaked in
 # a wet world; the ground's tops (grass, dirt, stone, sand, brick) hold
 # puddles
@@ -805,7 +810,7 @@ def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy
           r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
   +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
-  +col = dim(blockcol(what, side, yf), (tone * tex_if(Util.on(fl, 4), u, wf) : F32))
+  +col = meadow_top(Util.on(fl, 2048) && U32.is_eq(what, 0) && Bool.not(side), fm, sx, sz, t, blockcol(what, side, yf), tone, tex_if(Util.on(fl, 4), u, wf))
   +wet = Wet.wetness(Util.on(fl, 1024), ck)
   soak((wet > 0.0 : F32), distant, wet, base, fm, ck, cx, cy, cz,
     Bool.not(side) && ((what < 4 : U32) || U32.is_eq(what, 6)) && facing_up(m), u, wf, t, oy, m, v, f, fl, lx, ly, lz,
@@ -868,7 +873,7 @@ def bed(on: Bool, +base: U32, +ck: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, 
     case False{}: r
     case True{}:
       (w, c) = r
-      (w, dim(c, Water.caustic(base, ck, x, z, drop, dy, ly, thick)))
+      (w, Util.dim(c, Water.caustic(base, ck, x, z, drop, dy, ly, thick)))
 
 # What the ray met, under the water it went through: the window's hit or
 # the far walk's (distant), the water's surface met by either, and its
@@ -907,15 +912,55 @@ def after_walk(near: Bool, +c: U32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: 
       from_far(c, (depth > 0.0 : F32), t, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz,
         run_far(128n, w, fw, ox, oy, oz, dx, dy, dz, F32.min(t, window_exit(ox, oz, dx, dz)), Sky.reach(), Util.on(fl, 2097152), Water.Trace{entry, depth}))
 
+# The meadow the ray passed from its rim (Ray) to what it met
+# (src/grass.bend), lit where it met the blades or else the floor under
+# them: in the sun or the shadow of what stands between, fogged and wet
+# as there.
+def rim_lit(+fw: U32, +ck: U32, +fl: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
+            +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, lw: Grass.Meadow, r: Array<U32> & Bool) -> Array<U32> & U32:
+  (w, +dark) = r
+  (w, Grass.over(c, v, Sky.fog(fl, at, oy, (oy + dy * at : F32)),
+    Bool.pick(F32, dark, 0.6, Clouds.shade(Util.on(fl, 256), fw, ck, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz)),
+    Wet.wetness(Util.on(fl, 1024), ck), Grass.dryness(fw, (ox + dx * at : F32), (oz + dz * at : F32)), dx, dy, dz, lx, ly, lz, lw))
+
+def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
+             +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, lw: Grass.Meadow, w: Array<U32>) -> Array<U32> & U32:
+  match seen:
+    case False{}:
+      (w, c)
+    case True{}:
+      rim_lit(fw, ck, fl, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at, lw,
+        shadow_if(Util.on(fl, 1), (ly > 0.0 : F32), False{}, w, base, fw, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz))
+
+def rim_met(+base: U32, +fw: U32, +ck: U32, +fl: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
+            +lx: F32, +ly: F32, +lz: F32, +c: U32, +t1: F32, r: Array<U32> & Grass.Meadow) -> Array<U32> & U32:
+  (w, lw) = r
+  Grass.Meadow{+tr, +n, +lit, +s, +head, +heart, +t, +hue, +low} = lw
+  rim_seen((tr < 0.999 : F32) || (low > 0.0 : F32), base, fw, ck, fl, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, ((t + 0.001 * t1) / (n + 0.001) : F32),
+    Grass.Meadow{tr, n, lit, s, head, heart, t, hue, low}, w)
+
+def rimmed(on: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+           +rim: F32, +t1: F32, +v: U32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  match on:
+    case False{}:
+      r
+    case True{}:
+      (w, +c) = r
+      rim_met(base, fw, ck, fl, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, t1, Grass.march(w, base, fw, ck, ox, oy, oz, dx, dy, dz, rim, t1))
+
+# The grass stands from the rim to its end, what the ray met or the
+# water it went into, which hides what it holds.
 def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-              +c: U32, +t: F32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
+              +c: U32, +t: F32, +rim: F32, +rim_end: F32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
   Water.Trace{+entry, +depth} = tr
-  after_walk(((c % 4 : U32) > 0 : U32) || Util.on(fl, 96), c, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, t, entry, depth, w)
+  rimmed(Util.on(fl, 2048) && (rim >= 0.0 : F32),
+    base, fw, ck, fl, ox, oy, oz, dx, dy, dz, rim, F32.min(F32.min(t, rim_end), Bool.pick(F32, (depth > 0.0 : F32), entry, t)), v, lx, ly, lz,
+    after_walk(((c % 4 : U32) > 0 : U32) || Util.on(fl, 96), c, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, t, entry, depth, w))
 
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: Ray) -> Array<U32> & U32:
-  Ray{+c, +t, tr} = ct
-  shade_fin(v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, c, t, w, tr)
+  Ray{+c, +t, +rim, +rim_end, tr} = ct
+  shade_fin(v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, c, t, rim, rim_end, w, tr)
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
            r: Array<U32> & Ray) -> Array<U32> & U32:
@@ -945,7 +990,7 @@ def run_dda(~water: Bool, ~partial: Bool, w: Array<U32>, +base: U32, +fw: U32, +
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
            (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
-           1.0, 0, 0.0, 0, ymask, Water.Trace{0.0, 0.0},
+           1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, ymask, Water.Trace{0.0, 0.0},
            column_words(~water, ~partial, w, slot, ymask, Util.f2u(vy), sy, (ny / ay : F32), (1.0 / ay : F32))))
 
 def run_partial(part: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32,
@@ -997,7 +1042,7 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
 # flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
-# what. Bit 7 is the clouds, 8 their shadows, 9 the rain, 10 the wet; bits 11..19 are spare; bit 20 enables ripples. Bits 21..24
+# what. Bit 7 is the clouds, 8 their shadows, 9 the rain, 10 the wet, 11 the meadow; bits 12..19 are spare; bit 20 enables ripples. Bits 21..24
 # hold water (21), water fog (22), Fresnel (23) and sky reflection (24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low four bits, then four seven-bit counts;
@@ -1010,7 +1055,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4293920671
+def looks() -> U32: 4293922719
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds

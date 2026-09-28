@@ -14,7 +14,7 @@ def empty() -> World.World:
 
 def ray_ok(+axis: U32, top: Bool, +entry: F32, +depth: F32, +distance: F32, r: Array<U32> & Render.Ray) -> Bool:
   (w, hit) = r
-  Render.Ray{+code, t, Water.Trace{e, d}} = hit
+  Render.Ray{+code, t, rim, rim_end, Water.Trace{e, d}} = hit
   U32.is_eq((code % 4 : U32), (axis + 1 : U32)) && F32.is_eq(t, distance)
     && F32.is_eq(e, entry) && F32.is_eq(d, depth) && Bool.not(Bool.xor(Water.top(code), top))
 
@@ -39,7 +39,7 @@ def probe_w(~wet: Bool, +axis: U32, +pos: Bool, +under: Bool, +blocked: Bool, w:
       Bool.pick(F32, U32.is_eq(axis, 0), 1.0, 100000.0),
       Bool.pick(F32, U32.is_eq(axis, 1), 1.0, 100000.0),
       Bool.pick(F32, U32.is_eq(axis, 2), 1.0, 100000.0),
-      1.0, 0, 0.0, 0, U32.shln(1, F32.to_nat(y)), Water.Trace{0.0, 0.0},
+      1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, U32.shln(1, F32.to_nat(y)), Water.Trace{0.0, 0.0},
       Render.column_words(~wet, ~wet, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(y)), Util.f2u(y), sign,
         Bool.pick(F32, U32.is_eq(axis, 1), 0.5, 50000.0), Bool.pick(F32, U32.is_eq(axis, 1), 1.0, 100000.0))))
 
@@ -159,7 +159,7 @@ def partial_trace_w(+level: Bool, +x: F32, +y: F32, +z: F32, +axis: U32, w: Worl
     Bool.pick(F32, move_x, 1.0, 100000.0),
     Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0),
     Bool.pick(F32, move_z, 1.0, 100000.0),
-    1.0, 0, 0.0, 0, U32.shln(1, F32.to_nat(vy)), Water.Trace{0.0, 0.0},
+    1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, U32.shln(1, F32.to_nat(vy)), Water.Trace{0.0, 0.0},
     Render.column_words(~True{}, ~True{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(vy)), Util.f2u(vy), (0.0 - 1.0 : F32),
       Bool.pick(F32, move_y, ((y - vy) / ay : F32), ((y - vy) / 0.00001 : F32)), Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0))))
 
@@ -173,7 +173,7 @@ def step_trace(+a: U32, +b: U32) -> Render.Ray:
   partial_trace_w(True{}, 62.5, 10.5, 64.5, 0, World.pour(World.pour(pool(2n, empty(), 63, 128), 63, 10, 64, a), 64, 10, 64, b))
 
 def ray_matches(+entry: F32, +depth: F32, top: Bool, ray: Render.Ray) -> Bool:
-  Render.Ray{code, t, Water.Trace{e, d}} = ray
+  Render.Ray{code, t, rim, rim_end, Water.Trace{e, d}} = ray
   Lib.near(e, entry, 0.0001) && Lib.near(d, depth, 0.0001) && Bool.not(Bool.xor(Water.top(code), top))
 
 def partial_ok(+level: Bool, +a: U32, +x: F32, +y: F32, +z: F32, +axis: U32, +along: Bool, +entry: F32, +depth: F32, top: Bool) -> Bool:

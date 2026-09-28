@@ -14,6 +14,7 @@ import ./src/day.bend as Day
 import ./src/inventory.bend as Inventory
 import ./src/water.bend as Water
 import ./src/flow.bend as Flow
+import ./src/meadow.bend as Meadow
 
 # --- the pick word: (lx * 32 + y) * 128 + lz, and back --------------------
 # (the checker computes integers, not floats: the laws are on the integer
@@ -527,3 +528,15 @@ law a_queued_slot_decodes_to_its_column:
 
 law a_queued_slot_decodes_to_its_column_x:
   {Flow.lx_of(World.col_at(135258048, 5, 100), 1048512, 1048512, 100) == 5 : U32}
+
+# --- the meadow's map: a word a column in the array's last 2^16 -----------
+# The grass's patch reads a column's word at its coordinates mod 256,
+# past the far map and the clouds' map; the word holds how wild the
+# meadow grows in its low byte, the flower in its next bits, the wind's
+# phase above.
+
+law the_meadows_map_ends_the_array:
+  {(Meadow.map_at(0, 0), Meadow.map_at(255, 255), Meadow.map_at(259, 511)) == (458752, 524287, 459775) : U32 & (U32 & U32)}
+
+law a_meadow_word_reads_back:
+  {((Meadow.pack(255, 4, 255) % 256 : U32), Meadow.flower(Meadow.pack(255, 4, 255)), Meadow.phase(Meadow.pack(255, 4, 255))) == (255, 4, 255) : U32 & (U32 & U32)}

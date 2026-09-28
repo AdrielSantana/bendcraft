@@ -143,23 +143,23 @@ def main() -> IO(Unit):
       && holds(Render.solid_in(False{}, map(), 0, 0, 129.5, 13.0, 64.5)) && Bool.not(holds(Render.solid_in(False{}, map(), 0, 0, 127.5, 13.0, 64.5))),
       "past the window's side the far map goes on: a ray the window's walk took ten blocks on meets the column just past it as from the eye, a top by the side is in that column's shadow and lit with the sun behind it, and a cell past the side is the map's")
     Lib.expect(walk((0.0 - 35.5 : F32), 16.5, 64.5, 1.0, 0.0, 0.0, 100.0, 0, 0, 0.0), "the walk ends where the fog is whole: the tall column 131.5 blocks off is not met")
-    Lib.expect(U32.is_eq(look(0, flat(), 1, 16.5, 0.0, (0.0 - 0.1 : F32), 1.0, 45.0), Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)))
-      && U32.is_eq(look(0, tall(), 0, 16.5, 1.0, 0.0, 0.0, 31.5), Render.dim(Render.blockcol(2, True{}, 0.5), day(0.8)))
-      && U32.is_eq(look(0, tall(), 0, 23.9, 1.0, 0.0, 0.0, 31.5), Render.dim(Render.blockcol(0, True{}, 0.9), day(0.8)))
-      && U32.is_eq(look(0, tall(), 0, 23.5, 1.0, 0.0, 0.0, 31.5), Render.dim(Render.blockcol(1, True{}, 0.5), day(0.8))),
+    Lib.expect(U32.is_eq(look(0, flat(), 1, 16.5, 0.0, (0.0 - 0.1 : F32), 1.0, 45.0), Util.dim(Render.blockcol(0, False{}, 0.0), day(1.0)))
+      && U32.is_eq(look(0, tall(), 0, 16.5, 1.0, 0.0, 0.0, 31.5), Util.dim(Render.blockcol(2, True{}, 0.5), day(0.8)))
+      && U32.is_eq(look(0, tall(), 0, 23.9, 1.0, 0.0, 0.0, 31.5), Util.dim(Render.blockcol(0, True{}, 0.9), day(0.8)))
+      && U32.is_eq(look(0, tall(), 0, 23.5, 1.0, 0.0, 0.0, 31.5), Util.dim(Render.blockcol(1, True{}, 0.5), day(0.8))),
       "a far block is the window's: the grass top, stone deep in a side, the green band atop a grass block's side and the dirt under it")
-    Lib.expect(U32.is_eq(look(1, tall(), 0, 16.5, 1.0, 0.0, 0.0, 31.5), Render.dim(Render.dim(Render.blockcol(2, True{}, 0.5), day(0.8)), 0.6))
-      && U32.is_eq(look(1, flat(), 1, 16.5, 0.0, (0.0 - 0.1 : F32), 1.0, 45.0), Render.dim(Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 1.0)),
+    Lib.expect(U32.is_eq(look(1, tall(), 0, 16.5, 1.0, 0.0, 0.0, 31.5), Util.dim(Util.dim(Render.blockcol(2, True{}, 0.5), day(0.8)), 0.6))
+      && U32.is_eq(look(1, flat(), 1, 16.5, 0.0, (0.0 - 0.1 : F32), 1.0, 45.0), Util.dim(Util.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 1.0)),
       "with the shadow flag, a side turned from the sun is darker and the top it shines on is not")
     Lib.expect(U32.is_eq(look(8, tall(), 0, 16.5, 1.0, 0.0, 0.0, 10000.0), 123456), "the fog takes a far block into the sky at the reach")
     Lib.expect(U32.is_eq(top_at(2, 64.5, 109.5), top_at(0, 64.5, 109.5)) && darker(top_at(2, 95.5, 64.5), top_at(0, 95.5, 64.5)),
       "with the occlusion flag, a far top in the open is as it was, and one at the tall column's foot darkens")
     Lib.expect(U32.is_eq(top_at(6, (0.0 - 22.7 : F32), (0.0 - 43.6 : F32)), top_at(6, 97.3, 64.4)),
       "west and north of the window, where its coordinates are negative, a far top at a tall column's foot is textured and occluded as one east of it")
-    Lib.expect(U32.is_eq(top_at(1, 90.5, 64.5), Render.dim(Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 0.6))
-      && U32.is_eq(top_at(1, 90.5, 74.5), Render.dim(Render.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 1.0)),
+    Lib.expect(U32.is_eq(top_at(1, 90.5, 64.5), Util.dim(Util.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 0.6))
+      && U32.is_eq(top_at(1, 90.5, 74.5), Util.dim(Util.dim(Render.blockcol(0, False{}, 0.0), day(1.0)), 1.0)),
       "the far walk casts a far block's shadow: a top the tall column hides from the sun is the window's shade, one beside it is lit")
-    Lib.expect(U32.is_eq(far_pixel(0, 0, 76.5, 16.5, 86.5, 0.0, (0.0 - 1.0 : F32), 0.0), Render.dim(Render.blockcol(1, False{}, 0.0), day(1.0)))
+    Lib.expect(U32.is_eq(far_pixel(0, 0, 76.5, 16.5, 86.5, 0.0, (0.0 - 1.0 : F32), 0.0), Util.dim(Render.blockcol(1, False{}, 0.0), day(1.0)))
       && U32.is_eq(far_pixel(0, 2097152, 76.5, 16.5, 86.5, 0.0, (0.0 - 1.0 : F32), 0.0),
                    water_over(far_pixel(0, 0, 76.5, 16.5, 86.5, 0.0, (0.0 - 1.0 : F32), 0.0), 2097152, 16.5, (0.0 - 1.0 : F32), 8.5, 4.5)),
       "without the water the far sea shows its bed, dirt; with it, the window's water over that bed from where the ray went under")

@@ -31,3 +31,9 @@ def mix(+a: U32, +b: U32, +f: F32) -> U32:
   rgb(lerp((a / 65536 : U32), (b / 65536 : U32), f),
       lerp((a / 256 % 256 : U32), (b / 256 % 256 : U32), f),
       lerp((a % 256 : U32), (b % 256 : U32), f))
+
+def scale(+c: U32, +k: F32) -> U32:
+  F32.to_u32(F32.min((U32.to_f32(c) * k : F32), 255.0))
+
+def dim(+c: U32, +k: F32) -> U32:
+  rgb(scale((c / 65536 : U32), k), scale((c / 256 % 256 : U32), k), scale((c % 256 : U32), k))

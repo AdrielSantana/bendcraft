@@ -136,15 +136,16 @@ def disagree(n: Nat, +x: U32, +z: U32, +i: U32, +acc: U32) -> U32:
 # the far look against the window's: rays from the start's eye, each
 # shaded by the window's walk and look, then by the far walk's from the
 # eye over the far map, with the game's looks and the mirror but the
-# ripples, which are gone past 32 blocks where the far walk begins; the
-# count of rays whose colours part by more than 4 a channel
+# ripples and the meadow's blades, gone past 32 and 40 blocks where the
+# far walk begins; the count of rays whose colours part by more than 4 a
+# channel
 def apart(+a: U32, +b: U32) -> U32:
   Bool.pick(U32, (a > b : U32), (a - b : U32), (b - a : U32))
 
 def part(+a: U32, +b: U32) -> U32:
   U32.max(U32.max(apart((a / 65536 : U32), (b / 65536 : U32)), apart((a / 256 % 256 : U32), (b / 256 % 256 : U32))), apart((a % 256 : U32), (b % 256 : U32)))
 
-def looks() -> U32: (Render.looks() .&. U32.not(1048576) : U32)
+def looks() -> U32: (Render.looks() .&. U32.not((1048576 + 2048 : U32)) : U32)
 
 def eye_base() -> U32: ((1048512 * 128 + 1048512 : U32) .&. 16383 .|. 134217728 : U32)
 

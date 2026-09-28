@@ -96,6 +96,7 @@ def plan() -> List<Run>:
    off("cloud shadows off", 256, 0),
    off("rain off         ", 512, 0),
    off("wet off          ", 1024, 0),
+   off("meadow off       ", 2048, 0),
    off("world mirror off ", 0, 134217728),
    off("caustic off      ", 0, 268435456),
    Run{"rays alone       ", 1, 0, Render.looks_base()},
@@ -201,12 +202,18 @@ def rain_lake(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   Player.G{w, 51.5, 16.0, 66.5, (0.0 - 1.5707963 : F32), (0.0 - 0.4 : F32), vy, held, edge, sel, res, 1203323, bag}
 
+# Standing on the start's hill, the meadow ahead and down the slope.
+def meadow(g: Player.Game) -> Player.Game:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, px, 21.6, pz, 2.4, (0.0 - 0.3 : F32), vy, held, edge, sel, res, clock, bag}
+
 def main() -> IO(Unit):
   do IO<Unit>:
     profile_size("512 x 512", 512, 512)
     profile_size("735 x 398 (a 14-inch MacBook at scale 2)", 735, 398)
     profile_size("960 x 540 (a 1920 x 1080 window at scale 2)", 960, 540)
     profile_size("1470 x 796 (a 14-inch MacBook, every pixel a ray)", 1470, 796)
+    profile_view("Meadow at 1470 x 796, standing on the hill", 1470, 796, meadow(wide()))
     profile_view("Night at 1470 x 796, looking at the moon", 1470, 796, night(wide()))
     profile_view("Rain at 1470 x 796, the second morning", 1470, 796, rain(wide()))
     profile_view("Lake in the rain at 1470 x 796", 1470, 796, rain_lake(wide()))

@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `7f0d9387d0fa61d795f863c380d43657` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `661236f7dacc52dfd9b549d7c2595711` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -151,8 +151,7 @@ import none of it, so `PROOF.bend` prints ALL PROOFS CHECK, while a
 program's check prints SOME PROOFS FAIL and names the defs that reach it,
 which `make check` takes as a pass.
 
-The GPU (`!`), all measured here (see ROADMAP.md, "Tried, and worth
-nothing", and the README):
+The GPU (`!`), all measured here (see PERF.md and the README):
 
 - A `!` is one dispatch: the fork tree grows until every lane holds a task,
 then each lane runs its task to the end, alone. The frame's time is the
@@ -192,7 +191,7 @@ non-recursive defs: the emitted program explodes. The DDA's 60 steps are
 one recursive def with fuel.
 - The shaders guide's "Do not" list applies, with one note measured here:
 its typed picks in place of the generic `Bool.pick` changed nothing in
-this game (ROADMAP.md).
+this game (PERF.md).
 - What every lane shares must be flat (`Cam`: scalars, copied by words) or
 the one array (`w`, read at a plain load). A `+` tree read by every lane
 costs a count a node a pixel, on every node of that type.
@@ -205,7 +204,7 @@ from a ray to the clouds, read about 1 ms at 1470×796 and none at scale 2.
 
 ## The code's fixed points
 
-- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet; bits 11..19 are spare.
+- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet, 2048 the meadow; bits 12..19 are spare.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
 horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
@@ -291,11 +290,20 @@ few pixels, not where the window's walk ends.
 - The clouds' map (`Clouds.map_at`): above the far map, 2^16 words of
 the broad octaves, a word a column mod 256 holding their byte (330 a
 unit) at its corner and at the three after it along x and z, so one
-read is a cell to blend; then 2^16 words of the fine ones; the array's
-last 2^16 are spare. `World.load_world` fills it at the world's birth
-and nothing changes it: the wind and the window move the lookup alone.
+read is a cell to blend; then 2^16 words of the fine ones.
+`World.load_world` fills it at the world's birth and nothing changes
+it: the wind and the window move the lookup alone.
 The march reads it, three words a step; a single read (the ground's
 shadow, a mirror's glimpse, the rain's) computes the octaves.
+- The meadow's map (`Meadow.map_at`): the array's last 2^16 words, a
+word a column mod 256 (`Meadow.pack`: how wild the meadow grows in bits
+0..7, its flower 8..10, the wind's phase 16..23), filled with the
+clouds' at the world's birth; the grass's walks read it once a block.
+The render's DDA marks a ray's rim, where it first came into air over a
+solid block low enough to meet the grass (`Grass.top()`), and its end
+(`Render.Ray`); the walks run between, to what the ray met. The grass
+is throughput-bound, not tail-bound: cutting its skimming rays' work
+gave a millisecond at most (PERF.md, 5, 17 and 22).
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
 queued columns' marked cells, bottom up; `Flow.advance` runs it from
 `Player.advance` every 256 ms of the day's clock (4096 a turn, so the
