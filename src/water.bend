@@ -1,5 +1,6 @@
 import Base
 import ./sky.bend as Sky
+import ./clouds.bend as Clouds
 import ./util.bend as Util
 
 # Array indices wrap at 2^18 words: only 14 column-address bits matter.
@@ -244,18 +245,18 @@ def in_mirror(hit: Bool, behind: U32, colour: U32, f: F32) -> U32:
     case False{}: behind
     case True{}: Util.mix(colour, behind, f)
 
-def reflected_colour(+fl: U32, c: U32, sky: U32, front: F32,
+def reflected_colour(+fl: U32, +ck: U32, c: U32, sky: U32, front: F32,
                      +sx: F32, +sy: F32, +sz: F32, m: Mirror) -> U32:
   Mirror{bottom, r, hit, colour, f} = m
   Reflection{+rx, +ry, +rz, cosine} = r
-  Util.mix(c, Util.mix(in_mirror(hit, Sky.bodies(fl, Sky.atmosphere(fl, rx, ry, rz, sx, sy, sz), rx, ry, rz, sx, sy, sz), colour, f), sky, front),
+  Util.mix(c, Util.mix(in_mirror(hit, Clouds.mirrored(fl, ck, rx, ry, rz, sx, sy, sz), colour, f), sky, front),
     fresnel(fresnel_on(fl), cosine))
 
 # A surface hidden by full haze is the exact sky: mixing identical byte
 # colours through floats can leave a one-level silhouette. The reflection
 # travels only to the surface, so the water's depth does not absorb it;
 # the air in front fogs it.
-def surface(on: Bool, hidden: Bool, +fl: U32, c: U32, sky: U32, front: F32,
+def surface(on: Bool, hidden: Bool, +fl: U32, +ck: U32, c: U32, sky: U32, front: F32,
             sx: F32, sy: F32, sz: F32, m: Mirror) -> U32:
   match on:
     case False{}: c
@@ -263,7 +264,7 @@ def surface(on: Bool, hidden: Bool, +fl: U32, c: U32, sky: U32, front: F32,
       match hidden:
         case True{}: sky
         case False{}:
-          reflected_colour(fl, c, sky, front, sx, sy, sz, m)
+          reflected_colour(fl, ck, c, sky, front, sx, sy, sz, m)
 
 # Full extinction at 24 wet blocks hides the 60-step limit even on a
 # diagonal. Sky and solid rays converge to the same daylight-aware colour.
@@ -289,7 +290,7 @@ def dry(r: Array<U32> & Mirror) -> Array<U32> & U32:
 # before the tint, since a hidden block and the sky behind it pass through
 # the same water, and the haze in front reduces the tint, so a lake past
 # the air's reach stays hidden and fades to the sky.
-def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
+def shade(on: Bool, +fl: U32, +ck: U32, +sky: U32, +oy: F32, +dy: F32,
           sun_x: F32, +sun_y: F32, sun_z: F32, water_top: Bool,
           +distance: F32, +hit: Bool, tr: Trace, r: Array<U32> & Mirror) -> Array<U32> & U32:
   match on:
@@ -304,5 +305,5 @@ def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32,
       +down = drop((oy + dy * distance : F32))
       +lit = Util.mix(bottom, 0, Bool.pick(F32, hit, (1.0 - light(down) : F32), 0.0))
       +base = Util.mix(Util.mix(lit, sky, air), ink_at(ink, sun_y, down), (opacity((entry > 0.0 : F32), lit_path(depth, dy)) * (1.0 - front) : F32))
-      (w, surface(water_top && reflection_on(fl), (front >= 1.0 : F32), fl, fog(fog_on(fl), base, ink_at(ink, sun_y, drop(oy)), sky, front, depth),
+      (w, surface(water_top && reflection_on(fl), (front >= 1.0 : F32), fl, ck, fog(fog_on(fl), base, ink_at(ink, sun_y, drop(oy)), sky, front, depth),
         sky, front, sun_x, sun_y, sun_z, m))

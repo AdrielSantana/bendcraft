@@ -263,7 +263,8 @@ discs through short wet paths and converge to the same water colour on
 long ones.
 This works from below and through vertical sides as well as from above.
 Top surfaces also reflect the analytic sky, including its sun, stars and
-moon. Fresnel raises reflectance from about 2% head-on toward a mirror at
+moon, greyed and veiled by the weather as the sky is (`Clouds.mirrored`,
+the puddles' too). Fresnel raises reflectance from about 2% head-on toward a mirror at
 grazing angles, by a cube where Schlick has a fifth power, so the mirror
 shows at the angles a player sees a lake from (14% at 30 degrees, not 5);
 disabling it keeps the 2% value. Reflection and Fresnel have
@@ -364,7 +365,8 @@ brings the first overcast. The wind carries them along x, their 256
 columns in half a day, a column every two seconds. The ground reads the broad coverage once, where the
 sun's line from it crosses the slab's middle, and loses to a thin cloud a
 little of its sun, to a heavy one down to 0.55 of it, a shade darker
-than a block's shadow. The water's mirror does not show them yet.
+than a block's shadow. The water's mirror shows the weather's grey and
+veil, not the clouds themselves.
 
 **The rain** falls when the weather passes 0.62, from the cloud over the
 eye: as much as that cloud holds, so a gap between clouds stays dry
