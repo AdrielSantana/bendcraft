@@ -152,8 +152,8 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    does it once a column. The wet it leaves — done (2026-09-27): a face
    under the open sky darkens and mirrors the sky, and puddles gather on
    the ground's tops, for a while after the rain too; the drops ring the
-   puddles and the lake. Still to do: splashes, the world in the
-   puddles, and rain in the water's mirror.
+   puddles and the lake, and the puddles mirror the world. Still to do:
+   splashes, and rain in the water's mirror.
 7. **Vegetation.** Tall grass and flowers as two crossed planes inside a
    voxel, leaves with holes: a ray that meets alpha goes on. Wind as an
    offset of the texture's coordinate by time and place.

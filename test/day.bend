@@ -10,6 +10,7 @@ import ../src/save.bend as Save
 import ../src/clouds.bend as Clouds
 import ../src/rain.bend as Rain
 import ../src/wet.bend as Wet
+import ../src/util.bend as Util
 import ../src/water.bend as Water
 
 def blocked(r: Array<U32> & Bool) -> Bool:
@@ -113,8 +114,17 @@ def shown(r: Array<U32> & U32) -> U32:
 # (x, 20, 64.5) of a world whose every word is `word`, seen at a slant at
 # the clock t
 def wet_face(+t: U32, +puddly: Bool, +x: F32, +word: U32) -> U32:
-  shown(Wet.soak((Wet.wetness(True{}, t) > 0.0 : F32), False{}, Wet.wetness(True{}, t), 0, 0, t, x, 20.0, 64.5, puddly, x, 64.5, 3.0,
+  shown(Render.soak((Wet.wetness(True{}, t) > 0.0 : F32), False{}, Wet.wetness(True{}, t), 0, 0, t, x, 20.0, 64.5, puddly, x, 64.5, 3.0, 23.0,
     Water.Reflection{0.3, 0.5, 0.2, 0.5}, 12345, 0.0, Render.looks(), 0.48, 0.8, 0.36, ([word : U32^19n], 6789)))
+
+# the same face, a puddle's, in the second morning's rain, beside a pillar
+# standing a column along x from it (over z 64 and 65), with the looks in
+# the camera's base: what it shows
+def by_pillar(+more: U32, +x: F32) -> U32:
+  shown(Render.soak(True{}, False{}, Wet.wetness(True{}, 1203323), Water.with_looks(0, more), 0, 1203323, x, 20.0, 64.5, True{}, x, 64.5, 3.0, 23.0,
+    Water.Reflection{0.3, 0.5, 0.2, 0.5}, 12345, 0.0, Render.looks(), 0.48, 0.8, 0.36,
+    (Array.set(U32, Array.set(U32, [0 : U32^19n], World.col_at(0, (Util.f2u(x) + 1 : U32), 64), 4294967295),
+      World.col_at(0, (Util.f2u(x) + 1 : U32), 65), 4294967295), 6789)))
 
 # the first x along z = 64.5 from x where a puddle of the wettest ground
 # covers the whole top
@@ -184,6 +194,8 @@ def main() -> IO(Unit):
     Lib.expect((puddles(512n, 0.5, 1.0, 0) > 51 : U32) && (puddles(512n, 0.5, 1.0, 0) < 307 : U32)
       && (puddles(512n, 0.5, 0.4, 0) < puddles(512n, 0.5, 1.0, 0) : U32) && U32.is_eq(puddles(512n, 0.5, 0.0, 0), 0),
       "puddles cover some of the ground's tops in the rain, less as it dries, and none on dry ground")
+    Lib.expect(U32.is_ne(by_pillar(Render.looks_base(), puddled(512n, 0.5)), by_pillar(0, puddled(512n, 0.5))),
+      "a puddle mirrors a pillar standing by it with the world in the mirror, the sky alone without")
     Lib.expect(F32.is_eq(Clouds.cover(0, 1203323, gap(120n, 1203323, 0.5), 64.5, 0.0, 0.0), 0.0)
       && dry(rays(128n, 0, 0, 0, gap(120n, 1203323, 0.5), 1203323, 100.0, 0, ([0 : U32^19n], 0))),
       "on the same morning, an eye under a gap in the clouds stays dry")

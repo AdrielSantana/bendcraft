@@ -633,54 +633,16 @@ def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
     case False{}:
       1.0
 
-def facing_up(m: Water.Reflection) -> Bool:
-  Water.Reflection{x, y, z, cosine} = m
-  (y > 0.0 : F32)
-
-# the type read: one word through the handle, then the look, soaked in
-# a wet world; the ground's tops (grass, dirt, stone, sand, brick) hold
-# puddles
-def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
-          +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-          +lx: F32, +ly: F32, +lz: F32, +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, +t: F32, +m: Water.Reflection,
-          r: Array<U32> & U32) -> Array<U32> & U32:
-  (w, +word) = r
-  +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
-  +col = dim(blockcol(what, side, yf), (tone * tex_if(Util.on(fl, 4), u, wf) : F32))
-  +wet = Wet.wetness(Util.on(fl, 1024), ck)
-  Wet.soak((wet > 0.0 : F32), distant, wet, base, fm, ck, cx, cy, cz,
-    Bool.not(side) && ((what < 4 : U32) || U32.is_eq(what, 6)) && facing_up(m), u, wf, t, m, v, f, fl, lx, ly, lz,
-    after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
-              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, lx, ly, lz), Util.on(fl, 2),
-              shadow_if(Util.on(fl, 1), sunny, distant, w, base, fm, sx, sy, sz, lx, ly, lz)))
-
-# the look of the block behind the face: its unit steps of u and w in
-# space, where on the face for the blend of the four vertices, the
-# shadow ray's start a hair before the face, in c, and the ray mirrored
-# by the face, with how flat it meets it
-def shade_face(+distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +word: U32, +v: U32, +oy: F32, +t: F32, +fl: U32,
-               +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, fc: Face) -> Array<U32> & U32:
-  Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, +cx, +cy, +cz, +da, +u, +wf, +tone} = fc
-  +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
-  typed(distant, v, fl, base, fm, ck, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, (tone * (0.18 + 0.82 * Sky.daylight(ly)) : F32), Sky.fog(fl, t, oy, py),
-        cx, cy, cz, Bool.pick(F32, ax, 0.0, 1.0), Bool.pick(F32, ax, 1.0, 0.0), Bool.pick(F32, ay, 0.0, 1.0), Bool.pick(F32, ay, 1.0, 0.0),
-        Util.fracf(u), Util.fracf(wf), lx, ly, lz, sunny(da, ax, ay, lx, ly, lz),
-        Bool.pick(F32, ax, (px + nudge : F32), px),
-        Bool.pick(F32, ay, (py + nudge : F32), py),
-        Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (pz + nudge : F32), pz),
-        t, Water.Reflection{Bool.pick(F32, ax, (0.0 - dx : F32), dx), Bool.pick(F32, ay, (0.0 - dy : F32), dy),
-          Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (0.0 - dz : F32), dz), Util.absf(da)},
-        type_of(distant, w, base, word, hx, hy, hz))
-
 # ---------- the mirror: the world seen in the water's top ----------
-# A glance from where the ray met the water, along its mirrored direction,
-# 32 steps. What it meets gets the block's colour, its texture and its
-# face's tone, with no occlusion and no shadow ray: ripples and fog blur
-# the rest, and it fades into the sky towards the end of the walk's reach.
-# Only a pixel that shows a water top pays for it. The mirror shows the
-# world where its ray met a block, fogged into the sky behind it, and that
-# sky alone where it met none: the same arithmetic as before the world was
-# in it, so a miss is the same byte.
+# A glance from where the ray met the water or a puddle, along its
+# mirrored direction, 32 steps. What it meets gets the block's colour, its
+# texture and its face's tone, with no occlusion and no shadow ray:
+# ripples and fog blur the rest, and it fades into the sky towards the end
+# of the walk's reach. Only a pixel that shows a water top or a puddle
+# pays for it. The mirror shows the world where its ray met a block,
+# fogged into the sky behind it, and that sky alone where it met none: the
+# same arithmetic as before the world was in it, so a miss is the same
+# byte.
 
 # the block the mirror's ray met: its type's colour, the texture, the
 # face's tone, darker when the face is turned from the sun; over far
@@ -778,6 +740,84 @@ def mirrored(go: Bool, +distant: Bool, +fm: U32, +ck: U32, +rain: F32, +fl: U32,
       behind(Water.mirror_on(base), distant, fm, ck, fl, base, (ox + dx * entry : F32), (oy + dy * entry : F32), (oz + dz * entry : F32),
         entry, oy, lx, ly, lz,
         Water.reflected(Water.ripples_on(fl), base, ck, rain, (ox + dx * entry : F32), (oz + dz * entry : F32), entry, dx, dy, dz), r)
+
+# ---------- the wet: what the rain leaves on a face (src/wet.bend) ----------
+# The air cell's column tells whether the rain reaches the face; a
+# puddle's mirror walks the world as the lake's does, with the world in
+# the mirror (bit 27 of the base), and any other face mirrors the sky.
+
+def sheened(+v: U32, +f: F32, +soak: F32, +pud: F32, r: Array<U32> & Water.Mirror) -> Array<U32> & U32:
+  (w, mi) = r
+  Water.Mirror{c, m, shown} = mi
+  Water.Reflection{x, y, z, cosine} = m
+  (w, Wet.sheen(c, v, f, soak, pud, cosine, shown))
+
+# its mirror stands where the ray met a puddle, and in the air cell's
+# middle for the sky alone; the rain's rings fade over 32 blocks, as the
+# lake's ripples do
+def soaked(+distant: Bool, +wet: F32, +base: U32, +fm: U32, +ck: U32, +cx: F32, +cy: F32, +cz: F32, +puddly: Bool, +x: F32, +z: F32,
+           +t: F32, +oy: F32, m: Water.Reflection, +v: U32, +f: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +c: U32,
+           r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, mask) = r
+  +soak = Wet.soaking(distant, wet, cy, mask)
+  +pud = Bool.pick(F32, puddly, Wet.puddle(fm, x, z, soak), 0.0)
+  sheened(v, f, soak, pud,
+    behind((pud > 0.0 : F32) && Water.mirror_on(base), distant, fm, ck, fl, base,
+      Bool.pick(F32, puddly, x, (cx + 0.5 : F32)), Bool.pick(F32, puddly, cy, (cy + 0.5 : F32)), Bool.pick(F32, puddly, z, (cz + 0.5 : F32)),
+      t, oy, lx, ly, lz,
+      Wet.mirror_of(puddly, base, ck, Rain.falling(Util.on(fl, 512), ck), x, z, (0.15 * pud * (1.0 - F32.clamp((t / 32.0 : F32), 0.0, 1.0)) : F32), m),
+      (w, c)))
+
+# the face soaked, or as it was in a dry world, whose air is not read
+def soak(on: Bool, +distant: Bool, +wet: F32, +base: U32, +fm: U32, +ck: U32, +cx: F32, +cy: F32, +cz: F32, +puddly: Bool,
+         +x: F32, +z: F32, +t: F32, +oy: F32, m: Water.Reflection, +v: U32, +f: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32,
+         r: Array<U32> & U32) -> Array<U32> & U32:
+  match on:
+    case False{}:
+      r
+    case True{}:
+      (w, c) = r
+      soaked(distant, wet, base, fm, ck, cx, cy, cz, puddly, x, z, t, oy, m, v, f, fl, lx, ly, lz, c,
+        Array.get(U32, w, World.col_at(base, Util.f2u(cx), Util.f2u(cz))))
+
+def facing_up(m: Water.Reflection) -> Bool:
+  Water.Reflection{x, y, z, cosine} = m
+  (y > 0.0 : F32)
+
+# the type read: one word through the handle, then the look, soaked in
+# a wet world; the ground's tops (grass, dirt, stone, sand, brick) hold
+# puddles
+def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
+          +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
+          +lx: F32, +ly: F32, +lz: F32, +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, +t: F32, +oy: F32, +m: Water.Reflection,
+          r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, +word) = r
+  +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
+  +col = dim(blockcol(what, side, yf), (tone * tex_if(Util.on(fl, 4), u, wf) : F32))
+  +wet = Wet.wetness(Util.on(fl, 1024), ck)
+  soak((wet > 0.0 : F32), distant, wet, base, fm, ck, cx, cy, cz,
+    Bool.not(side) && ((what < 4 : U32) || U32.is_eq(what, 6)) && facing_up(m), u, wf, t, oy, m, v, f, fl, lx, ly, lz,
+    after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
+              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, lx, ly, lz), Util.on(fl, 2),
+              shadow_if(Util.on(fl, 1), sunny, distant, w, base, fm, sx, sy, sz, lx, ly, lz)))
+
+# the look of the block behind the face: its unit steps of u and w in
+# space, where on the face for the blend of the four vertices, the
+# shadow ray's start a hair before the face, in c, and the ray mirrored
+# by the face, with how flat it meets it
+def shade_face(+distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +word: U32, +v: U32, +oy: F32, +t: F32, +fl: U32,
+               +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, fc: Face) -> Array<U32> & U32:
+  Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, +cx, +cy, +cz, +da, +u, +wf, +tone} = fc
+  +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
+  typed(distant, v, fl, base, fm, ck, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, (tone * (0.18 + 0.82 * Sky.daylight(ly)) : F32), Sky.fog(fl, t, oy, py),
+        cx, cy, cz, Bool.pick(F32, ax, 0.0, 1.0), Bool.pick(F32, ax, 1.0, 0.0), Bool.pick(F32, ay, 0.0, 1.0), Bool.pick(F32, ay, 1.0, 0.0),
+        Util.fracf(u), Util.fracf(wf), lx, ly, lz, sunny(da, ax, ay, lx, ly, lz),
+        Bool.pick(F32, ax, (px + nudge : F32), px),
+        Bool.pick(F32, ay, (py + nudge : F32), py),
+        Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (pz + nudge : F32), pz),
+        t, oy, Water.Reflection{Bool.pick(F32, ax, (0.0 - dx : F32), dx), Bool.pick(F32, ay, (0.0 - dy : F32), dy),
+          Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (0.0 - dz : F32), dz), Util.absf(da)},
+        type_of(distant, w, base, word, hx, hy, hz))
 
 def shade_go(sky: Bool, +distant: Bool, +word: U32, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32,
              +dx: F32, +dy: F32, +dz: F32, +c: U32, +t: F32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:

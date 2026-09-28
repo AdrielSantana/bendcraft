@@ -393,8 +393,9 @@ mirrors, more the flatter it is seen. On the ground's tops (grass, dirt,
 stone, sand, brick) puddles gather where a noise over the world's
 columns, in cells of two columns and of one, passes a level the wetness
 lowers: darker still, they mirror the sky with its sun, moon and stars
-(`Clouds.mirrored`, the sky pixel's without the clouds' march), almost
-whole at a glance, and shiver with the rain's rings. The wetness is the
+(`Clouds.mirrored`) and the world, walked as the lake's mirror walks it
+(`Render.behind`, with the world in the mirror, bit 27), almost whole at
+a glance, and shiver with the rain's rings. The wetness is the
 rain's amount, or 0.7 of what fell a quarter day before, or 0.4 of what
 fell half a day before, so the ground stays wet after the rain and
 dries, its puddles shrinking first.
@@ -452,7 +453,7 @@ src/inventory.bend natural counts, conserved cell/item transfers, packed HUD cou
 src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
 src/clouds.bend    the clouds' coverage, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
-src/wet.bend       wet faces and puddles under the open sky, in the rain and after it
+src/wet.bend       how wet the world is, where puddles lie, their rings, the sheen; the render reads the air and walks the mirror
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the rain's rings, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
@@ -468,7 +469,7 @@ test/lib.bend      what every windowless test needs: expect, ticks, one event, s
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
-test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain, the wet and its puddles
+test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain, the wet, its puddles and their mirror
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity, the rain's rings
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
@@ -572,8 +573,9 @@ and 15 where the whole frame is, since a sky ray's lane marches them all;
 off, they cost nothing. Their shadow, one read a lit block, takes 1. The
 rain takes about 5 where it rains (the second morning: all on 35.0, rain
 off 30.2), its 11 columns and 33 drops a ray, and nothing where it does
-not. The wet it leaves takes about 1 more, a column's read a face, and
-nothing on a dry day. Water
+not. The wet it leaves takes about 3.5 more, a column's read, a glimpse
+of the clouds a face and the mirror's walk a puddle (1.4 of it, in the
+second morning's rain on the hill), and nothing on a dry day. Water
 comes next, 3 to 5 ms, because it tracks the wet intervals along every
 ray's 60 steps. Two lessons of the first profile hold: a ray that stopped
 at its hit walked a third of the steps and made the frame slower, the
