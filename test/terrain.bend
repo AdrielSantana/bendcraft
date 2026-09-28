@@ -76,7 +76,7 @@ def saved_tree(w: World.World) -> Bool:
 
 # the far map: the start's columns and the line a move brings into view
 def start() -> World.World:
-  World.load_world(World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}}, 1048512, 1048512)
+  World.load_world(World.W{[0 : U32^20n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}}, 1048512, 1048512)
 
 def far_read(r: Array<U32> & U32) -> U32:
   (ring, word) = r
@@ -136,16 +136,16 @@ def disagree(n: Nat, +x: U32, +z: U32, +i: U32, +acc: U32) -> U32:
 # the far look against the window's: rays from the start's eye, each
 # shaded by the window's walk and look, then by the far walk's from the
 # eye over the far map, with the game's looks and the mirror but the
-# ripples and the meadow's blades, gone past 32 and 40 blocks where the
-# far walk begins; the count of rays whose colours part by more than 4 a
-# channel
+# ripples, the meadow's blades and the leaves' holes, gone past 32 and 40
+# blocks and solid where the far walk begins; the count of rays whose
+# colours part by more than 4 a channel
 def apart(+a: U32, +b: U32) -> U32:
   Bool.pick(U32, (a > b : U32), (a - b : U32), (b - a : U32))
 
 def part(+a: U32, +b: U32) -> U32:
   U32.max(U32.max(apart((a / 65536 : U32), (b / 65536 : U32)), apart((a / 256 % 256 : U32), (b / 256 % 256 : U32))), apart((a % 256 : U32), (b % 256 : U32)))
 
-def looks() -> U32: (Render.looks() .&. U32.not((1048576 + 2048 : U32)) : U32)
+def looks() -> U32: (Render.looks() .&. U32.not((1048576 + 2048 + 4096 + 8192 : U32)) : U32)
 
 def eye_base() -> U32: ((1048512 * 128 + 1048512 : U32) .&. 16383 .|. 134217728 : U32)
 
@@ -209,7 +209,7 @@ def main() -> IO(Unit):
       "the far map agrees with the window's own columns, block by block, in all but 14 of the start window's 16384: a canopy's leaves inside a slope are the slope's, and two canopies at two heights fill the gap between them")
     Lib.expect(U32.is_eq(parted_in(start()), 0),
       "the far look is the window's: 192 rays from the start's eye are the same colour within 4 a channel over the far map, a lake's bed under its water too")
-    Lib.expect(saved_tree(World.load(World.W{[0 : U32^19n],
+    Lib.expect(saved_tree(World.load(World.W{[0 : U32^20n],
       World.Meta{Map.set(&2, World.Col, Map.new(&2, World.Col), "1048543,1048592", World.col6(511, 0, 4, 0, 0, 3584)),
       1048512, 1048512, Nil{}, 0, 0}}, 1048543, 1048592)), "saved submerged wood survives generation changes")
     IO.pure(Unit, Unit{})

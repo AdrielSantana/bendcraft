@@ -21,7 +21,7 @@ def met(r: Array<U32> & Render.Glance, +col: U32, t: F32) -> Bool:
 
 def walk(w: World.World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +col: U32, t: F32) -> Bool:
   World.W{ring, +meta} = w
-  met(Render.run_glance(32n, ring, World.base(meta), ox, oy, oz, dx, dy, dz), col, t)
+  met(Render.run_glance(32n, ring, World.base(meta), ox, oy, oz, dx, dy, dz, 0), col, t)
 
 def colour(r: Array<U32> & U32) -> U32:
   (w, c) = r

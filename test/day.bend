@@ -20,8 +20,8 @@ def blocked(r: Array<U32> & Bool) -> Bool:
 # Each blocker is five cells away, beyond the initial cell and in range
 # of the fixed shadow walk. Reversing the ray must leave it behind.
 def probe(+x: U32, +y: U32, +z: U32, +dx: F32, +dy: F32, +dz: F32) -> Bool:
-  w = Array.set(U32, [0 : U32^19n], World.col_at(0, x, z), U32.shln(1, U32.to_nat(y)))
-  blocked(Render.shadow_fin(0, 64.5, 10.5, 64.5, dx, dy, dz, Render.run_glance(24n, w, 0, 64.5, 10.5, 64.5, dx, dy, dz)))
+  w = Array.set(U32, [0 : U32^20n], World.col_at(0, x, z), U32.shln(1, U32.to_nat(y)))
+  blocked(Render.shadow_fin(0, 64.5, 10.5, 64.5, dx, dy, dz, Render.run_glance(24n, w, 0, 64.5, 10.5, 64.5, dx, dy, dz, 0)))
 
 def clock(g: Player.Game) -> U32:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, t, bag} = g
@@ -32,7 +32,7 @@ def restored(r: Player.Game & String) -> U32:
   clock(Save.parse(String.lines(text), Player.res512()))
 
 def fixture(t: U32) -> Player.Game:
-  Player.G{World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}},
+  Player.G{World.W{[0 : U32^20n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}},
     64.5, 30.0, 64.5, 0.0, 0.0, 0.0, 0, 0, 0, Player.res512(), t, Inventory.empty()}
 
 def shown(r: Array<U32> & U32) -> U32:
@@ -40,7 +40,7 @@ def shown(r: Array<U32> & U32) -> U32:
   c
 
 def clouds_map() -> Array<U32>:
-  Clouds.load(256n, [0 : U32^19n], 0)
+  Clouds.load(256n, [0 : U32^20n], 0)
 
 # a ray from the eye at (64.5, 30, 64.5) of a window whose corner is 0
 # mod 256, and the same ray from a window 10 columns further along x
@@ -133,7 +133,7 @@ def dry(+sum: U32) -> Bool:
 # the clock t
 def wet_face(+t: U32, +puddly: Bool, +x: F32, +word: U32) -> U32:
   shown(Render.soak((Wet.wetness(True{}, t) > 0.0 : F32), False{}, Wet.wetness(True{}, t), 0, 0, t, x, 20.0, 64.5, puddly, x, 64.5, 3.0, 23.0,
-    Water.Reflection{0.3, 0.5, 0.2, 0.5}, 12345, 0.0, Render.looks(), 0.48, 0.8, 0.36, ([word : U32^19n], 6789)))
+    Water.Reflection{0.3, 0.5, 0.2, 0.5}, 12345, 0.0, Render.looks(), 0.48, 0.8, 0.36, ([word : U32^20n], 6789)))
 
 # the same face, a puddle's, in the second morning's rain, beside a pillar
 # standing a column along x from it (over z 64 and 65), with the looks in
@@ -141,7 +141,7 @@ def wet_face(+t: U32, +puddly: Bool, +x: F32, +word: U32) -> U32:
 def by_pillar(+more: U32, +x: F32) -> U32:
   shown(Render.soak(True{}, False{}, Wet.wetness(True{}, 1203323), Water.with_looks(0, more), 0, 1203323, x, 20.0, 64.5, True{}, x, 64.5, 3.0, 23.0,
     Water.Reflection{0.3, 0.5, 0.2, 0.5}, 12345, 0.0, Render.looks(), 0.48, 0.8, 0.36,
-    (Array.set(U32, Array.set(U32, [0 : U32^19n], World.col_at(0, (Util.f2u(x) + 1 : U32), 64), 4294967295),
+    (Array.set(U32, Array.set(U32, [0 : U32^20n], World.col_at(0, (Util.f2u(x) + 1 : U32), 64), 4294967295),
       World.col_at(0, (Util.f2u(x) + 1 : U32), 65), 4294967295), 6789)))
 
 def bent(r: Array<U32> & Water.Mirror) -> F32:
@@ -159,8 +159,8 @@ def ringed(n: Nat, +x: F32, +word: U32, +count: U32) -> U32:
       count
     case 1n+k:
       ringed(k, (x + 0.07 : F32), word, (count + Bool.pick(U32,
-        F32.is_eq(bent(Render.mirrored(True{}, False{}, 0, 1203323, 1.0, Render.looks(), 0, x, 16.0, 64.3, 0.0, (0.0 - 1.0 : F32), 0.0, 4.0, 0.48, 0.8, 0.36, ([word : U32^19n], 0))),
-          bent(Render.mirrored(True{}, False{}, 0, 1203323, 0.0, Render.looks(), 0, x, 16.0, 64.3, 0.0, (0.0 - 1.0 : F32), 0.0, 4.0, 0.48, 0.8, 0.36, ([word : U32^19n], 0)))), 0, 1) : U32))
+        F32.is_eq(bent(Render.mirrored(True{}, False{}, 0, 1203323, 1.0, Render.looks(), 0, x, 16.0, 64.3, 0.0, (0.0 - 1.0 : F32), 0.0, 4.0, 0.48, 0.8, 0.36, ([word : U32^20n], 0))),
+          bent(Render.mirrored(True{}, False{}, 0, 1203323, 0.0, Render.looks(), 0, x, 16.0, 64.3, 0.0, (0.0 - 1.0 : F32), 0.0, 4.0, 0.48, 0.8, 0.36, ([word : U32^20n], 0)))), 0, 1) : U32))
 
 # the first x along z = 64.5 from x where a puddle of the wettest ground
 # covers the whole top
@@ -214,12 +214,12 @@ def main() -> IO(Unit):
     Lib.expect((Rain.falling(True{}, 1203323) > 0.0 : F32) && F32.is_eq(Rain.falling(True{}, 3145728), 0.0) && F32.is_eq(Rain.falling(True{}, Day.morning()), 0.0)
       && F32.is_eq(Rain.falling(False{}, 1203323), 0.0),
       "it rains on the second morning, overcast, and not on a fair day nor on the first morning")
-    Lib.expect(Bool.not(dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^19n], 0))))
-      && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([33554432 : U32^19n], 0)))
-      && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 0.75, 0, ([0 : U32^19n], 0))),
+    Lib.expect(Bool.not(dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^20n], 0))))
+      && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([33554432 : U32^20n], 0)))
+      && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 0.75, 0, ([0 : U32^20n], 0))),
       "rain falls around an eye under a cloud and the open sky, none under a roof over every column, none before a wall at arm's length")
-    Lib.expect(U32.is_eq(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^19n], 0)), rays(128n, 0, 256, 128, 63.5, 1203323, 100.0, 0, ([0 : U32^19n], 0)))
-      && U32.is_ne(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^19n], 0)), rays(128n, 0, 0, 0, 64.87, 1203323, 100.0, 0, ([0 : U32^19n], 0))),
+    Lib.expect(U32.is_eq(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^20n], 0)), rays(128n, 0, 256, 128, 63.5, 1203323, 100.0, 0, ([0 : U32^20n], 0)))
+      && U32.is_ne(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^20n], 0)), rays(128n, 0, 0, 0, 64.87, 1203323, 100.0, 0, ([0 : U32^20n], 0))),
       "the drops are the world's: the same when the window moves a column under the eye, others when the eye moves through them")
     Lib.expect((Wet.wetness(True{}, 1203323) > 0.5 : F32) && F32.is_eq(Rain.amount(Clouds.weather(1769472)), 0.0) && (Wet.wetness(True{}, 1769472) > 0.0 : F32)
       && F32.is_eq(Wet.wetness(True{}, 2293760), 0.0) && F32.is_eq(Wet.wetness(True{}, 3145728), 0.0) && F32.is_eq(Wet.wetness(True{}, Day.morning()), 0.0)
@@ -237,7 +237,7 @@ def main() -> IO(Unit):
     Lib.expect((ringed(64n, 64.0, 0, 0) > 0 : U32) && U32.is_eq(ringed(64n, 64.0, 33554432, 0), 0),
       "the rain rings water under the open sky, and none under a roof")
     Lib.expect(F32.is_eq(Clouds.cover(0, 1203323, gap(120n, 1203323, 0.5), 64.5, 0.0, 0.0), 0.0)
-      && dry(rays(128n, 0, 0, 0, gap(120n, 1203323, 0.5), 1203323, 100.0, 0, ([0 : U32^19n], 0))),
+      && dry(rays(128n, 0, 0, 0, gap(120n, 1203323, 0.5), 1203323, 100.0, 0, ([0 : U32^20n], 0))),
       "on the same morning, an eye under a gap in the clouds stays dry")
     Lib.expect((Sky.gradient(True{}, 0.5, (0.0 - 1.0 : F32)) < Sky.gradient(True{}, 0.5, 1.0) : U32), "night sky is darker")
     Lib.expect(F32.is_eq(Sky.fog(0, 40.0, 5.0, 5.0), 0.0), "fog flags disable both terms")

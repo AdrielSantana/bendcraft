@@ -66,15 +66,15 @@ make publish                                   # the same onto the gh-pages bran
 owner. Since 2.0.22 an `@unsafe` def may hand one array to both sides of a
 fork anyway, two handles to one block that `Array.join` gives back, so the
 columns around the player live in the low 2^18 words of an `Array<U32>`
-of 2^19 (above them, the far map, the clouds' map and the meadow's,
-below): sixteen
+of 2^20 (above them, the far map, the clouds' map, the meadow's and the
+leaf plane, below): sixteen
 words a column, the first a mask whose bit `y` says "there is a block at height
 `y`", the next four the types of its 32 solid blocks, four bits each. Word
 six is a separate water mask; words seven to fourteen hold the amount of
 water in each cell, 0 to 255 units in a byte, the mask's bit set exactly
 when the amount is over zero; word fifteen marks the cells the flow steps
 next, word sixteen the cells holding less than 255 units; no word remains
-spare. A primary ray with water on reads both masks once per column it
+spare, so a column's leaf mask lies apart, in the leaf plane. A primary ray with water on reads both masks once per column it
 crosses and the solid type once, at the hit; only while the window holds
 partial water does it read the partial mask with them, and a partial
 cell's amount as it enters one. An edit is a few `Array.set` on the host;
@@ -91,7 +91,7 @@ over the columns around it; a column takes its wood and leaf bits from the
 trees of the 25 columns around it, so a canopy crosses columns without
 anyone writing across. The array holds
 a ring of 128×128 columns around the player, and a `Map` holds the columns
-the player edited. World column `(x, z)` sits at slot `(x·128 + z)·8`; the
+the player edited. World column `(x, z)` sits at slot `(x·128 + z)·16`; the
 array reads its index modulo its size, so any 128×128 window falls
 one-to-one on the 16384 column slots, and a reader carries one word,
 `base = ox·128 + oz`, to find local column `(lx, lz)`. The render and the
@@ -437,9 +437,25 @@ a grass top is the meadow seen from afar: their colour and shade by how
 wild the meadow grows, greener or straw by how dry. Each column's patch,
 whether its floor is grass, how tall and thick its blades, how often
 they flower and in what, and the wind's phase, is a word of the meadow's
-map in the array's last 2^16 words (`Meadow.map_at`), written at the
+map, 2^16 words past the clouds' (`Meadow.map_at`), written at the
 world's birth as the clouds' is and read once a block a walk. The
 meadow repeats every 256 columns, as the clouds do.
+
+**The leaves** have holes (`Render.pierced`). A leaf block's face is an
+8×8 tile of texels, as its texture is, and 30 in a hundred of them are
+open, the same ones on every block; a ray that enters a leaf block
+through an open texel goes on through the block, so a canopy shows the
+sky and the leaves behind it through its gaps, and its edge is ragged.
+The texel is where the ray came into the cell. The eye's walk reads a
+column's leaf mask with its solid mask, a word a column in the leaf
+plane past the meadow's map (`World.leaf_at`), written with the column.
+The sun's glance sees 40 in a hundred: under a canopy it enters three or
+four leaf blocks, and at the eye's 30 a tree's shadow held almost no
+fleck of light, at 55 the shadow was lost among them. So a tree's shadow
+is dappled, on the ground, the grass and the leaves under the canopy's
+top. The world in the water's mirror sees the eye's holes, picking sees
+none, and past the window the far walk's canopies are solid, where the
+fog has taken most of them.
 
 **Collecting and building** use eight natural counts in `Game`. A successful
 break reads the cell's actual type and credits that slot; a successful
@@ -525,6 +541,7 @@ test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
 test/terrain.bend  noise rows, lake floor materials, dry roots, canopies, saved columns, the far map and its look
 test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea and its trace, the look, its shadow and mirror
 test/meadow.bend   the meadow's map, and rays through the grass, over it, over stone and down onto it
+test/leaves.bend   the leaf plane, and walks through a leaf block's open texels and stopped by the rest
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -552,20 +569,21 @@ and the order swapped every round (2026-09-27); the last column, eight
 rounds alternated with the build before the clouds' map (5, 5, 8, 12, 27
 and 47 ms, the clouds, the weather, the rain and the wet), the same day;
 the meadow's, eight rounds alternated with the build before it
-(2026-09-28).
+(2026-09-28); the leaves', eight rounds alternated with the meadow's
+build, which read 7, 7, 11, 20, 38 and 69 ms that evening.
 The bench
 times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow |
-|---|---|---|---|---|
-| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms |
-| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms |
-| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes |
+|---|---|---|---|---|---|
+| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms |
+| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796 when #1140 was measured: its fix of
 a race ([#975](https://github.com/bendlang/bend/issues/975)) made every
@@ -588,8 +606,9 @@ meadow from the start's hill, night looking at the moon, the rain of the
 second morning, the lake in that rain, a lake looking west, under its
 water, the night lake with the moon in it, and the lake with partial
 water in the window. The least of four rounds on a busy machine
-(2026-09-28), ms a frame; the last row is four rounds alternated with
-the build before the meadow:
+(2026-09-28), ms a frame; the rows of the leaves are four more rounds
+alternated with the build before them, the last row four rounds
+alternated with the build before the meadow:
 
 | | bench's view, 735×398 | bench's view, 1470×796 | meadow | lake | night lake | night, all sky |
 |---|---|---|---|---|---|---|
@@ -605,6 +624,10 @@ the build before the meadow:
 | cloud shadows off | 13.4 | 45.2 | 56.0 | 48.8 | 38.6 | 21.6 |
 | meadow off | 8.4 | 27.8 | 20.6 | 28.2 | 25.8 | 22.6 |
 | rays alone | 4.0 | 13.8 | 10.4 | 12.4 | 10.8 | 9.8 |
+| all on, with the leaves' holes | 14.2 | 51.0 | 62.0 | 56.6 | 42.6 | 24.4 |
+| leaves' holes off | 13.2 | 50.0 | 65.4 | 56.0 | 42.0 | 22.4 |
+| leaf light off | 14.4 | 52.0 | 61.0 | 53.2 | 44.4 | 26.2 |
+| all on, before the leaves' holes | 13.6 | 44.8 | 55.2 | 54.6 | 42.6 | 23.2 |
 | all on, before the meadow | 8.0 | 24.8 | | 28.0 | 23.6 | 19.8 |
 
 The other looks (distance and height fog, HUD, day cycle, gradient, sun,
@@ -616,8 +639,13 @@ after 31.3.
 The meadow is the dearest look: 4 ms of the bench's view at scale 2 and
 18 at 1470×796, 36 where the view is all meadow, and nothing where it is
 sky; its fine walk is most of it, and PERF.md splits it and holds what
-was tried to make it cheaper. The rays alone are a third of a frame.
-After them come the walks a look adds, since a DDA step costs about the same wherever it happens, the
+was tried to make it cheaper. The leaves' holes cost about 1 ms of the
+bench's frame at scale 2 and 6 at 1470×796, and neither of their rows
+alone gives much of it back. With both off, eight bench rounds read 7,
+7, 11, 21, 41 and 82 ms, and the build before them 7, 7, 11, 20, 41 and
+75: the leaf mask and the rates the walks now carry cost nothing at
+scale 2 and a few ms at the largest sizes. The rays alone are a
+third of a frame. After them come the walks a look adds, since a DDA step costs about the same wherever it happens, the
 frame being its slowest lane: the shadow's 24 steps, the mirror's 32, and
 the clouds' 16, each of them three reads of their map, the density's
 mean along it and a step's light. The clouds take 3 ms in the bench's
@@ -725,10 +753,12 @@ its columns live above it, the render reads the word the host wrote, a
 column is its run and its canopy, its top is the higher of the two,
 leaves inside the run are the run's, a far column's types are the
 window's for the ground, the trunk and the sea, the sea is its plane
-over a lower ground, and it is not solid. Two meadow laws: its map is
-the array's last 2^16 words, and a column's word reads back how wild the
-meadow grows, its flower and the wind's phase. There are 132 laws:
-eight universal claims and 124 concrete
+over a lower ground, and it is not solid. Two meadow laws: its map
+wraps in 2^16 words past the clouds', and a column's word reads back how
+wild the meadow grows, its flower and the wind's phase. Two leaf laws:
+the leaf plane follows the meadow's map, and a column's leaf mask marks
+its solid leaves alone. There are 134 laws: eight universal claims and
+126 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

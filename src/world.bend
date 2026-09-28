@@ -64,6 +64,12 @@ def tnoise(+u: F32, +v: F32) -> F32:
 def col_at(+base: U32, +x: U32, +z: U32) -> U32:
   (((base + x * 128 + z) * 16) .&. 262143 : U32)
 
+# the leaf mask of the column at a slot, apart since its sixteen words are
+# taken: bit y where its block is leaves, a word a column from 2^19 on,
+# past the meadow's map
+def leaf_at(+slot: U32) -> U32:
+  (524288 + slot / 16 : U32)
+
 # the block types: 0 grass, 1 dirt, 2 stone, 3 sand, 4 wood, 5 leaves,
 # 6 brick, 7 snow; 8 is water, held in a separate non-solid mask
 def nib_set(+word: U32, +y: U32, +what: U32) -> U32:
@@ -263,6 +269,18 @@ def pop(+x: U32) -> U32:
   +c = ((b + (b / 16 : U32)) .&. 252645135 : U32)
   ((c * 16843009) / 16777216 : U32)
 
+# the bits of a type word's eight blocks that are leaves
+def leaf_byte(n: Nat, +word: U32, +i: U32, +acc: U32) -> U32:
+  match n:
+    case 0n:
+      acc
+    case 1n+k:
+      leaf_byte(k, word, (i + 1 : U32), (acc + Bool.pick(U32, U32.is_eq(nib_get(word, i), 5), U32.shln(1, U32.to_nat(i)), 0) : U32))
+
+def leaves(c: Col) -> U32:
+  Col{m, a, b, cc, d, water, lv} = c
+  (m .&. (leaf_byte(8n, a, 0, 0) + leaf_byte(8n, b, 0, 0) * 256 + leaf_byte(8n, cc, 0, 0) * 65536 + leaf_byte(8n, d, 0, 0) * 16777216) : U32)
+
 # A column's fourteen words in the ring's order are the record's fields
 # in order, so a read or a write walks them by turning the record: the
 # first field falls off and the new word comes in last.
@@ -301,7 +319,8 @@ def put_go(n: Nat, ring: Array<U32>, +slot: U32, +i: U32, +c: Col) -> Array<U32>
 
 # a column written at a slot: the ring, and the count of partial cells
 def put_col(ring: Array<U32>, +slot: U32, +c: Col, +np: U32) -> Array<U32> & U32:
-  put_partial(np, slot, partial_mask(levels(c)), Array.get(U32, put_go(14n, ring, slot, 0, c), (slot + 15 : U32)))
+  put_partial(np, slot, partial_mask(levels(c)),
+    Array.get(U32, put_go(14n, Array.set(U32, ring, leaf_at(slot), leaves(c)), slot, 0, c), (slot + 15 : U32)))
 
 # The world is its ring and the rest beside it: the edited columns, the
 # corner, the flow's queue of marked slots, the window's count of partial

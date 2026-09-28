@@ -71,9 +71,9 @@ grass's three walks of up to 64.
    rounds at 1470×796: the patch constant read the meadow 58.6 → 52.8 ms
    and the hill 46.6 → 42.8; without its divisions, 56.4 and 46.6. Its
    lasting part is a function of the column mod 256, so `src/meadow.bend`
-   writes it in the array's last 2^16 words at the world's birth (how wild
-   the meadow grows, the flower's kind, the wind's phase along z), and the
-   patch reads a word and keeps one sine for the wind. Six alternated
+   writes it in 2^16 words past the clouds' map at the world's birth (how
+   wild the meadow grows, the flower's kind, the wind's phase along z), and
+   the patch reads a word and keeps one sine for the wind. Six alternated
    rounds: the meadow 56.4 → 54.8, the bench's view 47.6 → 44.0, the hill
    46.2 → 44.4. The wind no longer jumps where the window's columns wrap
    past 256.

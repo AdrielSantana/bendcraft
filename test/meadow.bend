@@ -15,7 +15,7 @@ def plateau(n: Nat, w: Array<U32>, +i: U32, +stone: U32) -> Array<U32>:
       plateau(k, Array.set(U32, Array.set(U32, w, col, 512), (col + 2 : U32), stone), (i + 1 : U32), stone)
 
 def meadow(+stone: U32) -> Array<U32>:
-  Meadow.load(256n, plateau(2601n, [0 : U32^19n], 0, stone), 0)
+  Meadow.load(256n, plateau(2601n, [0 : U32^20n], 0, stone), 0)
 
 # the map's words along a diagonal of columns against the words they hold
 def mapped(n: Nat, +x: U32, +ok: Bool, r: Array<U32> & U32) -> Bool:

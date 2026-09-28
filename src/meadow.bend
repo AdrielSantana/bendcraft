@@ -3,7 +3,7 @@ import ./util.bend as Util
 import ./sky.bend as Sky
 import ./clouds.bend as Clouds
 
-# The meadow's map: the array's last 2^16 words, a word a column of the
+# The meadow's map: 2^16 words past the clouds' map, a word a column of the
 # world mod 256, filled at the world's birth, so the grass's walks read
 # a word at each block where they computed a noise. A word holds how wild
 # the meadow grows there (bits 0..7), which flower blooms in its 8 by 8

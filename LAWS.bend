@@ -529,14 +529,24 @@ law a_queued_slot_decodes_to_its_column:
 law a_queued_slot_decodes_to_its_column_x:
   {Flow.lx_of(World.col_at(135258048, 5, 100), 1048512, 1048512, 100) == 5 : U32}
 
-# --- the meadow's map: a word a column in the array's last 2^16 -----------
+# --- the meadow's map: a word a column, 2^16 past the clouds' map --------
 # The grass's patch reads a column's word at its coordinates mod 256,
 # past the far map and the clouds' map; the word holds how wild the
 # meadow grows in its low byte, the flower in its next bits, the wind's
 # phase above.
 
-law the_meadows_map_ends_the_array:
+law the_meadows_map_wraps_in_its_words:
   {(Meadow.map_at(0, 0), Meadow.map_at(255, 255), Meadow.map_at(259, 511)) == (458752, 524287, 459775) : U32 & (U32 & U32)}
 
 law a_meadow_word_reads_back:
   {((Meadow.pack(255, 4, 255) % 256 : U32), Meadow.flower(Meadow.pack(255, 4, 255)), Meadow.phase(Meadow.pack(255, 4, 255))) == (255, 4, 255) : U32 & (U32 & U32)}
+
+# --- the leaf plane: a column's leaf mask, past the meadow's map ---------
+# The leaves' holes read a word a column of the ring beside its sixteen:
+# bit y where the column's block y is leaves and solid.
+
+law the_leaf_plane_follows_the_meadows_map:
+  {(World.leaf_at(0), World.leaf_at(262128)) == ((Meadow.map_at(255, 255) + 1 : U32), 540671) : U32 & U32}
+
+law a_leaf_mask_marks_the_solid_leaves:
+  {World.leaves(World.col6(270, 349264, 5, 0, 0, 0)) == 266 : U32}

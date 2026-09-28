@@ -172,17 +172,29 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    them: the blades' shadows on each other, and flowers as balls. It is
    the dearest look: the bench's fastest frames 6 → 10 ms at scale 2 and
    23 → 40 at 1470×796, where the view is grass to the horizon; PERF.md
-   splits it and holds what was tried to make it cheaper. Still to do:
-   leaves with holes, a ray that meets alpha going on.
+   splits it and holds what was tried to make it cheaper. The leaves'
+   holes — done (2026-09-28): 30 in a hundred of a leaf face's texels are
+   open, and a ray through one goes on through the block; the sun's ray
+   sees 40, so a tree's shadow is dappled (README, "The leaves"). At the
+   eye's 30 that shadow held almost no fleck, since the sun crosses three
+   or four leaf blocks; at 55 the shadow was lost. The fog hides the seam
+   where the far walk's canopies stay solid, so the holes need no fade
+   with distance. They took the bench's fastest frames 11 → 12 ms at
+   scale 2 and 38 → 44 at 1470×796, most of it what the rays see through
+   the gaps: a build that read the leaf mask and pierced nothing read
+   about 2 ms at 1470×796 and nothing at scale 2. Three divisions in a
+   leaf's test in place of three rates carried by the walk were no
+   cheaper.
 8. **Light of the blocks.** Torches and a night that needs them.
 
-**The budget.** At 1470×796 a frame is 40 ms with a ray for every pixel
-and 10 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
+**The budget.** At 1470×796 a frame is 44 ms with a ray for every pixel
+and 12 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
 with #1132 and #1140; the clouds took 19 → 24 and 6 → 7, the weather,
 the rain and the wet then 27 and 8, the clouds' map gave back 3 and 2,
-and the meadow took 24 → 40 and 6 → 10; the far horizon took 7 → 12 of
-the second on 2.0.25). At 60 frames a second that leaves 6 ms at scale
-2 for the looks still to come, and none at 120. Every
+the meadow took 24 → 40 and 6 → 10, and the leaves' holes 6 and 1 more;
+the far horizon took 7 → 12 of the second on 2.0.25). At 60 frames a
+second that leaves 4 ms at scale 2 for the looks still to come, and none
+at 120. Every
 piece above says what it took of them in the profile table. What a ray
 caster can do to cost less, and what was tried: PERF.md.
 
@@ -481,7 +493,7 @@ finished world.
 5. clouds and their shadows — done, 2026-09-27
 6. the weather over the days, the wind, rain from heavy clouds and the
    wet it leaves — done, 2026-09-27
-7. vegetation
+7. vegetation: the meadow and the leaves' holes — done, 2026-09-28
 8. light of the blocks
 9. survival and crafting
 10. mobs and entities

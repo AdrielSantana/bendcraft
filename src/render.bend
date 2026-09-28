@@ -44,13 +44,30 @@ def vnoise(+u: F32, +v: F32) -> F32:
 
 # Only a step in x or z can change which column we are in, so the column is
 # read once per crossing instead of once per voxel, and never again once
-# this ray has found its block.
-def refetch(need: Bool, w: Array<U32>, +base: U32, +x: U32, +z: U32, +old: U32) -> Array<U32> & U32:
+# this ray has found its block: its solid mask, and its leaf mask where
+# the leaves' holes are asked for.
+type Masks is Data:
+  Masks{solid: U32, leaf: U32}
+
+def masks_fin(+bits: U32, r: Array<U32> & U32) -> Array<U32> & Masks:
+  (w, leaf) = r
+  (w, Masks{bits, leaf})
+
+def masks_of(leafy: Bool, +slot: U32, r: Array<U32> & U32) -> Array<U32> & Masks:
+  match leafy:
+    case False{}:
+      (w, bits) = r
+      (w, Masks{bits, 0})
+    case True{}:
+      (w, +bits) = r
+      masks_fin(bits, Array.get(U32, w, World.leaf_at(slot)))
+
+def refetch(need: Bool, +open: U32, w: Array<U32>, +base: U32, +x: U32, +z: U32, +bits: U32, +leaf: U32) -> Array<U32> & Masks:
   match need:
     case True{}:
-      Array.get(U32, w, World.col_at(base, x, z))
+      masks_of((open > 0 : U32), World.col_at(base, x, z), Array.get(U32, w, World.col_at(base, x, z)))
     case False{}:
-      (w, old)
+      (w, Masks{bits, leaf})
 
 # the hit is a word: 0 none, else 1 + the face's axis; its look comes after
 # the loop (a match, not the strict Bool.pick, so only a hit pays for it)
@@ -60,6 +77,36 @@ def hit(here: Bool, +axis: F32, +col: U32) -> U32:
       (1 + Util.f2u(axis) : U32)
     case False{}:
       col
+
+# The leaves' holes: a leaf block's face is an 8x8 tile of texels, as its
+# texture is, and `open` in a hundred of them are open; a walk that enters
+# a leaf block through an open one goes on through the block (pierced),
+# so a canopy shows the sky and what stands behind it through its gaps.
+# The texel is where the walk came into the cell, whose coordinates along
+# the face come from the distances to the cell's next sides (m) and the
+# walk's rate along each axis (a). The sun sees more gaps than the eye:
+# under a canopy its ray enters three or four leaf blocks, and at the
+# eye's 30 a tree's shadow held almost no fleck of light, at 55 it was
+# lost among them.
+def gaps() -> U32: 30
+
+def sun_gaps(+fl: U32) -> U32: Bool.pick(U32, Util.on(fl, 8192), 40, 0)
+
+def hole(+axis: F32, +a: F32, +b: F32, +open: U32) -> Bool:
+  +i = Util.f2u(F32.min((a * 8.0 : F32), 7.0))
+  +j = Util.f2u(F32.min((b * 8.0 : F32), 7.0))
+  (Sky.star_hash((i + j * 8 + Util.f2u(axis) * 64 : U32), 4201) % 100 < open : U32)
+
+def along(+s: F32, +m: F32, +t: F32, +a: F32) -> F32:
+  Bool.pick(F32, (s > 0.0 : F32), (1.0 - (m - t) * a : F32), ((m - t) * a : F32))
+
+def pierced(on: Bool, +open: U32, +axis: F32, +t: F32, +mx: F32, +my: F32, +mz: F32, +sx: F32, +sy: F32, +sz: F32, +ax: F32, +ay: F32, +az: F32) -> Bool:
+  match on:
+    case False{}:
+      False{}
+    case True{}:
+      +fy = along(sy, my, t, ay)
+      hole(axis, Bool.pick(F32, (axis < 0.5 : F32), fy, along(sx, mx, t, ax)), Bool.pick(F32, (axis > 1.5 : F32), fy, along(sz, mz, t, az)), open)
 
 # The dry specialization keeps water loads out of the profile's off row.
 # All specializations use this same loop and the same fixed fuel. With
@@ -71,8 +118,10 @@ def hit(here: Bool, +axis: F32, +col: U32) -> U32:
 # the clip as two distances, lo and hi, the wet segment being
 # [max(t, lo), min(next, hi)). Without partial water the loop is the
 # full-cell one, its segment [t, next), and the frame costs what it did.
+# With the leaves' holes on, the column brings its leaf mask too
+# (World.leaf_at).
 type Column is Data:
-  Column{solid: U32, water: U32, partial: U32, lo: F32, hi: F32}
+  Column{solid: U32, water: U32, partial: U32, leaf: U32, lo: F32, hi: F32}
 
 def inf() -> F32: 1000000000.0
 
@@ -84,32 +133,32 @@ def inf() -> F32: 1000000000.0
 # is wet from the plane on (lo), a rising one up to it (hi). The plane
 # entry of a descending ray is a top entry, as a top face's is
 # (Water.crossed_top).
-def plane_fin(bits: U32, wetbits: U32, partial: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
+def plane_fin(bits: U32, wetbits: U32, partial: U32, leaf: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
   (w, word) = r
   +frac = (Util.u2f(World.byte_at(word, y)) / 255.0 : F32)
   +down = (sy < 0.0 : F32)
   +sp = (my - Bool.pick(F32, down, frac, (1.0 - frac : F32)) * ey : F32)
-  (w, Column{bits, wetbits, partial, Bool.pick(F32, down, sp, (0.0 - inf() : F32)), Bool.pick(F32, down, inf(), sp)})
+  (w, Column{bits, wetbits, partial, leaf, Bool.pick(F32, down, sp, (0.0 - inf() : F32)), Bool.pick(F32, down, inf(), sp)})
 
-def plane_if(part: Bool, w: Array<U32>, bits: U32, wetbits: U32, partial: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
+def plane_if(part: Bool, w: Array<U32>, bits: U32, wetbits: U32, partial: U32, leaf: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
   match part:
     case False{}:
-      (w, Column{bits, wetbits, partial, (0.0 - inf() : F32), inf()})
+      (w, Column{bits, wetbits, partial, leaf, (0.0 - inf() : F32), inf()})
     case True{}:
-      plane_fin(bits, wetbits, partial, y, sy, my, ey, Array.get(U32, w, (slot + 6 + y / 4 : U32)))
+      plane_fin(bits, wetbits, partial, leaf, y, sy, my, ey, Array.get(U32, w, (slot + 6 + y / 4 : U32)))
 
-def with_plane(bits: U32, +wetbits: U32, +partial: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, w: Array<U32>) -> Array<U32> & Column:
-  plane_if(Util.on(partial, ymask) && Util.on(wetbits, ymask), w, bits, wetbits, partial, slot, ymask, y, sy, my, ey)
+def with_plane(bits: U32, +wetbits: U32, +partial: U32, leaf: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, w: Array<U32>) -> Array<U32> & Column:
+  plane_if(Util.on(partial, ymask) && Util.on(wetbits, ymask), w, bits, wetbits, partial, leaf, slot, ymask, y, sy, my, ey)
 
 def partial_word_fin(bits: U32, water: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
   (w, partial) = r
-  with_plane(bits, water, partial, slot, ymask, y, sy, my, ey, w)
+  with_plane(bits, water, partial, 0, slot, ymask, y, sy, my, ey, w)
 
 def water_word_fin(partial: Bool, bits: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32, r: Array<U32> & U32) -> Array<U32> & Column:
   match partial:
     case False{}:
       (w, water) = r
-      (w, Column{bits, water, 0, (0.0 - inf() : F32), inf()})
+      (w, Column{bits, water, 0, 0, (0.0 - inf() : F32), inf()})
     case True{}:
       (w, water) = r
       partial_word_fin(bits, water, slot, ymask, y, sy, my, ey, Array.get(U32, w, (slot + 15 : U32)))
@@ -118,29 +167,42 @@ def water_word(on: Bool, partial: Bool, +slot: U32, +ymask: U32, +y: U32, +sy: F
   match on:
     case False{}:
       (w, bits) = r
-      (w, Column{bits, 0, 0, (0.0 - inf() : F32), inf()})
+      (w, Column{bits, 0, 0, 0, (0.0 - inf() : F32), inf()})
     case True{}:
       (w, bits) = r
       water_word_fin(partial, bits, slot, ymask, y, sy, my, ey, Array.get(U32, w, (slot + 5 : U32)))
 
+def leaf_fin(c: Column, r: Array<U32> & U32) -> Array<U32> & Column:
+  Column{bits, wetbits, partialbits, old, lo, hi} = c
+  (w, leaf) = r
+  (w, Column{bits, wetbits, partialbits, leaf, lo, hi})
+
+def leafed(leafy: Bool, +slot: U32, r: Array<U32> & Column) -> Array<U32> & Column:
+  match leafy:
+    case False{}:
+      r
+    case True{}:
+      (w, c) = r
+      leaf_fin(c, Array.get(U32, w, World.leaf_at(slot)))
+
 # the column's words as the ray enters a cell of it
-def column_words(~water: Bool, ~partial: Bool, w: Array<U32>, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
-  water_word(water, partial, slot, ymask, y, sy, my, ey, Array.get(U32, w, slot))
+def column_words(~water: Bool, ~partial: Bool, leafy: Bool, w: Array<U32>, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
+  leafed(leafy, slot, water_word(water, partial, slot, ymask, y, sy, my, ey, Array.get(U32, w, slot)))
 
 # the same column, a cell on: with partial water, its plane if it is partial
-def cell_on(partial: Bool, w: Array<U32>, bits: U32, +wetbits: U32, +partialbits: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
+def cell_on(partial: Bool, w: Array<U32>, bits: U32, +wetbits: U32, +partialbits: U32, leaf: U32, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32) -> Array<U32> & Column:
   match partial:
     case False{}:
-      (w, Column{bits, wetbits, partialbits, (0.0 - inf() : F32), inf()})
+      (w, Column{bits, wetbits, partialbits, leaf, (0.0 - inf() : F32), inf()})
     case True{}:
-      with_plane(bits, wetbits, partialbits, slot, ymask, y, sy, my, ey, w)
+      with_plane(bits, wetbits, partialbits, leaf, slot, ymask, y, sy, my, ey, w)
 
 # the step into the next cell: the words again only on a step in x or z
-def step_in(~water: Bool, ~partial: Bool, need: Bool, w: Array<U32>, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32,
-            bits: U32, +wetbits: U32, +partialbits: U32) -> Array<U32> & Column:
+def step_in(~water: Bool, ~partial: Bool, need: Bool, +leafy: Bool, w: Array<U32>, +slot: U32, +ymask: U32, +y: U32, +sy: F32, +my: F32, +ey: F32,
+            bits: U32, +wetbits: U32, +partialbits: U32, leaf: U32) -> Array<U32> & Column:
   match need:
-    case True{}: column_words(~water, ~partial, w, slot, ymask, y, sy, my, ey)
-    case False{}: cell_on(partial, w, bits, wetbits, partialbits, slot, ymask, y, sy, my, ey)
+    case True{}: column_words(~water, ~partial, leafy, w, slot, ymask, y, sy, my, ey)
+    case False{}: cell_on(partial, w, bits, wetbits, partialbits, leaf, slot, ymask, y, sy, my, ey)
 
 # the wet segment's ends: the cell's, clipped to its plane with partial water
 # The water bit of the cell the ray just left rides in bit 7 of the step
@@ -190,16 +252,17 @@ def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
         +vx: F32, +vy: F32, +vz: F32,
         +sx: F32, +sy: F32, +sz: F32,
         +mx: F32, +my: F32, +mz: F32,
-        +ex: F32, +ey: F32, +ez: F32,
+        +ex: F32, +ey: F32, +ez: F32, +ax: F32, +ay: F32, +az: F32, +leafy: Bool,
         +axis: F32, +col: U32, +t: F32, +rim: F32, +rim_end: F32, +n: U32, +ymask: U32, +tr: Water.Trace, r: Array<U32> & Column) -> Array<U32> & Ray:
   match fuel:
     case 0n:
       dda_end(col, n, t, rim, rim_end, tr, r)
     case 1n+f:
       (w, words) = r
-      Column{+bits, +wetbits, +partialbits, +lo, +hi} = words
+      Column{+bits, +wetbits, +partialbits, +leafbits, +lo, +hi} = words
       +inside = World.inside(vx, vy, vz)
-      +here = inside && Util.on(bits, ymask) && (col < 1 : U32)
+      +solid = inside && Util.on(bits, ymask) && (col < 1 : U32)
+      +here = solid && Bool.not(pierced(solid && Util.on(leafbits, ymask), gaps(), axis, t, mx, my, mz, sx, sy, sz, ax, ay, az))
       +ncol = hit(here, axis, col)
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
@@ -220,11 +283,11 @@ def dda(~water: Bool, ~partial: Bool, fuel: Nat, +base: U32,
         keep_wet(partial, Bool.pick(U32, (ncol < 1 : U32), (n + 1 : U32), n), inside && Util.on(wetbits, ymask)))
       +over = inside && (col < 1 : U32) && Bool.not(Util.on(bits, ymask)) && Util.on(bits, U32.shr(ymask))
         && Bool.pick(Bool, (sy > 0.0 : F32), ((my - t : F32) > ((1.0 - Grass.top()) * ey : F32) : F32), ((my - nt : F32) < (Grass.top() * ey : F32) : F32))
-      dda(~water, ~partial, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt,
+      dda(~water, ~partial, f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, ax, ay, az, leafy, naxis, ncol, nt,
           Bool.pick(F32, over && (rim < 0.0 : F32), t, rim), Bool.pick(F32, over, nt, rim_end), nn, nymask,
           Water.crossed(water, wet, ws, we, tr),
-          step_in(~water, ~partial, Bool.not(uy) && (ncol < 1 : U32), w, World.col_at(base, Util.f2u(nvx), Util.f2u(nvz)), nymask, Util.f2u(nvy), sy, nmy, ey,
-            bits, wetbits, partialbits))
+          step_in(~water, ~partial, Bool.not(uy) && (ncol < 1 : U32), leafy, w, World.col_at(base, Util.f2u(nvx), Util.f2u(nvz)), nymask, Util.f2u(nvy), sy, nmy, ey,
+            bits, wetbits, partialbits, leafbits))
 
 # ---------- the hit's look: sun, texture, ambient occlusion, fog ----------
 # The hit point is o + d t, on a face of the voxel V; the cell before the
@@ -270,19 +333,21 @@ def blockcol(+what: U32, +side: Bool, +yf: F32) -> U32:
 type Glance is Data:
   Glance{col: U32, t: F32}
 
-def glance_end(+col: U32, t: F32, r: Array<U32> & U32) -> Array<U32> & Glance:
-  (w, bits) = r
+def glance_end(+col: U32, t: F32, r: Array<U32> & Masks) -> Array<U32> & Glance:
+  (w, masks) = r
   (w, Glance{col, t})
 
 def glance(fuel: Nat, +base: U32, +vx: F32, +vy: F32, +vz: F32, +sx: F32, +sy: F32, +sz: F32,
-           +mx: F32, +my: F32, +mz: F32, +ex: F32, +ey: F32, +ez: F32,
-           +axis: F32, +col: U32, +t: F32, +ymask: U32, r: Array<U32> & U32) -> Array<U32> & Glance:
+           +mx: F32, +my: F32, +mz: F32, +ex: F32, +ey: F32, +ez: F32, +ax: F32, +ay: F32, +az: F32, +open: U32,
+           +axis: F32, +col: U32, +t: F32, +ymask: U32, r: Array<U32> & Masks) -> Array<U32> & Glance:
   match fuel:
     case 0n:
       glance_end(col, t, r)
     case 1n+f:
-      (w, +bits) = r
-      +here = World.inside(vx, vy, vz) && Util.on(bits, ymask) && (col < 1 : U32)
+      (w, masks) = r
+      Masks{+bits, +leaf} = masks
+      +solid = World.inside(vx, vy, vz) && Util.on(bits, ymask) && (col < 1 : U32)
+      +here = solid && Bool.not(pierced(solid && Util.on(leaf, ymask), open, axis, t, mx, my, mz, sx, sy, sz, ax, ay, az))
       +ncol = hit(here, axis, col)
       +ux = (mx < my : F32) && (mx < mz : F32)
       +uy = Bool.pick(Bool, ux, False{}, (my < mz : F32))
@@ -295,29 +360,32 @@ def glance(fuel: Nat, +base: U32, +vx: F32, +vy: F32, +vz: F32, +sx: F32, +sy: F
       naxis = Bool.pick(F32, ux, 0.0, Bool.pick(F32, uy, 1.0, 2.0))
       nymask = Bool.pick(U32, uy, Bool.pick(U32, (sy > 0.0 : F32), U32.shl(ymask), U32.shr(ymask)), ymask)
       nt = Bool.pick(F32, (ncol < 1 : U32), Bool.pick(F32, ux, mx, Bool.pick(F32, uy, my, mz)), t)
-      glance(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, naxis, ncol, nt, nymask,
-             refetch(Bool.not(uy) && (ncol < 1 : U32), w, base, Util.f2u(nvx), Util.f2u(nvz), bits))
+      glance(f, base, nvx, nvy, nvz, sx, sy, sz, nmx, nmy, nmz, ex, ey, ez, ax, ay, az, open, naxis, ncol, nt, nymask,
+             refetch(Bool.not(uy) && (ncol < 1 : U32), open, w, base, Util.f2u(nvx), Util.f2u(nvz), bits, leaf))
 
 def run_glance(fuel: Nat, w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32,
-               +dx: F32, +dy: F32, +dz: F32) -> Array<U32> & Glance:
+               +dx: F32, +dy: F32, +dz: F32, +open: U32) -> Array<U32> & Glance:
   +vx = F32.floor(ox)
   +vy = F32.floor(oy)
   +vz = F32.floor(oz)
   +px = (dx > 0.0 : F32)
   +py = (dy > 0.0 : F32)
   +pz = (dz > 0.0 : F32)
-  +ex = (1.0 / F32.max(Util.absf(dx), 0.00001) : F32)
-  +ey = (1.0 / F32.max(Util.absf(dy), 0.00001) : F32)
-  +ez = (1.0 / F32.max(Util.absf(dz), 0.00001) : F32)
+  +ax = F32.max(Util.absf(dx), 0.00001)
+  +ay = F32.max(Util.absf(dy), 0.00001)
+  +az = F32.max(Util.absf(dz), 0.00001)
+  +ex = (1.0 / ax : F32)
+  +ey = (1.0 / ay : F32)
+  +ez = (1.0 / az : F32)
   glance(fuel, base, vx, vy, vz,
          Bool.pick(F32, px, 1.0, (0.0 - 1.0 : F32)),
          Bool.pick(F32, py, 1.0, (0.0 - 1.0 : F32)),
          Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
          (Bool.pick(F32, px, (vx + 1.0 - ox : F32), (ox - vx : F32)) * ex : F32),
          (Bool.pick(F32, py, (vy + 1.0 - oy : F32), (oy - vy : F32)) * ey : F32),
-         (Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32)) * ez : F32), ex, ey, ez,
+         (Bool.pick(F32, pz, (vz + 1.0 - oz : F32), (oz - vz : F32)) * ez : F32), ex, ey, ez, ax, ay, az, open,
          1.0, 0, 0.0, U32.shln(1, F32.to_nat(F32.max(oy, 0.0))),
-         Array.get(U32, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz))))
+         masks_of((open > 0 : U32), World.col_at(base, Util.f2u(vx), Util.f2u(vz)), Array.get(U32, w, World.col_at(base, Util.f2u(vx), Util.f2u(vz)))))
 
 # ---------- the far walk: the columns beyond the window ----------
 # A ray the window let go on continues over the far map (World.far_at),
@@ -555,7 +623,7 @@ def shadow_fin(+fm: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: 
   shadow_past((c < 1 : U32) && Bool.not(inside(128.0, (ox + lx * t : F32), (oz + lz * t : F32))), c, w, fm, ox, oy, oz, lx, ly, lz)
 
 def shadow_if(on: Bool, sunny: Bool, distant: Bool, w: Array<U32>, +base: U32, +fm: U32,
-              +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & Bool:
+              +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32, +open: U32) -> Array<U32> & Bool:
   match on:
     case False{}:
       (w, False{})
@@ -566,7 +634,7 @@ def shadow_if(on: Bool, sunny: Bool, distant: Bool, w: Array<U32>, +base: U32, +
         case True{}:
           match distant:
             case False{}:
-              shadow_fin(fm, ox, oy, oz, lx, ly, lz, run_glance(24n, w, base, ox, oy, oz, lx, ly, lz))
+              shadow_fin(fm, ox, oy, oz, lx, ly, lz, run_glance(24n, w, base, ox, oy, oz, lx, ly, lz, open))
             case True{}:
               far_shadow(run_far(24n, w, fm, ox, oy, oz, lx, ly, lz, 0.0, reach_of(21.0, lx, ly, lz), False{}, Water.Trace{0.0, 0.0}))
 
@@ -696,7 +764,7 @@ def mirror_walk(distant: Bool, +sky: U32, +fl: U32, +base: U32, +fm: U32, +px: F
                 +rx: F32, +ry: F32, +rz: F32, +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>) -> Array<U32> & U32:
   match distant:
     case False{}:
-      glance_open(sky, fl, base, fm, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz, run_glance(32n, w, base, px, py, pz, rx, ry, rz))
+      glance_open(sky, fl, base, fm, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz, run_glance(32n, w, base, px, py, pz, rx, ry, rz, Bool.pick(U32, Util.on(fl, 4096), gaps(), 0)))
     case True{}:
       far_glance_open(sky, fl, base, px, py, pz, rx, ry, rz, far, eye, lx, ly, lz,
         run_far(32n, w, fm, px, py, pz, rx, ry, rz, 0.0, reach_of(28.0, rx, ry, rz), False{}, Water.Trace{0.0, 0.0}))
@@ -816,7 +884,7 @@ def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy
     Bool.not(side) && ((what < 4 : U32) || U32.is_eq(what, 6)) && facing_up(m), u, wf, t, oy, m, v, f, fl, lx, ly, lz,
     after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
               Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, lx, ly, lz), Util.on(fl, 2),
-              shadow_if(Util.on(fl, 1), sunny, distant, w, base, fm, sx, sy, sz, lx, ly, lz)))
+              shadow_if(Util.on(fl, 1), sunny, distant, w, base, fm, sx, sy, sz, lx, ly, lz, sun_gaps(fl))))
 
 # the look of the block behind the face: its unit steps of u and w in
 # space, where on the face for the blend of the four vertices, the
@@ -930,7 +998,7 @@ def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +ox: F32, +oy
       (w, c)
     case True{}:
       rim_lit(fw, ck, fl, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at, lw,
-        shadow_if(Util.on(fl, 1), (ly > 0.0 : F32), False{}, w, base, fw, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz))
+        shadow_if(Util.on(fl, 1), (ly > 0.0 : F32), False{}, w, base, fw, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz, sun_gaps(fl)))
 
 def rim_met(+base: U32, +fw: U32, +ck: U32, +fl: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
             +lx: F32, +ly: F32, +lz: F32, +c: U32, +t1: F32, r: Array<U32> & Grass.Meadow) -> Array<U32> & U32:
@@ -989,9 +1057,9 @@ def run_dda(~water: Bool, ~partial: Bool, w: Array<U32>, +base: U32, +fw: U32, +
            sy,
            Bool.pick(F32, pz, 1.0, (0.0 - 1.0 : F32)),
            (nx / ax : F32), (ny / ay : F32), (nz / az : F32),
-           (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32),
+           (1.0 / ax : F32), (1.0 / ay : F32), (1.0 / az : F32), ax, ay, az, Util.on(fl, 4096),
            1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, ymask, Water.Trace{0.0, 0.0},
-           column_words(~water, ~partial, w, slot, ymask, Util.f2u(vy), sy, (ny / ay : F32), (1.0 / ay : F32))))
+           column_words(~water, ~partial, Util.on(fl, 4096), w, slot, ymask, Util.f2u(vy), sy, (ny / ay : F32), (1.0 / ay : F32))))
 
 def run_partial(part: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32,
                 +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
@@ -1042,7 +1110,8 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
 # flags: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD (the game passes
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
-# what. Bit 7 is the clouds, 8 their shadows, 9 the rain, 10 the wet, 11 the meadow; bits 12..19 are spare; bit 20 enables ripples. Bits 21..24
+# what. Bit 7 is the clouds, 8 their shadows, 9 the rain, 10 the wet, 11 the meadow, 12 the leaves' holes, 13 the sun through them;
+# bits 14..19 are spare; bit 20 enables ripples. Bits 21..24
 # hold water (21), water fog (22), Fresnel (23) and sky reflection (24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low four bits, then four seven-bit counts;
@@ -1055,7 +1124,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4293922719
+def looks() -> U32: 4293935007
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds

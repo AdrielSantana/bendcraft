@@ -250,5 +250,7 @@ def Laws.a_tick_every_256_ms(): {==}
 def Laws.the_tick_grid_survives_the_wrap(): {==}
 def Laws.a_queued_slot_decodes_to_its_column(): {==}
 def Laws.a_queued_slot_decodes_to_its_column_x(): {==}
-def Laws.the_meadows_map_ends_the_array(): {==}
+def Laws.the_meadows_map_wraps_in_its_words(): {==}
 def Laws.a_meadow_word_reads_back(): {==}
+def Laws.the_leaf_plane_follows_the_meadows_map(): {==}
+def Laws.a_leaf_mask_marks_the_solid_leaves(): {==}

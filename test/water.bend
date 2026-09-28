@@ -10,7 +10,7 @@ import ../src/util.bend as Util
 import ../src/sky.bend as Sky
 
 def empty() -> World.World:
-  World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
+  World.W{[0 : U32^20n], World.Meta{Map.new(&2, World.Col), 0, 0, Nil{}, 0, 0}}
 
 def ray_ok(+axis: U32, top: Bool, +entry: F32, +depth: F32, +distance: F32, r: Array<U32> & Render.Ray) -> Bool:
   (w, hit) = r
@@ -38,9 +38,9 @@ def probe_w(~wet: Bool, +axis: U32, +pos: Bool, +under: Bool, +blocked: Bool, w:
       Bool.pick(F32, U32.is_eq(axis, 2), 0.5, 50000.0),
       Bool.pick(F32, U32.is_eq(axis, 0), 1.0, 100000.0),
       Bool.pick(F32, U32.is_eq(axis, 1), 1.0, 100000.0),
-      Bool.pick(F32, U32.is_eq(axis, 2), 1.0, 100000.0),
+      Bool.pick(F32, U32.is_eq(axis, 2), 1.0, 100000.0), 1.0, 1.0, 1.0, False{},
       1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, U32.shln(1, F32.to_nat(y)), Water.Trace{0.0, 0.0},
-      Render.column_words(~wet, ~wet, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(y)), Util.f2u(y), sign,
+      Render.column_words(~wet, ~wet, False{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(y)), Util.f2u(y), sign,
         Bool.pick(F32, U32.is_eq(axis, 1), 0.5, 50000.0), Bool.pick(F32, U32.is_eq(axis, 1), 1.0, 100000.0))))
 
 def probe(~wet: Bool, +axis: U32, +pos: Bool, under: Bool, +blocked: Bool) -> Bool:
@@ -158,9 +158,9 @@ def partial_trace_w(+level: Bool, +x: F32, +y: F32, +z: F32, +axis: U32, w: Worl
     Bool.pick(F32, move_z, (F32.floor(z) + 1.0 - z : F32), 50000.0),
     Bool.pick(F32, move_x, 1.0, 100000.0),
     Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0),
-    Bool.pick(F32, move_z, 1.0, 100000.0),
+    Bool.pick(F32, move_z, 1.0, 100000.0), 1.0, ay, 1.0, False{},
     1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, U32.shln(1, F32.to_nat(vy)), Water.Trace{0.0, 0.0},
-    Render.column_words(~True{}, ~True{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(vy)), Util.f2u(vy), (0.0 - 1.0 : F32),
+    Render.column_words(~True{}, ~True{}, False{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(vy)), Util.f2u(vy), (0.0 - 1.0 : F32),
       Bool.pick(F32, move_y, ((y - vy) / ay : F32), ((y - vy) / 0.00001 : F32)), Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0))))
 
 def partial_trace(+level: Bool, +a: U32, +x: F32, +y: F32, +z: F32, +axis: U32) -> Render.Ray:
@@ -334,8 +334,8 @@ def main() -> IO(Unit):
       && U32.is_eq(Water.fog(False{}, 123, 456, 456, 0.0, 80.0), 123), "wet fog bounds and disable")
     Lib.expect(picked(Player.waim(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8),
       64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "picking traverses water and finds the bottom")
-    Lib.expect(Bool.not(shadow(Render.shadow_fin(0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0, Render.run_glance(24n, ring_of(World.put_col([0 : U32^19n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
-      0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)))), "water casts no solid shadow")
+    Lib.expect(Bool.not(shadow(Render.shadow_fin(0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0, Render.run_glance(24n, ring_of(World.put_col([0 : U32^20n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
+      0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0, 0)))), "water casts no solid shadow")
     Lib.expect(U32.is_eq(material(World.voxel(World.shift_x(False{}, World.shift_x(True{}, World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
     Lib.expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
     Lib.expect(U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 10, 64)), 8), "water material reads back")
@@ -343,6 +343,6 @@ def main() -> IO(Unit):
       (World.edit(empty(), 64, 64, 10, True{}, 8), [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n, 0n]))), "placing spends one brick and shoves the water up onto it")
     Lib.expect(same_masks(restored(Save.text(fixture(World.edit(empty(), 64, 64, 10, True{}, 8)))), 0, 1024), "save restores the water mask")
     Lib.expect(same_masks(restored(Save.text(fixture(World.edit(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 64, 10, True{}, 6)))), 1024, 2048), "save preserves displacement, the water above the brick")
-    Lib.expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^19n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
+    Lib.expect(same_masks(col(World.get_col(ring_of(World.put_col([0 : U32^20n], World.col_at(0, 64, 64), World.col6(256, 1, 2, 3, 4, 3584), 0)), World.col_at(0, 64, 64))), 256, 3584), "column storage keeps both masks")
     Lib.expect(same_levels(World.levels(restored(Save.text(fixture(World.pour(surface_pool(), 64, 10, 64, 5))))), World.Levels{0, 0, 327680, 0, 0, 0, 0, 0}),
       "a poured amount survives a save and a load")

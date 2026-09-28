@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `661236f7dacc52dfd9b549d7c2595711` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `3e5f80835975b8a90ffbbcdede4efe7a` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -204,7 +204,7 @@ from a ray to the clouds, read about 1 ms at 1470×796 and none at scale 2.
 
 ## The code's fixed points
 
-- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet, 2048 the meadow; bits 12..19 are spare.
+- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet, 2048 the meadow, 4096 the leaves' holes, 8192 the sun through them; bits 14..19 are spare.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
 horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
@@ -238,9 +238,10 @@ count).
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
 512 F, 1024 2048 J L, 4096 Esc, 8192 space.
 - The world: a ring of 128x128 columns in the low 2^18 words of one
-`Array<U32>` of 2^19, sixteen words a column (solid mask, four type words, water mask, eight
+`Array<U32>` of 2^20, sixteen words a column (solid mask, four type words, water mask, eight
 words of water amounts 0..255 in bytes, the flow's marks at slot 14,
-the partial mask at 15, none spare); the water mask's bit is set
+the partial mask at 15, none spare, so the leaf mask lies apart in the
+leaf plane, `World.leaf_at`); the water mask's bit is set
 exactly when the amount is over zero (`World.pour` keeps both), the
 partial mask's exactly when it is 1..254 (`put_col` derives it and
 keeps the window's count); edits in a `Map`; terrain from a seeded
@@ -295,7 +296,7 @@ read is a cell to blend; then 2^16 words of the fine ones.
 it: the wind and the window move the lookup alone.
 The march reads it, three words a step; a single read (the ground's
 shadow, a mirror's glimpse, the rain's) computes the octaves.
-- The meadow's map (`Meadow.map_at`): the array's last 2^16 words, a
+- The meadow's map (`Meadow.map_at`): 2^16 words past the clouds' map, a
 word a column mod 256 (`Meadow.pack`: how wild the meadow grows in bits
 0..7, its flower 8..10, the wind's phase 16..23), filled with the
 clouds' at the world's birth; the grass's walks read it once a block.
@@ -304,6 +305,15 @@ solid block low enough to meet the grass (`Grass.top()`), and its end
 (`Render.Ray`); the walks run between, to what the ray met. The grass
 is throughput-bound, not tail-bound: cutting its skimming rays' work
 gave a millisecond at most (PERF.md, 5, 17 and 22).
+- The leaves' holes (`Render.pierced`): a walk that enters a leaf block
+through an open texel of its face (8x8, `Render.hole`, the same on every
+block) goes through it. The eye's walk and the mirror see
+`Render.gaps()`, 30 in a hundred; the sun's glance `sun_gaps`, 40, since
+it crosses three or four leaf blocks under a canopy; picking and the far
+walk none. The glance takes that count (0 reads no leaf mask), the DDA a
+Bool. The leaf plane (`World.leaf_at`): a word a column past the
+meadow's map, bit y a leaf block, written by `put_col`; the array's
+words from 540672 are spare.
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
 queued columns' marked cells, bottom up; `Flow.advance` runs it from
 `Player.advance` every 256 ms of the day's clock (4096 a turn, so the

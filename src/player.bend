@@ -143,7 +143,7 @@ def aim_fin(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, r: Array
   aim_face((c > 0 : U32), w, Render.face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
 
 def aim(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> Array<U32> & (U32 & U32):
-  aim_fin(ox, oy, oz, dx, dy, dz, Render.run_glance(40n, w, base, ox, oy, oz, dx, dy, dz))
+  aim_fin(ox, oy, oz, dx, dy, dz, Render.run_glance(40n, w, base, ox, oy, oz, dx, dy, dz, 0))
 
 def waim_fin(meta: World.Meta, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
   (ring, ph) = r
@@ -353,7 +353,7 @@ def step(g: Game) -> Game:
 
 # the world's corner starts far from zero, so walking west never wraps it
 def start_at(+res: U32) -> Game:
-  G{World.load_world(World.W{[0 : U32^19n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}}, 1048512, 1048512),
+  G{World.load_world(World.W{[0 : U32^20n], World.Meta{Map.new(&2, World.Col), 1048512, 1048512, Nil{}, 0, 0}}, 1048512, 1048512),
     64.5, 30.0, 64.5, 0.0, (0.0 - 0.55 : F32), 0.0, 0, 0, 0, res, Day.morning(), Inventory.empty()}
 
 def start() -> Game:
