@@ -143,7 +143,7 @@ def aim_fin(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, r: Array
   aim_face((c > 0 : U32), w, Render.face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
 
 def aim(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> Array<U32> & (U32 & U32):
-  aim_fin(ox, oy, oz, dx, dy, dz, Render.run_glance(40n, w, base, ox, oy, oz, dx, dy, dz, 0))
+  aim_fin(ox, oy, oz, dx, dy, dz, Render.run_glance(40n, w, base, ox, oy, oz, dx, dy, dz, 0, 0))
 
 def waim_fin(meta: World.Meta, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
   (ring, ph) = r

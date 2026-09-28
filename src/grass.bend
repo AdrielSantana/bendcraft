@@ -82,6 +82,17 @@ def blade(+on: Bool, +rx: F32, +rz: F32, +y: F32, +ih: F32, +tx: F32, +tz: F32, 
     cover(((0.026 * (1.0 - e) + 0.002) * wf : F32), (Util.absf(((vx + tx * s) * dz - (vz + tz * s) * dx : F32)) * qr : F32), ifp), 0.0)
   Tuft{a, a, (a * lit * (0.3 + 0.7 * ec * (0.6 + 0.4 * ec)) : F32), (a * ec : F32), 0.0, 0.0, (a * tm : F32)}
 
+# The wind's strength over x of the world, 0.2 to 1: its gusts are waves
+# it blows along x, 3 blocks a second, their fronts bent by zphase.
+def gusting(+xw: F32, +ck: U32, +zphase: F32) -> F32:
+  +gust = (0.5 + 0.5 * F32.sin(((xw - U32.to_f32((ck % 85333 : U32)) * 0.003) * 0.7 + zphase : F32)) : F32)
+  (0.2 + 0.8 * gust * gust : F32)
+
+# how far a gust pushes, 0.65 to 1.35 of its strength: a quiver back and
+# forth every second and a half, at a phase of 0 to 1
+def quiver(+ck: U32, +phase: F32) -> F32:
+  (0.65 + 1.4 * Util.absf((Util.fracf((U32.to_f32((ck % 1571 : U32)) * 0.00063654 + phase : F32)) - 0.5 : F32)) : F32)
+
 # The blade hashed b of the cell whose corner is (x, z), on the floor at
 # y: there where bits 26..31 fall under the patch's thickness; from 0.6
 # to 1.2 of the patch's height (tall, its inverse itall; bits 8..9), up to
@@ -98,7 +109,7 @@ def stalk(+b: U32, +wf: F32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +i
   +lz = ((nib((b / 16384 : U32)) - 0.5) * 0.4 * h : F32)
   +rx = (x + 0.06 * sz + F32.max((0.0 - lx : F32), 0.0) + (0.88 * sz - Util.absf(lx)) * nib(b) : F32)
   +rz = (z + 0.06 * sz + F32.max((0.0 - lz : F32), 0.0) + (0.88 * sz - Util.absf(lz)) * nib((b / 16 : U32)) : F32)
-  +push = (wind * (0.65 + 1.4 * Util.absf((Util.fracf((U32.to_f32((ck % 1571 : U32)) * 0.00063654 + nib((b / 262144 : U32)) : F32)) - 0.5 : F32))) : F32)
+  +push = (wind * quiver(ck, nib((b / 262144 : U32))) : F32)
   blade((U32.to_f32((b / 67108864 : U32)) * 0.015625 < dense : F32), rx, rz, y, (itall * way4(v, 1.6666667, 1.25, 1.0, 0.8333333) : F32),
     (F32.min((rx + lx + push : F32), (x + 0.96 * sz : F32)) - rx : F32), lz, (0.85 + 0.3 * nib((b / 4194304 : U32)) : F32), wf,
     ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr)
@@ -244,17 +255,15 @@ def eye(+hue: U32) -> U32:
 # flowers and in what colour; and the pixel's inverse width where the ray
 # came over it. How wild the meadow grows at the column makes the grass
 # taller and thicker, or shorter and thinner, and the short grass
-# flowers, each 8 by 8 blocks in one colour;
-# the gusts are waves the wind blows along x, 3 blocks a second.
+# flowers, each 8 by 8 blocks in one colour.
 type Patch is Data:
   Patch{y: F32, tall: F32, itall: F32, dense: F32, wind: F32, rate: F32, hue: U32, ifp: F32}
 
 def patch_word(+y: F32, +xw: F32, +ck: U32, +ifp: F32, r: Array<U32> & U32) -> Array<U32> & Patch:
   (w, +word) = r
   +wild = byte(word)
-  +gust = (0.5 + 0.5 * F32.sin(((xw - U32.to_f32((ck % 85333 : U32)) * 0.003) * 0.7 + (byte(Meadow.phase(word)) - 0.5) * 3.4 : F32)) : F32)
   +tall = (0.25 + 0.17 * wild : F32)
-  (w, Patch{y, tall, (1.0 / tall : F32), F32.clamp((0.6 + wild : F32), 0.0, 1.0), ((0.2 + 0.8 * gust * gust) * 0.07 : F32),
+  (w, Patch{y, tall, (1.0 / tall : F32), F32.clamp((0.6 + wild : F32), 0.0, 1.0), (gusting(xw, ck, ((byte(Meadow.phase(word)) - 0.5) * 3.4 : F32)) * 0.07 : F32),
     (F32.clamp(((0.45 - wild) * 3.0 : F32), 0.0, 1.0) * 0.04 : F32), bloom(Meadow.flower(word)), ifp})
 
 def patch_grass(grass: Bool, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +ifp: F32, w: Array<U32>) -> Array<U32> & Patch:

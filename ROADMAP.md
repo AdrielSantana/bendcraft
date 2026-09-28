@@ -184,16 +184,21 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    the gaps: a build that read the leaf mask and pierced nothing read
    about 2 ms at 1470×796 and nothing at scale 2. Three divisions in a
    leaf's test in place of three rates carried by the walk were no
-   cheaper.
+   cheaper. The leaves in the wind — done (2026-09-28, asked for on
+   seeing the holes: "balançarem no vento como a grama"): the texels
+   slide with the grass's gusts and quiver, and the flecks under the
+   trees dance with them; nothing at scale 2 and about 3 ms at
+   1470×796 in the bench.
 8. **Light of the blocks.** Torches and a night that needs them.
 
-**The budget.** At 1470×796 a frame is 44 ms with a ray for every pixel
-and 12 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
+**The budget.** At 1470×796 a frame is 47 ms with a ray for every pixel
+and 13 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
 with #1132 and #1140; the clouds took 19 → 24 and 6 → 7, the weather,
 the rain and the wet then 27 and 8, the clouds' map gave back 3 and 2,
-the meadow took 24 → 40 and 6 → 10, and the leaves' holes 6 and 1 more;
+the meadow took 24 → 40 and 6 → 10, the leaves' holes 6 and 1 more,
+and the wind in them 3 and none;
 the far horizon took 7 → 12 of the second on 2.0.25). At 60 frames a
-second that leaves 4 ms at scale 2 for the looks still to come, and none
+second that leaves 3 ms at scale 2 for the looks still to come, and none
 at 120. Every
 piece above says what it took of them in the profile table. What a ray
 caster can do to cost less, and what was tried: PERF.md.
@@ -493,7 +498,7 @@ finished world.
 5. clouds and their shadows — done, 2026-09-27
 6. the weather over the days, the wind, rain from heavy clouds and the
    wet it leaves — done, 2026-09-27
-7. vegetation: the meadow and the leaves' holes — done, 2026-09-28
+7. vegetation: the meadow, the leaves' holes and the wind in them — done, 2026-09-28
 8. light of the blocks
 9. survival and crafting
 10. mobs and entities

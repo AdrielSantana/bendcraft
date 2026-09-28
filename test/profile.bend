@@ -99,6 +99,7 @@ def plan() -> List<Run>:
    off("meadow off       ", 2048, 0),
    off("leaves' holes off", 4096, 0),
    off("leaf light off   ", 8192, 0),
+   off("leaf wind off    ", 16384, 0),
    off("world mirror off ", 0, 134217728),
    off("caustic off      ", 0, 268435456),
    Run{"rays alone       ", 1, 0, Render.looks_base()},

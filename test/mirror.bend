@@ -21,7 +21,7 @@ def met(r: Array<U32> & Render.Glance, +col: U32, t: F32) -> Bool:
 
 def walk(w: World.World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +col: U32, t: F32) -> Bool:
   World.W{ring, +meta} = w
-  met(Render.run_glance(32n, ring, World.base(meta), ox, oy, oz, dx, dy, dz, 0), col, t)
+  met(Render.run_glance(32n, ring, World.base(meta), ox, oy, oz, dx, dy, dz, 0, 0), col, t)
 
 def colour(r: Array<U32> & U32) -> U32:
   (w, c) = r
@@ -31,7 +31,7 @@ def colour(r: Array<U32> & U32) -> U32:
 # with no fog
 def shows(w: World.World, +ox: F32) -> U32:
   World.W{ring, +meta} = w
-  colour(Render.mirror_walk(False{}, 123456, 0, World.base(meta), 0, ox, 30.5, 70.5, 1.0, 0.0, 0.0, 0.0, 30.5, 0.5, 0.8, 0.0, ring))
+  colour(Render.mirror_walk(False{}, 123456, 0, World.base(meta), 0, 0, ox, 30.5, 70.5, 1.0, 0.0, 0.0, 0.0, 30.5, 0.5, 0.8, 0.0, ring))
 
 def main() -> IO(Unit):
   do IO<Unit>:

@@ -455,7 +455,13 @@ fleck of light, at 55 the shadow was lost among them. So a tree's shadow
 is dappled, on the ground, the grass and the leaves under the canopy's
 top. The world in the water's mirror sees the eye's holes, picking sees
 none, and past the window the far walk's canopies are solid, where the
-fog has taken most of them.
+fog has taken most of them. The wind sways them (`Render.swayed`): a
+leaf block's texels slide along the wind, and less up and across, up to
+two texels with the gusts that push the grass, quivering at the block's
+own phase (`Grass.gusting` and `Grass.quiver`, the grass's own), so the
+canopies ruffle with the meadow and the flecks of light under them
+dance. The gusts run over the column's slot, `x·128 + z` of the world
+whatever the window, so the sway never jumps as the window moves.
 
 **Collecting and building** use eight natural counts in `Game`. A successful
 break reads the cell's actual type and credits that slot; a successful
@@ -570,20 +576,22 @@ rounds alternated with the build before the clouds' map (5, 5, 8, 12, 27
 and 47 ms, the clouds, the weather, the rain and the wet), the same day;
 the meadow's, eight rounds alternated with the build before it
 (2026-09-28); the leaves', eight rounds alternated with the meadow's
-build, which read 7, 7, 11, 20, 38 and 69 ms that evening.
+build, which read 7, 7, 11, 20, 38 and 69 ms that evening; the wind's,
+eight rounds alternated with the leaves' build, which read 8, 8, 13,
+23, 44 and 79 that night.
 The bench
 times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes |
-|---|---|---|---|---|---|
-| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms |
-| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms |
-| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them |
+|---|---|---|---|---|---|---|
+| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms |
+| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796 when #1140 was measured: its fix of
 a race ([#975](https://github.com/bendlang/bend/issues/975)) made every
@@ -607,8 +615,8 @@ second morning, the lake in that rain, a lake looking west, under its
 water, the night lake with the moon in it, and the lake with partial
 water in the window. The least of four rounds on a busy machine
 (2026-09-28), ms a frame; the rows of the leaves are four more rounds
-alternated with the build before them, the last row four rounds
-alternated with the build before the meadow:
+alternated with the build before the wind in them, the last row four
+rounds alternated with the build before the meadow:
 
 | | bench's view, 735×398 | bench's view, 1470×796 | meadow | lake | night lake | night, all sky |
 |---|---|---|---|---|---|---|
@@ -624,10 +632,11 @@ alternated with the build before the meadow:
 | cloud shadows off | 13.4 | 45.2 | 56.0 | 48.8 | 38.6 | 21.6 |
 | meadow off | 8.4 | 27.8 | 20.6 | 28.2 | 25.8 | 22.6 |
 | rays alone | 4.0 | 13.8 | 10.4 | 12.4 | 10.8 | 9.8 |
-| all on, with the leaves' holes | 14.2 | 51.0 | 62.0 | 56.6 | 42.6 | 24.4 |
-| leaves' holes off | 13.2 | 50.0 | 65.4 | 56.0 | 42.0 | 22.4 |
-| leaf light off | 14.4 | 52.0 | 61.0 | 53.2 | 44.4 | 26.2 |
-| all on, before the leaves' holes | 13.6 | 44.8 | 55.2 | 54.6 | 42.6 | 23.2 |
+| all on, with the leaves in the wind | 14.8 | 54.8 | 63.8 | 55.0 | 46.2 | 25.4 |
+| leaves' holes off | 13.2 | 49.6 | 63.2 | 55.4 | 42.6 | 23.4 |
+| leaf light off | 13.8 | 50.4 | 59.0 | 57.2 | 45.0 | 24.6 |
+| leaf wind off | 14.0 | 52.8 | 61.0 | 56.2 | 44.2 | 24.6 |
+| all on, before the wind | 14.2 | 54.0 | 64.4 | 68.2 | 48.0 | 26.6 |
 | all on, before the meadow | 8.0 | 24.8 | | 28.0 | 23.6 | 19.8 |
 
 The other looks (distance and height fog, HUD, day cycle, gradient, sun,
@@ -644,7 +653,8 @@ bench's frame at scale 2 and 6 at 1470×796, and neither of their rows
 alone gives much of it back. With both off, eight bench rounds read 7,
 7, 11, 21, 41 and 82 ms, and the build before them 7, 7, 11, 20, 41 and
 75: the leaf mask and the rates the walks now carry cost nothing at
-scale 2 and a few ms at the largest sizes. The rays alone are a
+scale 2 and a few ms at the largest sizes. The wind in them takes
+nothing at scale 2 and 1 to 3 ms at 1470×796. The rays alone are a
 third of a frame. After them come the walks a look adds, since a DDA step costs about the same wherever it happens, the
 frame being its slowest lane: the shadow's 24 steps, the mirror's 32, and
 the clouds' 16, each of them three reads of their map, the density's

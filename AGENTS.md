@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `3e5f80835975b8a90ffbbcdede4efe7a` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `7a31e7f8bd0588344b98caaba3b756bb` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -204,7 +204,7 @@ from a ray to the clouds, read about 1 ms at 1470×796 and none at scale 2.
 
 ## The code's fixed points
 
-- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet, 2048 the meadow, 4096 the leaves' holes, 8192 the sun through them; bits 14..19 are spare.
+- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet, 2048 the meadow, 4096 the leaves' holes, 8192 the sun through them, 16384 the leaves in the wind; bits 15..19 are spare.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
 horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
@@ -311,9 +311,12 @@ block) goes through it. The eye's walk and the mirror see
 `Render.gaps()`, 30 in a hundred; the sun's glance `sun_gaps`, 40, since
 it crosses three or four leaf blocks under a canopy; picking and the far
 walk none. The glance takes that count (0 reads no leaf mask), the DDA a
-Bool. The leaf plane (`World.leaf_at`): a word a column past the
-meadow's map, bit y a leaf block, written by `put_col`; the array's
-words from 540672 are spare.
+Bool; both take the clock as `wind` (0 for still leaves), and
+`Render.swayed` slides the texels by the grass's gust and quiver
+(`Grass.gusting`, `Grass.quiver`) over the column's slot, which a world
+column keeps whatever the window. The leaf plane (`World.leaf_at`): a
+word a column past the meadow's map, bit y a leaf block, written by
+`put_col`; the array's words from 540672 are spare.
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
 queued columns' marked cells, bottom up; `Flow.advance` runs it from
 `Player.advance` every 256 ms of the day's clock (4096 a turn, so the

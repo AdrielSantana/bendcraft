@@ -138,8 +138,8 @@ def main() -> IO(Unit):
     Lib.expect(walk(64.5, 16.5, 64.5, 1.0, 0.0, 0.0, 10.0, 1, tall(), 31.5), "the walk picks up at the distance the window's walk stopped at, and the hit's distance is the same")
     Lib.expect(U32.is_eq(shown(Render.after_walk(False{}, 0, 123456, 0, 0.5, 0.8, 0.0, 0, 0, 0, 124.5, 16.5, 64.5, 1.0, 0.0, 0.0, 10.0, 0.0, 0.0, map())),
         shown(Render.after_walk(False{}, 0, 123456, 0, 0.5, 0.8, 0.0, 0, 0, 0, 124.5, 16.5, 64.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, map())))
-      && holds(Render.shadow_if(True{}, True{}, False{}, map(), 0, 0, 127.5, 12.0, 64.5, 0.9578, 0.2873, 0.0, 0))
-      && Bool.not(holds(Render.shadow_if(True{}, True{}, False{}, map(), 0, 0, 127.5, 12.0, 64.5, (0.0 - 0.9578 : F32), 0.2873, 0.0, 0)))
+      && holds(Render.shadow_if(True{}, True{}, False{}, map(), 0, 0, 127.5, 12.0, 64.5, 0.9578, 0.2873, 0.0, 0, 0))
+      && Bool.not(holds(Render.shadow_if(True{}, True{}, False{}, map(), 0, 0, 127.5, 12.0, 64.5, (0.0 - 0.9578 : F32), 0.2873, 0.0, 0, 0)))
       && holds(Render.solid_in(False{}, map(), 0, 0, 129.5, 13.0, 64.5)) && Bool.not(holds(Render.solid_in(False{}, map(), 0, 0, 127.5, 13.0, 64.5))),
       "past the window's side the far map goes on: a ray the window's walk took ten blocks on meets the column just past it as from the eye, a top by the side is in that column's shadow and lit with the sun behind it, and a cell past the side is the map's")
     Lib.expect(walk((0.0 - 35.5 : F32), 16.5, 64.5, 1.0, 0.0, 0.0, 100.0, 0, 0, 0.0), "the walk ends where the fog is whole: the tall column 131.5 blocks off is not met")

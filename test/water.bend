@@ -38,7 +38,7 @@ def probe_w(~wet: Bool, +axis: U32, +pos: Bool, +under: Bool, +blocked: Bool, w:
       Bool.pick(F32, U32.is_eq(axis, 2), 0.5, 50000.0),
       Bool.pick(F32, U32.is_eq(axis, 0), 1.0, 100000.0),
       Bool.pick(F32, U32.is_eq(axis, 1), 1.0, 100000.0),
-      Bool.pick(F32, U32.is_eq(axis, 2), 1.0, 100000.0), 1.0, 1.0, 1.0, False{},
+      Bool.pick(F32, U32.is_eq(axis, 2), 1.0, 100000.0), 1.0, 1.0, 1.0, False{}, 0,
       1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, U32.shln(1, F32.to_nat(y)), Water.Trace{0.0, 0.0},
       Render.column_words(~wet, ~wet, False{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(y)), Util.f2u(y), sign,
         Bool.pick(F32, U32.is_eq(axis, 1), 0.5, 50000.0), Bool.pick(F32, U32.is_eq(axis, 1), 1.0, 100000.0))))
@@ -158,7 +158,7 @@ def partial_trace_w(+level: Bool, +x: F32, +y: F32, +z: F32, +axis: U32, w: Worl
     Bool.pick(F32, move_z, (F32.floor(z) + 1.0 - z : F32), 50000.0),
     Bool.pick(F32, move_x, 1.0, 100000.0),
     Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0),
-    Bool.pick(F32, move_z, 1.0, 100000.0), 1.0, ay, 1.0, False{},
+    Bool.pick(F32, move_z, 1.0, 100000.0), 1.0, ay, 1.0, False{}, 0,
     1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, U32.shln(1, F32.to_nat(vy)), Water.Trace{0.0, 0.0},
     Render.column_words(~True{}, ~True{}, False{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(vy)), Util.f2u(vy), (0.0 - 1.0 : F32),
       Bool.pick(F32, move_y, ((y - vy) / ay : F32), ((y - vy) / 0.00001 : F32)), Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0))))
@@ -335,7 +335,7 @@ def main() -> IO(Unit):
     Lib.expect(picked(Player.waim(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2), 64, 64, 10, True{}, 8),
       64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0)), "picking traverses water and finds the bottom")
     Lib.expect(Bool.not(shadow(Render.shadow_fin(0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0, Render.run_glance(24n, ring_of(World.put_col([0 : U32^20n], World.col_at(0, 64, 64), World.col6(0, 0, 0, 0, 0, 1024), 0)),
-      0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0, 0)))), "water casts no solid shadow")
+      0, 64.5, 12.5, 64.5, 0.0, (0.0 - 1.0 : F32), 0.0, 0, 0)))), "water casts no solid shadow")
     Lib.expect(U32.is_eq(material(World.voxel(World.shift_x(False{}, World.shift_x(True{}, World.edit(empty(), 0, 64, 10, True{}, 8))), 0, 10, 64)), 8), "ring reload keeps edited water")
     Lib.expect(Bool.not(solid(World.wsolid(World.edit(empty(), 64, 64, 10, True{}, 8), 64.0, 10.0, 64.0))), "water is not a collision")
     Lib.expect(U32.is_eq(material(World.voxel(World.edit(empty(), 64, 64, 10, True{}, 8), 64, 10, 64)), 8), "water material reads back")
