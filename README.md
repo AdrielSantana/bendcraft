@@ -57,7 +57,8 @@ them.
 
 | | |
 |---|---|
-| ![Rain on the lake](docs/shots/rain.jpg) | ![Torches along the shore at night](docs/shots/night.jpg) |
+| ![Rain on the lake](docs/shots/rain.jpg) | ![Torches along the shore under the full moon](docs/shots/night.jpg) |
+| ![The sun setting over the lake](docs/shots/sunset.jpg) | ![Under the lake: the caustic on its bed, the surface a mirror](docs/shots/underwater.jpg) |
 
 ## Play
 
