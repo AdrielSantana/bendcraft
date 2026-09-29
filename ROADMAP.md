@@ -209,7 +209,8 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    noise of the frame. The sun in the camera — done (2026-09-29): a
    glare that spills over the silhouettes before it and a lens flare,
    both from how much of the sun the eye sees, thirteen rays walked on
-   the host once a frame, bit 19; 1 to 3 ms at 1470×796, none at scale 2. Its rays in the air:
+   the host once a frame, bit 19; 1 to 3 ms at 1470×796, none at scale 2;
+   the moon's, a third as bright, once the sun has set. Its rays in the air:
    a few points along a ray tested against the sun, once a 4x4 tile at
    its corners, blended over the tile and cut at each pixel's hit. Then
    the blocks': torches and a night that needs them.

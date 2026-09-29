@@ -388,27 +388,28 @@ atmosphere takes a tight white glare and a wide warm glow, fading as it
 sets; the fog takes its colour from the atmosphere, so what stands against
 the sun melts into a bright haze.
 
-**The lens** (bit 19, `src/lens.bend`) puts the sun in the camera. How
-much of it the eye sees, 0 to 1, is found on the host once a frame
-(`Render.sighted`, into the camera's `seen`): thirteen rays from the eye,
-to the sun's middle and to two rings of six points within its disc, each
-walked as a pixel's ray is, through the window, the leaves' gaps and the
-water, and on over the far map, each clear one a thirteenth, so the sun
-fades in small steps as it goes behind an edge; the clouds the sky shows
-on the sun's line dim it (`Clouds.unveiled`: what the cloud lets through,
-`Clouds.through`, which the ground's shade under them shares, faded as the
-sky's clouds fade into the haze), a heavy sky veils it, and it sets with
-the sun. The walks take a fraction of a millisecond of the host's frame.
-Over every pixel it lays the glare, the sun's light spilled around it in
-the lens, over what stands before it too: a bright core, a glow and a
-wide veil in the sun's colour; and the flare, five ghosts of the sun
-along the line from it through the screen's middle, soft hexagons, the
-aperture's shape, in amber, jade, violet, orange and blue, their red a
-little wider than their blue so the rim splits as glass does, and a thin
-streak across the sun, fading as the sun leaves the screen. Both are laid
-on as a screen does, towards white, never past it. Behind a canopy the
-sun comes and goes with the wind in the leaves' gaps, and the glare with
-it.
+**The lens** (bit 19, `src/lens.bend`) puts the sun in the camera, and
+the moon once the sun has set, a third as bright in a cool white
+(`Lens.side`, `Lens.strength`). How much of it the eye sees, 0 to 1, is
+found on the host once a frame (`Render.sighted`, into the camera's
+`seen`): thirteen rays from the eye, to the body's middle and to two rings
+of six points within its disc, each walked as a pixel's ray is, through
+the window, the leaves' gaps and the water, and on over the far map, each
+clear one a thirteenth, so it fades in small steps as it goes behind an
+edge; the clouds the sky shows on its line dim it (`Clouds.unveiled`:
+what the cloud lets through, `Clouds.through`, which the ground's shade
+under them shares, faded as the sky's clouds fade into the haze), a heavy
+sky veils it, and it sets and rises with the body. The walks take a
+fraction of a millisecond of the host's frame. Over every pixel it lays
+the glare, the body's light spilled around it in the lens, over what
+stands before it too: a bright core, a glow, a wide veil and a thin streak
+across it, in its colour; and the flare, five ghosts of it along the line
+from it through the screen's middle, soft hexagons, the aperture's shape,
+in amber, jade, violet, orange and blue, their red a little wider than
+their blue so the rim splits as glass does, fading as the body leaves the
+screen. Both are laid on as a screen does, towards white, never past it.
+Behind a canopy the sun comes and goes with the wind in the leaves' gaps,
+and the glare with it.
 
 **The clouds** are cumulus in a slab from y=62 to 78, over the world's
 columns, not the window's (`src/clouds.bend`). A coverage over the
@@ -722,7 +723,8 @@ before them in the bench's view at 1470×796, 57.2 against 56.2 in the
 evening towards the sun, and 12.4 against 12.6 at 735×398. The lens,
 whose ghosts and glare every pixel computes while the sun is seen, reads
 up to 3 ms at 1470×796 (six rounds: the bench's view 48.4 on and 45.0
-off, the sun aside 51.2 both) and nothing at scale 2 (12.8 both). In the bench's view 49% of the rays
+off, the sun aside 51.2 both) and nothing at scale 2 (12.8 both); the
+moon's, from above the trees, 26.4 on and 24.0 off. In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 

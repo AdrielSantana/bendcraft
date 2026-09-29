@@ -39,9 +39,11 @@ def seen_in(r: Array<U32> & Render.Cam) -> F32:
   seen
 
 # how much of the fixed sun (0.48, 0.8, 0.36) an eye at (64.5, 10.5, 64.5)
-# of the world w sees, the lens on
-def eye_sun(w: Array<U32>) -> F32:
-  seen_in(Render.sighted(w, Render.camera(64.5, 10.5, 64.5, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 524288, 64, 64, 0)))
+# of the world w sees, the lens on; with the day's cycle at night, of the
+# moon, at the same place in the sky
+def eye_sun(w: Array<U32>, +night: Bool) -> F32:
+  seen_in(Render.sighted(w, Render.camera(64.5, 10.5, 64.5, 0.0, 0.0, 0, 0, 0, 0, 0, 0,
+    Bool.pick(U32, night, (524288 + 33554432 : U32), 524288), 64, 64, (524288 + Day.morning() : U32))))
 
 def clock(g: Player.Game) -> U32:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, t, bag} = g
@@ -274,9 +276,12 @@ def main() -> IO(Unit):
     Lib.expect(U32.is_ne(Sky.halo(True{}, 123456, 0.6, 0.8, 0.0, 0.6, 0.8, 0.0), 123456)
       && U32.is_eq(Sky.halo(True{}, 123456, (0.0 - 0.6 : F32), (0.0 - 0.8 : F32), 0.0, 0.6, 0.8, 0.0), 123456)
       && U32.is_eq(Sky.halo(False{}, 123456, 0.6, 0.8, 0.0, 0.6, 0.8, 0.0), 123456), "the sun's halo brightens the sky at the sun and leaves it opposite as it was")
-    Lib.expect(Lib.near(eye_sun([0 : U32^20n]), 1.0, 0.001)
-      && F32.is_eq(eye_sun(Array.set(U32, [0 : U32^20n], World.col_at(0, 67, 66), U32.shln(1, 15n))), 0.0),
+    Lib.expect(Lib.near(eye_sun([0 : U32^20n], False{}), 1.0, 0.001)
+      && F32.is_eq(eye_sun(Array.set(U32, [0 : U32^20n], World.col_at(0, 67, 66), U32.shln(1, 15n)), False{}), 0.0),
       "the eye sees the whole sun in an open sky, and none of it behind a block on its line")
+    Lib.expect(Lib.near(eye_sun([0 : U32^20n], True{}), 0.35, 0.001)
+      && F32.is_eq(eye_sun(Array.set(U32, [0 : U32^20n], World.col_at(0, 67, 66), U32.shln(1, 15n)), True{}), 0.0),
+      "at night the lens sees the moon, a third as bright as the sun, and none of it behind a block on its line")
     Lib.expect(U32.is_eq(Lens.through(False{}, 123456, 1.0, 0.0, 0.0, 0.48, 0.8, 0.36, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.48, 0.8, 0.36), 123456)
       && U32.is_eq(Lens.through(True{}, 123456, 0.0, 0.0, 0.0, 0.48, 0.8, 0.36, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.48, 0.8, 0.36), 123456)
       && (Lens.through(True{}, 123456, 1.0, 0.0, 0.0, 0.48, 0.8, 0.36, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.48, 0.8, 0.36) > 123456 : U32),

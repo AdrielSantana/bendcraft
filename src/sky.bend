@@ -132,6 +132,9 @@ def moon(on: Bool, +c: U32, +dot: F32, +dx: F32, +dy: F32, +dz: F32, +sy: F32) -
       +colour = Util.mix(Util.rgb(153, 173, 196), Util.rgb(224, 231, 240), (U32.to_f32((mark % 256 : U32)) / 255.0 : F32))
       Util.mix(c, colour, (disc * above * night : F32))
 
+# the moon's light in the lens (Lens.through), a cool white
+def moonlight() -> U32: Util.rgb(196, 212, 240)
+
 def bodies(+fl: U32, +c: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, +sz: F32) -> U32:
   +dot = (dx * sx + dy * sy + dz * sz : F32)
   +field = stars(Util.on(fl, 536870912) && (sy < (0.0 - 0.08) : F32), c, dx, dy, dz, sy)

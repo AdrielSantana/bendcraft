@@ -1245,8 +1245,8 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
 # the readout's numbers and the bucket's full cells (stat_of, with_pail).
 # base keeps the ring's low 14 bits; far the far map's base
 # (World.far_cam); clock the game's, whose days the weather follows and
-# whose milliseconds the ripples; seen how much of the sun the eye sees
-# (sighted), for the lens.
+# whose milliseconds the ripples; seen how much of the sun, or the moon,
+# the eye sees (sighted), for the lens.
 type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32, seen: F32}
 
@@ -1271,14 +1271,15 @@ def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, m
       Bool.pick(F32, cycle, Day.sun_z(clock), 0.36), clock, 0.0}
 
 # ---------- the sun as the eye sees it ----------
-# How much of the sun the eye sees, for the lens (src/lens.bend), found on
-# the host once a frame: thirteen rays from the eye, to the sun's middle
-# and to two rings of six points within its disc, each walked as a
-# pixel's ray is, through the window, the leaves' gaps and the water, and
-# on over the far map; a ray that meets a block or water hides its share,
-# so the sun fades in steps of a thirteenth as it goes behind an edge.
-# The clouds the sky shows on the sun's line dim what is left
-# (Clouds.unveiled), and it sets with the sun.
+# How much of the sun, or of the moon once it has set (Lens.side), the eye
+# sees, for the lens (src/lens.bend), found on the host once a frame:
+# thirteen rays from the eye, to the body's middle and to two rings of six
+# points within its disc, each walked as a pixel's ray is, through the
+# window, the leaves' gaps and the water, and on over the far map; a ray
+# that meets a block or water hides its share, so the body fades in steps
+# of a thirteenth as it goes behind an edge. The clouds the sky shows on
+# its line dim what is left (Clouds.unveiled), and it sets and rises
+# (Lens.strength).
 def wet_path(tr: Water.Trace) -> Bool:
   Water.Trace{entry, +depth} = tr
   (depth > 0.0 : F32)
@@ -1304,11 +1305,11 @@ def added(+sum: F32, r: Array<U32> & F32) -> Array<U32> & F32:
   (w, +s) = r
   (w, (sum + s : F32))
 
-# the ray to the sun's middle (i 0), then to six points 0.013 off it and
+# the ray to the body's middle (i 0), then to six points 0.013 off it and
 # six 0.027 off it between them, along a and b across its line; the disc
-# is 0.036 across its middle
-def sun_rays(n: Nat, +base: U32, +fw: U32, +fl: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32,
-             +ax: F32, +az: F32, +bx: F32, +by: F32, +bz: F32, +i: U32, r: Array<U32> & F32) -> Array<U32> & F32:
+# is 0.036 across its middle, the moon's 0.047
+def body_rays(n: Nat, +base: U32, +fw: U32, +fl: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32,
+              +ax: F32, +az: F32, +bx: F32, +by: F32, +bz: F32, +i: U32, r: Array<U32> & F32) -> Array<U32> & F32:
   match n:
     case 0n:
       r
@@ -1321,14 +1322,15 @@ def sun_rays(n: Nat, +base: U32, +fw: U32, +fl: U32, +ck: U32, +ox: F32, +oy: F3
       +dx = (lx + sa * ax + sb * bx : F32)
       +dy = (ly + sb * by : F32)
       +dz = (lz + sa * az + sb * bz : F32)
-      sun_rays(k, base, fw, fl, ck, ox, oy, oz, lx, ly, lz, ax, az, bx, by, bz, (i + 1 : U32),
+      body_rays(k, base, fw, fl, ck, ox, oy, oz, lx, ly, lz, ax, az, bx, by, bz, (i + 1 : U32),
         added(sum, clear_ray(fw, ox, oy, oz, dx, dy, dz, walk_from(~True{}, ~False{}, 60n, w, base, fl, ck, ox, oy, oz, dx, dy, dz, 0.0))))
 
-def seen_of(+fl: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & F32) -> Array<U32> & F32:
+def seen_of(+fl: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32, +k: F32, r: Array<U32> & F32) -> Array<U32> & F32:
   (w, +rays) = r
-  (w, (rays / 13.0 * Clouds.unveiled(Util.on(fl, 128), fw, ck, ox, oy, oz, lx, ly, lz) * F32.clamp(((ly + 0.02) * 25.0 : F32), 0.0, 1.0) : F32))
+  (w, (rays / 13.0 * Clouds.unveiled(Util.on(fl, 128), fw, ck, ox, oy, oz, lx, ly, lz) * k : F32))
 
-def sight(on: Bool, w: Array<U32>, +base: U32, +fw: U32, +fl: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & F32:
+# the body l, as bright as k
+def sight(on: Bool, w: Array<U32>, +base: U32, +fw: U32, +fl: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32, +k: F32) -> Array<U32> & F32:
   match on:
     case False{}:
       (w, 0.0)
@@ -1336,8 +1338,8 @@ def sight(on: Bool, w: Array<U32>, +base: U32, +fw: U32, +fl: U32, +ck: U32, +ox
       +al = F32.max(F32.sqrt((lx * lx + lz * lz : F32)), 0.0001)
       +ax = (lz / al : F32)
       +az = ((0.0 - lx) / al : F32)
-      seen_of(fl, fw, ck, ox, oy, oz, lx, ly, lz,
-        sun_rays(13n, base, fw, fl, ck, ox, oy, oz, lx, ly, lz, ax, az, (0.0 - az * ly : F32), (az * lx - ax * lz : F32), (ax * ly : F32), 0, (w, 0.0)))
+      seen_of(fl, fw, ck, ox, oy, oz, lx, ly, lz, k,
+        body_rays(13n, base, fw, fl, ck, ox, oy, oz, lx, ly, lz, ax, az, (0.0 - az * ly : F32), (az * lx - ax * lz : F32), (ax * ly : F32), 0, (w, 0.0)))
 
 def with_seen(cam: Cam, +s: F32) -> Cam:
   Cam{px, py, pz, yaw, pit, base, far, sel, items, stat, fl, rw, rh, lx, ly, lz, clock, seen} = cam
@@ -1347,10 +1349,11 @@ def seen_into(+cam: Cam, r: Array<U32> & F32) -> Array<U32> & Cam:
   (w, +s) = r
   (w, with_seen(cam, s))
 
-# the camera with the sun it sees, the lens on (Cam.fl bit 19)
+# the camera with the sun or the moon it sees, the lens on (Cam.fl bit 19)
 def sighted(w: Array<U32>, +cam: Cam) -> Array<U32> & Cam:
   Cam{+px, +py, +pz, yaw, pit, +base, +far, sel, items, stat, +fl, rw, rh, +lx, +ly, +lz, +clock, seen} = cam
-  seen_into(cam, sight(Util.on(fl, 524288), w, base, far, fl, clock, px, py, pz, lx, ly, lz))
+  +s = Lens.side(ly)
+  seen_into(cam, sight(Util.on(fl, 524288), w, base, far, fl, clock, px, py, pz, (s * lx : F32), (s * ly : F32), (s * lz : F32), Lens.strength(ly)))
 
 def look_x(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.sin(yaw) : F32)
 def look_y(+pit: F32) -> F32: F32.sin(pit)

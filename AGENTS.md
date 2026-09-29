@@ -201,7 +201,7 @@ camera word (the readout's `Cam.stat` and the far map's `Cam.far`,
 gets a word, not spare bits of another; measure. The seventeenth, the
 game's clock (`Cam.clock`, 2026-09-27), handed through the fifteen defs
 from a ray to the clouds, read about 1 ms at 1470×796 and none at scale 2.
-The eighteenth, how much of the sun the eye sees (`Cam.seen`, found on
+The eighteenth, how much of the sun or the moon the eye sees (`Cam.seen`, found on
 the host by `Render.sighted` for the lens, 2026-09-29), read within the
 noise.
 
