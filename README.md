@@ -285,9 +285,14 @@ either's wrap. Flag 20 disables ripples.
 
 The world is in that mirror too, by a second ray: a pixel that shows a
 water top walks the ring again from where it met the water, along the
-mirrored (and rippled) direction, as the shadow walks towards the sun. It
-is a dry DDA of 32 steps over the solid bits alone; what it meets gets the
-block's colour, its texture and its face's tone, with no occlusion and no
+mirrored (and rippled) direction. It is the eye's own DDA, dry, for 32
+steps (`Render.walk_from`), as the ray of the eye's image under the
+water: its distances count from that image, so the meadow's levels, the
+fog and a pixel's width read them as the eye's ray's, and the blades it
+passes over stand upside down in the lake (`Cam.fl` bit 16), lit as the
+eye's are but for the shadows of what stands between them and the sun.
+What it meets gets the block's colour, its texture (a grass top the
+meadow seen from afar) and its face's tone, with no occlusion and no
 shadow of its own, is fogged by the whole path (eye to water to block) and
 laid over the mirrored sky before Fresnel weighs the two. A step crosses
 one face, so a ray of direction d always meets what lies within
@@ -305,8 +310,9 @@ ripples and the rain's rings tilt (`Water.bent`), at about half the tilt
 the lake shows from above: near the critical angle a small tilt swings a
 ray between the window and the mirror, and at the full tilt the rings
 over the eye read as rings of glass. Inside the window the bent ray sees
-the sky, the clouds and the world as the lake's mirror walks them
-(`Render.behind`), and the rain falling in it: the whole sky in a cone of
+the sky, the clouds and the world, the meadow's blades on the banks, as
+the lake's mirror walks them (`Render.behind`), and the rain falling in
+it: the whole sky in a cone of
 97 degrees, the banks crowding its rim, as a diver sees them. Past 49
 degrees from the normal the surface is a mirror, total internal
 reflection, and a glance of 24 steps down from it shows the world under
@@ -314,9 +320,7 @@ the water, what it meets lit as deep as it lies and fogged by the water
 it crossed, the deep water's colour where it meets nothing. Fresnel weighs
 the two, a mirror at the window's edge, and the water between the eye and
 the surface tints the whole as before. A ray that leaves the water stays
-in the window's walk, so no far walk runs for it. The meadow's blades are
-in neither mirror: both walk the mirror's glance (ROADMAP, the water's
-shader). In the profile's view under the lake, along its surface at
+in the window's walk, so no far walk runs for it. In the profile's view under the lake, along its surface at
 1470×796, the look makes the frame cheaper, 32.2 → 24.0 ms (the least of
 three rounds): a ray that leaves the water walks 24 or 32 steps in place
 of the straight hit's shading and the far walk's 128.
@@ -601,20 +605,21 @@ the meadow's, eight rounds alternated with the build before it
 (2026-09-28); the leaves', eight rounds alternated with the meadow's
 build, which read 7, 7, 11, 20, 38 and 69 ms that evening; the wind's,
 eight rounds alternated with the leaves' build, which read 8, 8, 13,
-23, 44 and 79 that night.
+23, 44 and 79 that night; the mirror's meadow, eight rounds alternated
+with 2.0.34's build, which read 7, 7, 11, 20, 38 and 73 (2026-09-29).
 The bench
 times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them | on 2.0.34 with #1132 |
-|---|---|---|---|---|---|---|---|
-| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms | 11 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms | 21 ms |
-| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms | 40 ms |
-| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms | 73 ms |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them | on 2.0.34 with #1132 | and the meadow in the mirror |
+|---|---|---|---|---|---|---|---|---|
+| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms | 11 ms | 11 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms | 21 ms | 21 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms | 40 ms | 39 ms |
+| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms | 73 ms | 75 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796: its fix of a race
 ([#975](https://github.com/bendlang/bend/issues/975)) made every read of
@@ -683,7 +688,12 @@ alone gives much of it back. With both off, eight bench rounds read 7,
 7, 11, 21, 41 and 82 ms, and the build before them 7, 7, 11, 20, 41 and
 75: the leaf mask and the rates the walks now carry cost nothing at
 scale 2 and a few ms at the largest sizes. The wind in them takes
-nothing at scale 2 and 1 to 3 ms at 1470×796. The rays alone are a
+nothing at scale 2 and 1 to 3 ms at 1470×796. The meadow in the water's
+mirrors takes 8 ms at 1470×796 where the lake shows its banks (six
+rounds, the lake seen from its shore: 60.4 all on, 52.4 with bit 16 off)
+and 2 at scale 2; with it off the mirror still walks the eye's DDA, whose
+rim it needs, in place of a glance over the solid bits, 1 to 5 ms more
+than the build before it (47.0 there, 14.4 at scale 2). The rays alone are a
 third of a frame. After them come the walks a look adds, since a DDA step costs about the same wherever it happens, the
 frame being its slowest lane: the shadow's 24 steps, the mirror's 32, and
 the clouds' 16, each of them three reads of their map, the density's

@@ -66,14 +66,15 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    from under the water — done (2026-09-29, asked for on diving: "hoje
    ela fica totalmente transparente"): Snell's window, the world through
    the bent ray and the rain in it, and past it the underside's mirror of
-   the world under the water, bit 15 (README). The meadow in the lake's
-   mirror waited on Bend (2026-09-28): the mirror walked by the eye's DDA
-   from a virtual origin, p less the mirrored ray times the distance
-   already travelled, so the blades' levels, the fog and the pixel's
-   footprint are the eye's, showed the blades upside down in the lake;
-   but the grass walk inside the mirror made a frame die at random on
-   the compiler with #1140, 4 runs of 4. On 2.0.34 it runs whole (see
-   "Bend: waiting on a decision").
+   the world under the water, bit 15 (README). The meadow in the water's
+   mirrors — done (2026-09-29, asked for with the surface from below):
+   the mirror walked by the eye's DDA from a virtual origin, p less the
+   mirrored ray times the distance already travelled, so the blades'
+   levels, the fog and the pixel's footprint are the eye's, shows the
+   blades upside down in the lake and on the banks through Snell's
+   window, bit 16; 8 ms at 1470×796 where the lake shows its banks, 2 at
+   scale 2. It waited a day on Bend: with #1140 the grass walk inside the
+   mirror made a frame die at random, 4 runs of 4; 2.0.34 runs it whole.
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
    them. The first is in (2026-09-22): above the ring's 2^18 words, a far
    map of 256² columns around the window, a word a column (its ground,

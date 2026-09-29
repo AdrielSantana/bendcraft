@@ -13,6 +13,18 @@ def walled(g: Player.Game) -> World.World:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   World.edit(w, 60, 70, 30, True{}, 6)
 
+# ten grass tops at y 30 along x from 58, over the start window
+def lawn(n: Nat, w: World.World, +x: U32) -> World.World:
+  match n:
+    case 0n:
+      w
+    case 1n+k:
+      lawn(k, World.edit(w, x, 70, 29, True{}, 0), (x + 1 : U32))
+
+def lawned(g: Player.Game) -> World.World:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  lawn(10n, w, 58)
+
 # a miss keeps walking, so its distance says nothing: only a hit's is held
 def met(r: Array<U32> & Render.Glance, +col: U32, t: F32) -> Bool:
   (w, g) = r
@@ -27,11 +39,11 @@ def colour(r: Array<U32> & U32) -> U32:
   (w, c) = r
   c
 
-# what the mirror at (ox, 30.5, 70.5) shows along x over the sky 123456,
-# with no fog
-def shows(w: World.World, +ox: F32) -> U32:
+# what the mirror at (ox, oy, 70.5) shows along x over the sky 123456,
+# with the looks fl and no fog
+def shows(w: World.World, +fl: U32, +ox: F32, +oy: F32) -> U32:
   World.W{ring, +meta} = w
-  colour(Render.mirror_walk(False{}, 123456, 0, World.base(meta), 0, 0, ox, 30.5, 70.5, 1.0, 0.0, 0.0, 0.0, 30.5, 0.5, 0.8, 0.0, ring))
+  colour(Render.mirror_walk(False{}, 123456, fl, World.base(meta), 0, 0, ox, oy, 70.5, 1.0, 0.0, 0.0, 0.0, oy, 0.5, 0.8, 0.0, ring))
 
 def main() -> IO(Unit):
   do IO<Unit>:
@@ -44,8 +56,10 @@ def main() -> IO(Unit):
     Lib.expect(Lib.near(Water.reach(21.0, 1.0, 0.0, 0.0), 0.0, 0.0001) && Lib.near(Water.reach(24.5, 1.0, 0.0, 0.0), 0.5, 0.0001)
       && Lib.near(Water.reach(28.0, 0.0, 0.0, (0.0 - 1.0 : F32)), 1.0, 0.0001) && Lib.near(Water.reach(40.0, 1.0, 0.0, 0.0), 1.0, 0.0001)
       && (Water.reach(19.0, 0.6, 0.0, (0.0 - 0.8 : F32)) > 0.79 : F32), "the mirror fades into the sky over the last quarter of the reach")
-    Lib.expect(U32.is_eq(shows(walled(Player.start()), 20.5), 123456) && U32.is_eq(shows(walled(Player.start()), 31.5), 123456)
-      && U32.is_ne(shows(walled(Player.start()), 55.5), 123456),
+    Lib.expect(U32.is_eq(shows(walled(Player.start()), 0, 20.5, 30.5), 123456) && U32.is_eq(shows(walled(Player.start()), 0, 31.5, 30.5), 123456)
+      && U32.is_ne(shows(walled(Player.start()), 0, 55.5, 30.5), 123456),
       "the mirror shows the sky behind it byte for byte where it meets nothing, a near block over it, and one at its reach's end faded into it")
+    Lib.expect(U32.is_ne(shows(lawned(Player.start()), 67584, 55.5, 30.2), 123456) && U32.is_eq(shows(lawned(Player.start()), 2048, 55.5, 30.2), 123456),
+      "the mirror skimming a row of grass tops meets the meadow's blades, and passes over the bare tops with bit 16 off")
     Lib.expect(Water.mirror_on(Water.with_looks(16383, Render.looks_base()))
       && Bool.not(Water.mirror_on(Water.with_looks(4294967295, 0))), "the look rides in the base's bit 27 and nowhere else")
