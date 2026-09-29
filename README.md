@@ -20,12 +20,11 @@ placing spends one of the selected type. The hotbar shows each count
 
 ## Build and run
 
-Bend 2.0.32 with two fixes that are not released yet,
+Bend 2.0.34 with a fix that is not released yet,
 [bendlang/bend#1132](https://github.com/bendlang/bend/pull/1132) (the lanes
-after a grow) and [#1140](https://github.com/bendlang/bend/pull/1140) (a
-shared array's read): a frame takes 2.5 times less than on 2.0.25, and
-stock 2.0.32 is slower than both. The Makefile runs it with `bun` from a
-checkout beside this one; `make BEND=bend` builds with the installed Bend.
+after a grow): a frame takes 2.5 to 2.8 times less than on stock 2.0.34.
+The Makefile runs it with `bun` from a checkout beside this one;
+`make BEND=bend` builds with the installed Bend.
 
 ```sh
 git clone -b bendcraft https://github.com/AdrielSantana/bend ../bend
@@ -608,19 +607,25 @@ times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them |
-|---|---|---|---|---|---|---|
-| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms |
-| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms |
-| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them | on 2.0.34 with #1132 |
+|---|---|---|---|---|---|---|---|
+| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms | 11 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms | 21 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms | 40 ms |
+| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms | 73 ms |
 
-Stock 2.0.32 took 215 ms at 1470×796 when #1140 was measured: its fix of
-a race ([#975](https://github.com/bendlang/bend/issues/975)) made every
-read of a shared array two atomic loads, dear on Metal
-([#1139](https://github.com/bendlang/bend/issues/1139)). The page was last
+Stock 2.0.32 took 215 ms at 1470×796: its fix of a race
+([#975](https://github.com/bendlang/bend/issues/975)) made every read of
+a shared array two atomic loads, dear on Metal
+([#1139](https://github.com/bendlang/bend/issues/1139)). #1140 read it
+plainly again, and raced: with the meadow's walk in the lake's mirror a
+frame died at random ("frontier drained without a result"). 2.0.34 reads
+it plainly and once a loop
+([#1155](https://github.com/bendlang/bend/pull/1155)), and the same
+frames run whole, 16 runs of 16; the last column is eight rounds
+alternated with 2.0.32 and #1140, which read 8, 8, 12, 24, 46 and 88. The page was last
 measured before the sky: 31 fps at 512×512 on ten threads, 7 on one. On
 the page, `?size=1024x576x2` in the address gives the wide frame, and the
 fullscreen link scales whatever is rendered to the screen.
@@ -707,7 +712,7 @@ frame's dispatch runs as one command buffer a kernel, and prints each
 kernel's time and the tasks left in the lanes' rings (`bend
 test/bench.bend -o build/bench.c && python3 test/trace.py build/bench.c &&
 ./build/bench_trace`). It reaches into the runtime's text, written for
-2.0.25's; it does not find 2.0.32's yet.
+2.0.25's; it does not find 2.0.34's yet.
 
 ## The frame's time, in the game
 

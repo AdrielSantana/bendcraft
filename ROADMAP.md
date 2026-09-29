@@ -67,13 +67,13 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    ela fica totalmente transparente"): Snell's window, the world through
    the bent ray and the rain in it, and past it the underside's mirror of
    the world under the water, bit 15 (README). The meadow in the lake's
-   mirror waits on Bend (2026-09-28): the mirror walked by the eye's DDA
+   mirror waited on Bend (2026-09-28): the mirror walked by the eye's DDA
    from a virtual origin, p less the mirrored ray times the distance
    already travelled, so the blades' levels, the fog and the pixel's
    footprint are the eye's, showed the blades upside down in the lake;
-   but the grass walk inside the mirror makes the frame die at a random
-   frame, "frontier drained without a result", on the compiler with
-   #1140, 4 runs of 4 (see "Bend: waiting on a decision").
+   but the grass walk inside the mirror made a frame die at random on
+   the compiler with #1140, 4 runs of 4. On 2.0.34 it runs whole (see
+   "Bend: waiting on a decision").
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
    them. The first is in (2026-09-22): above the ring's 2^18 words, a far
    map of 256² columns around the window, a word a column (its ground,
@@ -204,7 +204,7 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
 
 **The budget.** At 1470×796 a frame is 47 ms with a ray for every pixel
 and 13 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
-with #1132 and #1140; the clouds took 19 → 24 and 6 → 7, the weather,
+with #1132 and #1140, and 40 and 11 on 2.0.34 with #1132; the clouds took 19 → 24 and 6 → 7, the weather,
 the rain and the wet then 27 and 8, the clouds' map gave back 3 and 2,
 the meadow took 24 → 40 and 6 → 10, the leaves' holes 6 and 1 more,
 and the wind in them 3 and none;
@@ -767,7 +767,9 @@ rebuild the page with the rebased fork (`../bend-web`, the fork's
 `web-wasm` branch) and run `make page-test`, run `test/trace.py` once (its
 snippets match the runtime's text and may need an update). 2.0.32 with
 #1132 and #1140 (2026-09-27): the thirty checksums and the physics hash
-are the same and the frames 2.5 times faster. Its check fails any file
+are the same and the frames 2.5 times faster. 2.0.34 with #1132
+(2026-09-29): the same checksums and hash, the frames 15% faster than
+that. Its check fails any file
 that relies on `@unsafe`, so the frame's tree moved to `src/frame.bend`,
 which the laws do not import, and `make check` takes that verdict for a
 program; `IO.args()` starts with the program's name; the trace's snippets
@@ -786,14 +788,18 @@ and go back to it if it ties, since it reads better.
 
 ## Bend: waiting on a decision
 
-State on 2026-09-27. The game builds with 2.0.32 and the two PRs below,
-from the `bendcraft` branch of AdrielSantana/bend (the Makefile's `BEND`);
-once both are released it goes back to the stock `bend`.
+State on 2026-09-29. The game builds with 2.0.34 and the PR below, from
+the `bendcraft` branch of AdrielSantana/bend (the Makefile's `BEND`);
+once it is released it goes back to the stock `bend`. #1139 was fixed in
+2.0.34 by #1155, which closed our #1140: #1140's plain read raced when
+the meadow's walk ran inside the lake's mirror, a frame dying at random
+in 4 runs of 4 (and a fence where the plain read found count 1 fixed it
+at about 20% of every frame), while #1155, which also reads the
+redirect once a loop, ran the same frames whole in 16 runs of 16.
 
 | | what it is | state | if yes | if no |
 |---|---|---|---|---|
-| [PR #1132](https://github.com/bendlang/bend/pull/1132) | Metal: the work pass after a grow runs each lane's own ring, #925's answer; 1.7-2.8 times faster frames | open | the stock `bend` | our branch, rebased at every release |
-| [PR #1140](https://github.com/bendlang/bend/pull/1140) | a device reads a shared array's redirect with one plain load, as before 2.0.32 ([#1139](https://github.com/bendlang/bend/issues/1139)); 3.6-4 times faster frames. It races (2026-09-28): with the meadow's walk in the lake's mirror a frame dies at random; a fence where the plain read finds count 1 fixes it and costs about 20% of every frame, and 2.0.31's plain array read alone dies too; the mechanism is not found | open; an issue drafted, not posted | the stock `bend` | our branch, rebased at every release |
+| [PR #1132](https://github.com/bendlang/bend/pull/1132) | Metal: the work pass after a grow runs each lane's own ring, #925's answer; 2.5-2.8 times faster frames on 2.0.34 | open | the stock `bend` | our branch, rebased at every release |
 | [#1143](https://github.com/bendlang/bend/issues/1143) | Metal: `heap_free`'s error check, 7-12% of the allocating benches; numbers and risks, no PR | open | nothing here: the frame does not allocate | — |
 | [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | `make full` sizes the window to the screen |
 
@@ -806,5 +812,5 @@ that fork to move to 2.0.32; the published page still looks by dragging.
 To see where things stand:
 
 ```sh
-for n in 923 925 1132 1139 1140 1143; do gh issue view $n -R bendlang/bend --json state,comments; done
+for n in 923 925 1132 1143; do gh issue view $n -R bendlang/bend --json state,comments; done
 ```

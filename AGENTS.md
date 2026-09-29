@@ -20,7 +20,7 @@ from Bend 1. Read before you write:
 - `bend guide` (the language), `bend guide shaders` (what makes a `!` fast
 or slow, written by AIs for AIs from a 120 FPS demo) and `bend base` (the
 Base library's source). All ship with the compiler, which here is the
-Makefile's `BEND`: 2.0.32 with two fixes not yet released, from a
+Makefile's `BEND`: 2.0.34 with #1132, not yet released, from a
 checkout at `../bend` (README, "Build and run"), so `bend guide` reads
 `bun ../bend/bend2/main.ts guide`. An older installed `bend` lacks what
 the game uses.
