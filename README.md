@@ -4,8 +4,6 @@ An endless voxel world you can walk, jump, break and build, written in
 [Bend](https://github.com/bendlang/bend) and rendered by one parallel call:
 on the GPU through Metal, or on every core of your machine as WebAssembly.
 
-**Play it in the browser:** https://adrielsantana.github.io/bendcraft/
-
 `W A S D` walk · `space` jumps, and swims up in water · the mouse looks, dragged in the browser (or the arrows) ·
 click breaks · right click places (or `J` / `L`) · `1`–`8` or the wheel choose the block
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
