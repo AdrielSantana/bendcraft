@@ -206,9 +206,10 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    colour — done (2026-09-29): the sun's light warm and golden as it
    sets, the sky's blue in the shade, the sun on a face by its angle, a
    halo around it that the fog takes, bits 17 and 18 (README); within the
-   noise of the frame. The sun in the camera: a glare that spills over
-   the silhouettes before it and a lens flare, both from how much of the
-   sun the eye sees, found on the host once a frame. Its rays in the air:
+   noise of the frame. The sun in the camera — done (2026-09-29): a
+   glare that spills over the silhouettes before it and a lens flare,
+   both from how much of the sun the eye sees, thirteen rays walked on
+   the host once a frame, bit 19; 1 to 3 ms at 1470×796, none at scale 2. Its rays in the air:
    a few points along a ray tested against the sun, once a 4x4 tile at
    its corners, blended over the tile and cut at each pixel's hit. Then
    the blocks': torches and a night that needs them.
@@ -521,7 +522,7 @@ finished world.
 6. the weather over the days, the wind, rain from heavy clouds and the
    wet it leaves — done, 2026-09-27
 7. vegetation: the meadow, the leaves' holes and the wind in them — done, 2026-09-28
-8. light: the sun's colour — done, 2026-09-29; the sun in the camera and
+8. light: the sun's colour and the sun in the camera — done, 2026-09-29;
    its rays; then the blocks'
 9. survival and crafting
 10. mobs and entities

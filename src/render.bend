@@ -9,6 +9,7 @@ import ./clouds.bend as Clouds
 import ./rain.bend as Rain
 import ./wet.bend as Wet
 import ./grass.bend as Grass
+import ./lens.bend as Lens
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -1235,7 +1236,8 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
 # Render.looks()); 32 makes the pixel the ray's steps to its hit, 64 makes it 1 on a
 # hit and 0 on sky: `make profile` renders with each and prints what costs
 # what. Bit 7 is the clouds, 8 their shadows, 9 the rain, 10 the wet, 11 the meadow, 12 the leaves' holes, 13 the sun through them,
-# 14 the leaves in the wind; bits 15..19 are spare; bit 20 enables ripples. Bits 21..24
+# 14 the leaves in the wind, 15 the surface from under the water, 16 the meadow in the
+# mirrors, 17 the light's colour, 18 the sun's halo, 19 the lens; bit 20 enables ripples. Bits 21..24
 # hold water (21), water fog (22), Fresnel (23) and sky reflection (24). Bits 25..31 enable the day cycle, sky
 # gradient, sun disc, horizon glow, stars, moon and height fog, respectively.
 # sel holds selection in its low four bits, then four seven-bit counts;
@@ -1243,12 +1245,13 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
 # the readout's numbers and the bucket's full cells (stat_of, with_pail).
 # base keeps the ring's low 14 bits; far the far map's base
 # (World.far_cam); clock the game's, whose days the weather follows and
-# whose milliseconds the ripples.
+# whose milliseconds the ripples; seen how much of the sun the eye sees
+# (sighted), for the lens.
 type Cam is Data:
-  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32}
+  Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32, seen: F32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4294442911
+def looks() -> U32: 4294967199
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds
@@ -1265,7 +1268,89 @@ def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, m
   Cam{px, py, pz, yaw, pit, Water.with_looks(base, more), far, sel, items, stat, fl, rw, rh,
       Bool.pick(F32, cycle, Day.sun_x(clock), 0.48),
       Bool.pick(F32, cycle, Day.sun_y(clock), 0.8),
-      Bool.pick(F32, cycle, Day.sun_z(clock), 0.36), clock}
+      Bool.pick(F32, cycle, Day.sun_z(clock), 0.36), clock, 0.0}
+
+# ---------- the sun as the eye sees it ----------
+# How much of the sun the eye sees, for the lens (src/lens.bend), found on
+# the host once a frame: thirteen rays from the eye, to the sun's middle
+# and to two rings of six points within its disc, each walked as a
+# pixel's ray is, through the window, the leaves' gaps and the water, and
+# on over the far map; a ray that meets a block or water hides its share,
+# so the sun fades in steps of a thirteenth as it goes behind an edge.
+# The clouds the sky shows on the sun's line dim what is left
+# (Clouds.unveiled), and it sets with the sun.
+def wet_path(tr: Water.Trace) -> Bool:
+  Water.Trace{entry, +depth} = tr
+  (depth > 0.0 : F32)
+
+def clear_far(r: Array<U32> & Far) -> Array<U32> & F32:
+  (w, fr) = r
+  Far{+hit, word, t, tr} = fr
+  (w, Bool.pick(F32, (hit > 0 : U32), 0.0, 1.0))
+
+def clear_past(met: Bool, w: Array<U32>, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> Array<U32> & F32:
+  match met:
+    case True{}:
+      (w, 0.0)
+    case False{}:
+      clear_far(run_far(128n, w, fw, ox, oy, oz, dx, dy, dz, F32.min(t, window_exit(ox, oz, dx, dz)), Sky.reach(), False{}, Water.Trace{0.0, 0.0}))
+
+def clear_ray(+fw: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, r: Array<U32> & Ray) -> Array<U32> & F32:
+  (w, ray) = r
+  Ray{+code, +t, rim, rim_end, tr} = ray
+  clear_past(((code % 4 : U32) > 0 : U32) || wet_path(tr), w, fw, ox, oy, oz, dx, dy, dz, t)
+
+def added(+sum: F32, r: Array<U32> & F32) -> Array<U32> & F32:
+  (w, +s) = r
+  (w, (sum + s : F32))
+
+# the ray to the sun's middle (i 0), then to six points 0.013 off it and
+# six 0.027 off it between them, along a and b across its line; the disc
+# is 0.036 across its middle
+def sun_rays(n: Nat, +base: U32, +fw: U32, +fl: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32,
+             +ax: F32, +az: F32, +bx: F32, +by: F32, +bz: F32, +i: U32, r: Array<U32> & F32) -> Array<U32> & F32:
+  match n:
+    case 0n:
+      r
+    case 1n+k:
+      (w, +sum) = r
+      +ring = Bool.pick(F32, (i < 1 : U32), 0.0, Bool.pick(F32, (i < 7 : U32), 0.013, 0.027))
+      +angle = (U32.to_f32(i) * 1.0471976 + Bool.pick(F32, (i < 7 : U32), 0.0, 0.5235988) : F32)
+      +sa = (ring * F32.cos(angle) : F32)
+      +sb = (ring * F32.sin(angle) : F32)
+      +dx = (lx + sa * ax + sb * bx : F32)
+      +dy = (ly + sb * by : F32)
+      +dz = (lz + sa * az + sb * bz : F32)
+      sun_rays(k, base, fw, fl, ck, ox, oy, oz, lx, ly, lz, ax, az, bx, by, bz, (i + 1 : U32),
+        added(sum, clear_ray(fw, ox, oy, oz, dx, dy, dz, walk_from(~True{}, ~False{}, 60n, w, base, fl, ck, ox, oy, oz, dx, dy, dz, 0.0))))
+
+def seen_of(+fl: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & F32) -> Array<U32> & F32:
+  (w, +rays) = r
+  (w, (rays / 13.0 * Clouds.unveiled(Util.on(fl, 128), fw, ck, ox, oy, oz, lx, ly, lz) * F32.clamp(((ly + 0.02) * 25.0 : F32), 0.0, 1.0) : F32))
+
+def sight(on: Bool, w: Array<U32>, +base: U32, +fw: U32, +fl: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & F32:
+  match on:
+    case False{}:
+      (w, 0.0)
+    case True{}:
+      +al = F32.max(F32.sqrt((lx * lx + lz * lz : F32)), 0.0001)
+      +ax = (lz / al : F32)
+      +az = ((0.0 - lx) / al : F32)
+      seen_of(fl, fw, ck, ox, oy, oz, lx, ly, lz,
+        sun_rays(13n, base, fw, fl, ck, ox, oy, oz, lx, ly, lz, ax, az, (0.0 - az * ly : F32), (az * lx - ax * lz : F32), (ax * ly : F32), 0, (w, 0.0)))
+
+def with_seen(cam: Cam, +s: F32) -> Cam:
+  Cam{px, py, pz, yaw, pit, base, far, sel, items, stat, fl, rw, rh, lx, ly, lz, clock, seen} = cam
+  Cam{px, py, pz, yaw, pit, base, far, sel, items, stat, fl, rw, rh, lx, ly, lz, clock, s}
+
+def seen_into(+cam: Cam, r: Array<U32> & F32) -> Array<U32> & Cam:
+  (w, +s) = r
+  (w, with_seen(cam, s))
+
+# the camera with the sun it sees, the lens on (Cam.fl bit 19)
+def sighted(w: Array<U32>, +cam: Cam) -> Array<U32> & Cam:
+  Cam{+px, +py, +pz, yaw, pit, +base, +far, sel, items, stat, +fl, rw, rh, +lx, +ly, +lz, +clock, seen} = cam
+  seen_into(cam, sight(Util.on(fl, 524288), w, base, far, fl, clock, px, py, pz, lx, ly, lz))
 
 def look_x(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.sin(yaw) : F32)
 def look_y(+pit: F32) -> F32: F32.sin(pit)
@@ -1279,8 +1364,13 @@ def norm3(+x: F32, +y: F32, +z: F32) -> F32:
 def p2f(+p: U32, +size: U32, +rh: U32) -> F32:
   ((U32.to_f32((p * 2 : U32)) - U32.to_f32(size)) / U32.to_f32(rh) : F32)
 
+def lensed(on: Bool, +seen: F32, +u: F32, +v: F32, +dx: F32, +dy: F32, +dz: F32, +fx: F32, +fy: F32, +fz: F32,
+           +rx: F32, +rz: F32, +ex: F32, +ey: F32, +ez: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, +c) = r
+  (w, Lens.through(on, c, seen, u, v, dx, dy, dz, fx, fy, fz, rx, rz, ex, ey, ez, lx, ly, lz))
+
 def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
-  Cam{ox, oy, oz, yaw, pit, base, far, sel, items, stat, +fl, +rw, +rh, +lx, +ly, +lz, +ck} = cam
+  Cam{ox, oy, oz, yaw, pit, base, far, sel, items, stat, +fl, +rw, +rh, +lx, +ly, +lz, +ck, +seen} = cam
   +u = p2f(pxi, rw, rh)
   +v = p2f(pyi, rh, rh)
   +fx = look_x(yaw, pit)
@@ -1298,7 +1388,11 @@ def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32
   +dy = (fy + 0.9 * v * uy : F32)
   +dz = (fz + 0.9 * u * rz + 0.9 * v * uz : F32)
   +n = F32.max(norm3(dx, dy, dz), 0.00001)
-  clipped(w, base, far, ck, ox, oy, oz, (dx / n : F32), (dy / n : F32), (dz / n : F32), Clouds.sky(fl, ck, (dx / n : F32), (dy / n : F32), (dz / n : F32), lx, ly, lz), fl, lx, ly, lz)
+  +nx = (dx / n : F32)
+  +ny = (dy / n : F32)
+  +nz = (dz / n : F32)
+  lensed(Util.on(fl, 524288), seen, u, v, nx, ny, nz, fx, fy, fz, rx, rz, ux, uy, uz, lx, ly, lz,
+    clipped(w, base, far, ck, ox, oy, oz, nx, ny, nz, Clouds.sky(fl, ck, nx, ny, nz, lx, ly, lz), fl, lx, ly, lz))
 
 # a crosshair straight over the middle
 def cross_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> Bool:
@@ -1443,7 +1537,7 @@ def hud_if(on: Bool, +sel: U32, items: U32, +stat: U32, +pxi: U32, +pyi: U32, +r
       0
 
 def hud_of(+cam: Cam, +pxi: U32, +pyi: U32) -> U32:
-  Cam{ox, oy, oz, yaw, pit, base, far, sel, items, stat, +fl, rw, rh, lx, ly, lz, ck} = cam
+  Cam{ox, oy, oz, yaw, pit, base, far, sel, items, stat, +fl, rw, rh, lx, ly, lz, ck, seen} = cam
   hud_if(Util.on(fl, 16), sel, items, stat, pxi, pyi, rw, rh)
 
 def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:

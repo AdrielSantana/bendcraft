@@ -388,6 +388,28 @@ atmosphere takes a tight white glare and a wide warm glow, fading as it
 sets; the fog takes its colour from the atmosphere, so what stands against
 the sun melts into a bright haze.
 
+**The lens** (bit 19, `src/lens.bend`) puts the sun in the camera. How
+much of it the eye sees, 0 to 1, is found on the host once a frame
+(`Render.sighted`, into the camera's `seen`): thirteen rays from the eye,
+to the sun's middle and to two rings of six points within its disc, each
+walked as a pixel's ray is, through the window, the leaves' gaps and the
+water, and on over the far map, each clear one a thirteenth, so the sun
+fades in small steps as it goes behind an edge; the clouds the sky shows
+on the sun's line dim it (`Clouds.unveiled`: what the cloud lets through,
+`Clouds.through`, which the ground's shade under them shares, faded as the
+sky's clouds fade into the haze), a heavy sky veils it, and it sets with
+the sun. The walks take a fraction of a millisecond of the host's frame.
+Over every pixel it lays the glare, the sun's light spilled around it in
+the lens, over what stands before it too: a bright core, a glow and a
+wide veil in the sun's colour; and the flare, five ghosts of the sun
+along the line from it through the screen's middle, soft hexagons, the
+aperture's shape, in amber, jade, violet, orange and blue, their red a
+little wider than their blue so the rim splits as glass does, and a thin
+streak across the sun, fading as the sun leaves the screen. Both are laid
+on as a screen does, towards white, never past it. Behind a canopy the
+sun comes and goes with the wind in the leaves' gaps, and the glare with
+it.
+
 **The clouds** are cumulus in a slab from y=62 to 78, over the world's
 columns, not the window's (`src/clouds.bend`). A coverage over the
 ground's plane, value noise of four octaves that repeats every 256
@@ -553,7 +575,8 @@ each block's swatch and the full cells it holds below the bucket's.
 main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
-src/sky.bend       sky gradient, sun, glow, stars, moon and distance/height fog
+src/sky.bend       sky gradient, sun, glow and halo, stars, moon, distance/height fog, the light's colour
+src/lens.bend      the sun in the camera: the glare and the flare over a pixel
 src/clouds.bend    the clouds' coverage and its map, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
 src/wet.bend       how wet the world is, where puddles lie, their rings, the sheen; the render reads the air and walks the mirror
@@ -562,7 +585,7 @@ src/grass.bend     the meadow's blades and flowers, the walks that meet them, th
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the rain's rings, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep, a colour mixed or dimmed
 src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
-src/render.bend    the DDA, the sun, the texture, the occlusion, the mirror's walk, a pixel
+src/render.bend    the DDA, the sun, the texture, the occlusion, the mirror's walk, a pixel, the sun the eye sees
 src/frame.bend     the frame's tree, its one `!` and the game's view: all that relies on @unsafe
 src/player.bend    Game, events, picking, the tick
 src/flow.bend      the water's flow: marked cells stepped bottom up
@@ -623,20 +646,21 @@ eight rounds alternated with the leaves' build, which read 8, 8, 13,
 23, 44 and 79 that night; the mirror's meadow, eight rounds alternated
 with 2.0.34's build, which read 7, 7, 11, 20, 38 and 73 (2026-09-29); the
 light's, eight rounds alternated with that build, which read 7, 7, 11,
-22, 41 and 72 that night.
+22, 41 and 72 that night; the lens's, eight rounds alternated with the
+light's build, which read 7, 8, 11, 21, 42 and 75.
 The bench
 times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them | on 2.0.34 with #1132 | and the meadow in the mirror | and the light's colour |
-|---|---|---|---|---|---|---|---|---|---|
-| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms | 8 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms | 7 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms | 11 ms | 11 ms | 11 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms | 21 ms | 21 ms | 21 ms |
-| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms | 40 ms | 39 ms | 40 ms |
-| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms | 73 ms | 75 ms | 76 ms |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them | on 2.0.34 with #1132 | and the meadow in the mirror | and the light's colour | and the lens |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms | 8 ms | 8 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms | 7 ms | 7 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms | 11 ms | 11 ms | 11 ms | 12 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms | 21 ms | 21 ms | 21 ms | 22 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms | 40 ms | 39 ms | 40 ms | 43 ms |
+| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms | 73 ms | 75 ms | 76 ms | 75 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796: its fix of a race
 ([#975](https://github.com/bendlang/bend/issues/975)) made every read of
@@ -695,7 +719,10 @@ glow, stars, moon, water fog, Fresnel, ripples, the light's colour and the
 sun's halo) are arithmetic on a pixel and read within the noise of all
 on: six rounds read the light's two looks 47.0 against 45.0 on the build
 before them in the bench's view at 1470×796, 57.2 against 56.2 in the
-evening towards the sun, and 12.4 against 12.6 at 735×398. In the bench's view 49% of the rays
+evening towards the sun, and 12.4 against 12.6 at 735×398. The lens,
+whose ghosts and glare every pixel computes while the sun is seen, reads
+up to 3 ms at 1470×796 (six rounds: the bench's view 48.4 on and 45.0
+off, the sun aside 51.2 both) and nothing at scale 2 (12.8 both). In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 

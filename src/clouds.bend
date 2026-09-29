@@ -248,11 +248,9 @@ def over(on: Bool, w: Array<U32>, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F3
         march(17n, x, 0.0, z, (dx * dt : F32), (dz * dt : F32), ax, az, (dt * sigma(wx) : F32),
           F32.clamp((1.6 - dt * 0.15 : F32), 0.0, 1.0), bias(wx), 1.0, 0.0, 0.0, (0.0 - 1000000.0 : F32), coverage(w, x, z, ax, az)))
 
-# the sun's light on the ground under the clouds: what the cloud over it
-# lets through along the sun's line, through its whole height, over the
-# light a block's shadow leaves: a thin cloud dims it a little, a heavy
-# one more than a block does
-def shade(on: Bool, +fm: U32, +ck: U32, +x: F32, +y: F32, +z: F32, +lx: F32, +ly: F32, +lz: F32) -> F32:
+# the share of the sun's light the cloud over (x, y, z) lets through along
+# the sun's line, through its whole height
+def through(on: Bool, +fm: U32, +ck: U32, +x: F32, +y: F32, +z: F32, +lx: F32, +ly: F32, +lz: F32) -> F32:
   match on:
     case False{}:
       1.0
@@ -261,7 +259,25 @@ def shade(on: Bool, +fm: U32, +ck: U32, +x: F32, +y: F32, +z: F32, +lx: F32, +ly
       +slant = F32.max(ly, 0.3)
       +t = ((middle() - y) / F32.max(ly, 0.05) : F32)
       +c = cover(fm, ck, x, z, (lx * t : F32), (lz * t : F32))
-      (0.55 + 0.45 * F32.exp((0.0 - sigma(wx) * c * (top() - bottom()) * 0.25 / slant : F32)) : F32)
+      F32.exp((0.0 - sigma(wx) * c * (top() - bottom()) * 0.25 / slant : F32))
+
+# the sun's light on the ground under the clouds, over the light a block's
+# shadow leaves: a thin cloud dims it a little, a heavy one more than a
+# block does
+def shade(on: Bool, +fm: U32, +ck: U32, +x: F32, +y: F32, +z: F32, +lx: F32, +ly: F32, +lz: F32) -> F32:
+  (0.55 + 0.45 * through(on, fm, ck, x, y, z, lx, ly, lz) : F32)
+
+# the share of the sun the clouds leave an eye at (x, y, z): what the
+# cloud on its line lets through, as much as the sky shows that cloud (it
+# fades into the haze from 180 blocks), under a heavy sky's veil
+def unveiled(on: Bool, +fm: U32, +ck: U32, +x: F32, +y: F32, +z: F32, +lx: F32, +ly: F32, +lz: F32) -> F32:
+  match on:
+    case False{}:
+      1.0
+    case True{}:
+      +t = ((middle() - y) / F32.max(ly, 0.02) : F32)
+      +fade = (1.0 - Util.smooth(F32.clamp(((t - 180.0) * 0.004 : F32), 0.0, 1.0)) : F32)
+      ((1.0 - (1.0 - through(True{}, fm, ck, x, y, z, lx, ly, lz)) * fade) * (1.0 - gloom(weather(ck))) : F32)
 
 # the sky and its fog under the weather: a heavy one greys them, by day
 # and by night

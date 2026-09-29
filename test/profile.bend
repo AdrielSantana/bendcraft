@@ -104,6 +104,7 @@ def plan() -> List<Run>:
    off("mirror meadow off", 65536, 0),
    off("light colour off ", 131072, 0),
    off("sun halo off     ", 262144, 0),
+   off("lens off         ", 524288, 0),
    off("world mirror off ", 0, 134217728),
    off("caustic off      ", 0, 268435456),
    Run{"rays alone       ", 1, 0, Render.looks_base()},

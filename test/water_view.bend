@@ -12,8 +12,8 @@ import ./sky.bend as Export
 # the clock runs their loop from the scene's own, whose weather it keeps,
 # and the wind moves the clouds four columns in it.
 def phase_camera(cam: Render.Cam, t: U32) -> Render.Cam:
-  Render.Cam{px, py, pz, yaw, pit, base, far, sel, items, stat, fl, rw, rh, lx, ly, lz, +clock} = cam
-  Render.Cam{px, py, pz, yaw, pit, base, far, sel, items, stat, fl, rw, rh, lx, ly, lz, (clock - Water.phase(clock) + t : U32)}
+  Render.Cam{px, py, pz, yaw, pit, base, far, sel, items, stat, fl, rw, rh, lx, ly, lz, +clock, seen} = cam
+  Render.Cam{px, py, pz, yaw, pit, base, far, sel, items, stat, fl, rw, rh, lx, ly, lz, (clock - Water.phase(clock) + t : U32), seen}
 
 def phase_view(g: Player.Game, t: U32) -> Player.Game & Image:
   Player.G{w, +px, +py, +pz, +yaw, +pit, vy, held, edge, +sel, +res, +clock, +bag} = g

@@ -99,6 +99,11 @@ def cast(+cam: Render.Cam, +ring: Array<U32>, +rw: U32, +rh: U32) -> Array<U32> 
   +h = U32.shln(2, d)
   fork!((d + d : Nat), False{}, (h < rh : U32), cam, ring, rw, rh, h, 0, 0)
 
+# the frame of a camera that saw the sun (Render.sighted)
+def cast_seen(r: Array<U32> & Render.Cam, +rw: U32, +rh: U32) -> Array<U32> & Image:
+  (ring, cam) = r
+  cast(cam, ring, rw, rh)
+
 def view_fin(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
              held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, meta: World.Meta,
              r: Array<U32> & Image) -> Player.Game & Image:
@@ -112,7 +117,7 @@ def view_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, vy: F32,
   +rw = (res / 65536 : U32)
   +rh = (res % 65536 : U32)
   view_fin(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, meta,
-           cast(Render.camera(px, py, pz, yaw, pit, World.base(meta), World.far_cam(meta), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), Render.with_pail(stat, Inventory.hud_pail(bag)), fl, rw, rh, clock), ring, rw, rh))
+           cast_seen(Render.sighted(ring, Render.camera(px, py, pz, yaw, pit, World.base(meta), World.far_cam(meta), Render.with_partial(more, (np > 0 : U32)), Inventory.hud_lo(sel, bag), Inventory.hud_hi(bag), Render.with_pail(stat, Inventory.hud_pail(bag)), fl, rw, rh, clock)), rw, rh))
 
 # the frame with the render's flags (Render.Cam), all looks on for the game;
 # `more` holds the looks the flags word has no room for (Render.looks_base),

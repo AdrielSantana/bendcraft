@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `79fb8a7fdf854ceb5eff3c678278d0bb` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `04341456956994e1538c124991391c66` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -201,10 +201,13 @@ camera word (the readout's `Cam.stat` and the far map's `Cam.far`,
 gets a word, not spare bits of another; measure. The seventeenth, the
 game's clock (`Cam.clock`, 2026-09-27), handed through the fifteen defs
 from a ray to the clouds, read about 1 ms at 1470×796 and none at scale 2.
+The eighteenth, how much of the sun the eye sees (`Cam.seen`, found on
+the host by `Render.sighted` for the lens, 2026-09-29), read within the
+noise.
 
 ## The code's fixed points
 
-- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet, 2048 the meadow, 4096 the leaves' holes, 8192 the sun through them, 16384 the leaves in the wind, 32768 the surface seen from under the water, 65536 the meadow in the water's mirrors, 131072 the light's colour, 262144 the sun's halo; bit 19 is spare.
+- `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet, 2048 the meadow, 4096 the leaves' holes, 8192 the sun through them, 16384 the leaves in the wind, 32768 the surface seen from under the water, 65536 the meadow in the water's mirrors, 131072 the light's colour, 262144 the sun's halo, 524288 the lens; none is spare.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
 horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
