@@ -24,8 +24,9 @@ Makefile's `BEND`: 2.0.34 with #1132, not yet released, from a
 checkout at `../bend` (README, "Build and run"), so `bend guide` reads
 `bun ../bend/bend2/main.ts guide`. An older installed `bend` lacks what
 the game uses.
-- `README.md` (how the game works, the numbers, what costs what) and
-`ROADMAP.md` (the vision, the order of work, what was tried and failed).
+- `docs/engine.md` (how the game works, the numbers, what costs what, the
+laws) and `docs/roadmap.md` (the vision, the order of work, what was
+tried and failed). `README.md` is the front page, for a visitor.
 - `src/*.bend` as the examples of every construct you will need.
 
 Check early and often: `bend file.bend --check-only` takes a second.
@@ -112,8 +113,8 @@ second reads slower on a busy machine), never by one run: the small sizes read t
 busy or cold machine. The user's machine is often busy.
 - **A look is a flag.** Whatever a pixel can do without (shadow, fog,
 water's reflection, clouds) gets a bit in `Cam.fl` and a line in
-`test/profile.bend`, from its first commit, and the README's "What costs
-what" table gets its number.
+`test/profile.bend`, from its first commit, and its cost goes in
+`docs/engine.md`'s "What costs what".
 - **A rule is a law.** Whatever the game promises (a count never under
 zero, a packing that reads back) gets a law in `LAWS.bend`, closed in
 `PROOF.bend`, before the feature is called done. The checker computes
@@ -151,7 +152,7 @@ import none of it, so `PROOF.bend` prints ALL PROOFS CHECK, while a
 program's check prints SOME PROOFS FAIL and names the defs that reach it,
 which `make check` takes as a pass.
 
-The GPU (`!`), all measured here (see PERF.md and the README):
+The GPU (`!`), all measured here (see `docs/perf.md` and `docs/engine.md`):
 
 - A `!` is one dispatch: the fork tree grows until every lane holds a task,
 then each lane runs its task to the end, alone. The frame's time is the
@@ -196,7 +197,7 @@ site: a pick of two `Sky.Tint`s kept Metal's compiler past 11 minutes
 match in a def of its own.
 - The shaders guide's "Do not" list applies, with one note measured here:
 its typed picks in place of the generic `Bool.pick` changed nothing in
-this game (PERF.md).
+this game (`docs/perf.md`).
 - What every lane shares must be flat (`Cam`: scalars, copied by words) or
 the one array (`w`, read at a plain load). A `+` tree read by every lane
 costs a count a node a pixel, on every node of that type.
@@ -316,7 +317,7 @@ The render's DDA marks a ray's rim, where it first came into air over a
 solid block low enough to meet the grass (`Grass.top()`), and its end
 (`Render.Ray`); the walks run between, to what the ray met. The grass
 is throughput-bound, not tail-bound: cutting its skimming rays' work
-gave a millisecond at most (PERF.md, 5, 17 and 22). In a wet world a
+gave a millisecond at most (`docs/perf.md`, 5, 17 and 22). In a wet world a
 copy of the walks (`~rain`) thins the blades over the puddles, each by
 the puddle's depth at its root (`Grass.thin`, `Wet.pool`).
 - The leaves' holes (`Render.pierced`): a walk that enters a leaf block
@@ -383,13 +384,15 @@ change to it keeps old saves loading, or says it does not.
 
 ## How to work here
 
-- One step of `ROADMAP.md`'s order at a time, in small commits that each
-pass the gate. Commit messages are plain sentences saying what changed
-and what was measured, as `git log` shows.
-- Update `README.md` where it describes what you changed (how it works,
-the layout, the numbers, the laws' paragraph) and `ROADMAP.md` when a
+- One step of `docs/roadmap.md`'s order at a time, in small commits that
+each pass the gate. Commit messages are plain sentences saying what
+changed and what was measured, as `git log` shows.
+- Update `docs/engine.md` where it describes what you changed (how it
+works, the layout, the numbers, the laws) and `docs/roadmap.md` when a
 step is done or something was tried and failed. A failed attempt with its
-numbers is worth a line: it stops the next one.
+numbers is worth a line: it stops the next one. The README changes only
+with what a visitor sees: what is in the game, the controls, the shots in
+`docs/shots/`.
 - Comments say why, in a sentence, where the code cannot. No banners.
 - If a number gets worse and you cannot say why, stop and report; do not
 stack workarounds. `test/trace.py` shows the dispatch kernel by kernel.

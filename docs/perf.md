@@ -2,7 +2,7 @@
 
 What a ray caster can do to cost less, borrowed from the industry and
 shaped for Bend, each tried alone and kept only for what it measures.
-The budget itself is in ROADMAP.md ("The budget").
+The budget itself is in [roadmap.md](roadmap.md) ("The budget").
 
 ## Where the time goes
 
@@ -183,10 +183,8 @@ grass's three walks of up to 64.
     54.6 ms at 1470×796 and 16.2 → 16.0 at 735×398, the bench's view 45.2
     → 44.6 and 12.2 → 12.0, the hill 41.8 → 45.0 and 12.2 → 12.2. With
     technique 5, it says the skimming rays are not the slowest lanes: the
-    fine walk costs the meadow 19.4 of its 54.6 ms (the coarse 7.8, the
-    broad 4.8; the rim's bookkeeping nothing), spread over the whole near
-    carpet, some 3 cells of up to six blades a pixel; the three more blades
-    of the near cells cost 3.6, the flowers nothing.
+    fine walk's cost is spread over the whole near carpet (the split, in
+    "Where the time goes").
 
 ## Precomputed light
 

@@ -6,8 +6,8 @@ import ../src/render.bend as Render
 import ../src/player.bend as Player
 
 # The game without a window: synthetic events through `feed` and `step`,
-# the state printed after each. `bend test/physics.bend` prints the lines;
-# compare them with the ones in the README.
+# the state printed after each. The md5 of the lines is the gate's physics
+# hash (AGENTS.md).
 
 def show_w(+px: F32, +py: F32, +pz: F32, +yaw: F32, +pit: F32, +vy: F32, +held: U32, +edge: U32, +sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
            w: World.World) -> Player.Game & String:
