@@ -16,6 +16,10 @@ def gradient(on: Bool, +dy: F32, +sy: F32) -> U32:
       +zenith = Util.mix(Util.rgb(5, 9, 24), Util.rgb(65, 125, 206), day)
       Util.mix(horizon, zenith, F32.sqrt(F32.clamp(dy, 0.0, 1.0)))
 
+# the sun's colour, orange as it sets, warm white overhead
+def sun_colour(+sy: F32) -> U32:
+  Util.mix(Util.rgb(255, 164, 83), Util.rgb(255, 247, 216), F32.clamp((sy * 2.0 : F32), 0.0, 1.0))
+
 def glow(on: Bool, +c: U32, +dx: F32, +dy: F32, +dz: F32,
          +sx: F32, +sy: F32, +sz: F32) -> U32:
   match on:
@@ -28,9 +32,62 @@ def glow(on: Bool, +c: U32, +dx: F32, +dy: F32, +dz: F32,
       +colour = Util.mix(Util.rgb(90, 38, 58), Util.rgb(255, 153, 83), daylight(sy))
       Util.mix(c, colour, (h * h * warm * (0.18 + 0.72 * toward * toward) : F32))
 
+# The sun's halo in the air (bit 18): the light the haze scatters to the
+# eye around the sun, a tight glare and a wide glow, fading as it sets.
+# The fog takes it too, so what stands against the sun melts into a
+# bright haze.
+def halo(on: Bool, +c: U32, +dx: F32, +dy: F32, +dz: F32,
+         +sx: F32, +sy: F32, +sz: F32) -> U32:
+  match on:
+    case False{}:
+      c
+    case True{}:
+      +d = (F32.clamp((dx * sx + dy * sy + dz * sz : F32), 0.0, 1.0) - 1.0 : F32)
+      +up = F32.clamp(((sy + 0.06) * 8.0 : F32), 0.0, 1.0)
+      Util.mix(Util.mix(c, sun_colour(sy), F32.clamp((0.35 * F32.exp((d * 14.0 : F32)) * up : F32), 0.0, 1.0)),
+        Util.rgb(255, 246, 226), F32.clamp((0.75 * F32.exp((d * 900.0 : F32)) * up : F32), 0.0, 1.0))
+
 # The fog samples this atmosphere alone, never a sun, moon or star disc.
 def atmosphere(+fl: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, +sz: F32) -> U32:
-  glow(Util.on(fl, 268435456), gradient(Util.on(fl, 67108864), dy, sy), dx, dy, dz, sx, sy, sz)
+  halo(Util.on(fl, 262144), glow(Util.on(fl, 268435456), gradient(Util.on(fl, 67108864), dy, sy), dx, dy, dz, sx, sy, sz), dx, dy, dz, sx, sy, sz)
+
+# The light's colour (bit 17), a factor a channel of a lit colour: the
+# sun's, warm white overhead and gold to orange as it sets, and the
+# sky's in the shade, blue by day, violet at dusk, deeper under the moon,
+# weighed by the sun a face takes (0.6, the shade, to 1, full sun). Each
+# keeps about the brightness the light had: it changes colour, not
+# strength.
+type Tint is Data:
+  Tint{r: F32, g: F32, b: F32}
+
+def blend(a: Tint, b: Tint, +f: F32) -> Tint:
+  Tint{+ar, +ag, +ab} = a
+  Tint{+br, +bg, +bb} = b
+  Tint{(ar + (br - ar) * f : F32), (ag + (bg - ag) * f : F32), (ab + (bb - ab) * f : F32)}
+
+def sunlight(+sy: F32) -> Tint:
+  blend(Tint{1.3, 1.06, 0.72}, Tint{1.05, 1.0, 0.93}, Util.smooth(F32.clamp((sy * 2.5 : F32), 0.0, 1.0)))
+
+def skylight(+sy: F32) -> Tint:
+  blend(blend(Tint{0.78, 0.88, 1.26}, Tint{0.9, 0.97, 1.14}, daylight(sy)), Tint{0.95, 0.9, 1.1},
+    (0.7 * F32.clamp((1.0 - Util.absf(sy) * 3.0 : F32), 0.0, 1.0) : F32))
+
+def light(on: Bool, +sun: F32, +sy: F32) -> Tint:
+  match on:
+    case False{}:
+      Tint{1.0, 1.0, 1.0}
+    case True{}:
+      blend(skylight(sy), sunlight(sy), F32.clamp(((sun - 0.6) * 2.5 : F32), 0.0, 1.0))
+
+def tinted(+c: U32, t: Tint) -> U32:
+  Tint{+r, +g, +b} = t
+  Util.rgb(Util.scale((c / 65536 : U32), r), Util.scale((c / 256 % 256 : U32), g), Util.scale((c % 256 : U32), b))
+
+# the sun a face takes: the shade's 0.6 in a shadow, the clouds' share
+# (lit) in the open, and with the light's colour on, less where the sun
+# grazes the face (ndl, the cosine of its angle to the face's normal)
+def sunned(on: Bool, +dark: Bool, +lit: F32, +ndl: F32) -> F32:
+  Bool.pick(F32, dark, 0.6, Bool.pick(F32, on, (0.6 + (lit - 0.6) * F32.clamp((0.4 + ndl * 1.5 : F32), 0.0, 1.0) : F32), lit))
 
 def sun(on: Bool, +c: U32, +dot: F32, +dy: F32, +sy: F32) -> U32:
   match on:
@@ -39,8 +96,7 @@ def sun(on: Bool, +c: U32, +dot: F32, +dy: F32, +sy: F32) -> U32:
     case True{}:
       +disc = F32.clamp(((dot - 0.99935) * 16000.0 : F32), 0.0, 1.0)
       +above = F32.clamp((dy * 500.0 : F32), 0.0, 1.0)
-      +colour = Util.mix(Util.rgb(255, 164, 83), Util.rgb(255, 247, 216), F32.clamp((sy * 2.0 : F32), 0.0, 1.0))
-      Util.mix(c, colour, (disc * above : F32))
+      Util.mix(c, sun_colour(sy), (disc * above : F32))
 
 # A hash of a stereographic sky lattice gives fixed, sparse stars without
 # a seam at an azimuth wrap. Jitter keeps the lattice out of the picture.

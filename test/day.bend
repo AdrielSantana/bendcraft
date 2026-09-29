@@ -23,6 +23,15 @@ def probe(+x: U32, +y: U32, +z: U32, +dx: F32, +dy: F32, +dz: F32) -> Bool:
   w = Array.set(U32, [0 : U32^20n], World.col_at(0, x, z), U32.shln(1, U32.to_nat(y)))
   blocked(Render.shadow_fin(0, 64.5, 10.5, 64.5, dx, dy, dz, Render.run_glance(24n, w, 0, 64.5, 10.5, 64.5, dx, dy, dz, 0, 0)))
 
+def white(t: Sky.Tint) -> Bool:
+  Sky.Tint{r, g, b} = t
+  F32.is_eq(r, 1.0) && F32.is_eq(g, 1.0) && F32.is_eq(b, 1.0)
+
+# how much redder than blue a light is
+def warmth(t: Sky.Tint) -> F32:
+  Sky.Tint{r, g, b} = t
+  (r - b : F32)
+
 def clock(g: Player.Game) -> U32:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, t, bag} = g
   t
@@ -245,6 +254,15 @@ def main() -> IO(Unit):
     Lib.expect((Sky.fog(2147483648, 20.0, 5.0, 5.0) > Sky.fog(2147483648, 20.0, 30.0, 30.0) : F32), "mist is denser near the ground")
     Lib.expect(U32.is_ne(Sky.sun(True{}, 0, 1.0, 0.8, 0.8), 0), "sun disc")
     Lib.expect(U32.is_eq(Sky.sun(False{}, 123, 1.0, 0.8, 0.8), 123), "sun flag")
+    Lib.expect(white(Sky.light(False{}, 1.0, 0.1)) && F32.is_eq(Sky.sunned(False{}, False{}, 0.83, 0.1), 0.83)
+      && U32.is_eq(Sky.tinted(123456, Sky.light(False{}, 1.0, 0.1)), 123456), "the light's colour off leaves the light white and a face's sun as it was")
+    Lib.expect((warmth(Sky.light(True{}, 1.0, 0.1)) > warmth(Sky.light(True{}, 1.0, 0.9)) : F32) && (warmth(Sky.light(True{}, 0.6, 0.9)) < 0.0 : F32)
+      && (warmth(Sky.light(True{}, 1.0, 0.9)) > 0.0 : F32), "sunlight is warm and warmer as it sets, the shade's light blue")
+    Lib.expect((Sky.sunned(True{}, False{}, 1.0, 0.05) < Sky.sunned(True{}, False{}, 1.0, 0.9) : F32) && F32.is_eq(Sky.sunned(True{}, False{}, 1.0, 0.9), 1.0)
+      && F32.is_eq(Sky.sunned(True{}, True{}, 1.0, 0.9), 0.6), "a face the sun grazes takes less of it, one it meets square all, one in a shadow none")
+    Lib.expect(U32.is_ne(Sky.halo(True{}, 123456, 0.6, 0.8, 0.0, 0.6, 0.8, 0.0), 123456)
+      && U32.is_eq(Sky.halo(True{}, 123456, (0.0 - 0.6 : F32), (0.0 - 0.8 : F32), 0.0, 0.6, 0.8, 0.0), 123456)
+      && U32.is_eq(Sky.halo(False{}, 123456, 0.6, 0.8, 0.0, 0.6, 0.8, 0.0), 123456), "the sun's halo brightens the sky at the sun and leaves it opposite as it was")
     Lib.expect(U32.is_ne(Sky.moon(True{}, 0, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 0), "moon disc")
     Lib.expect(U32.is_eq(Sky.moon(False{}, 123, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 123), "moon flag")
     Lib.expect(probe(69, 10, 64, 1.0, 0.0, 0.0), "shadow +x")

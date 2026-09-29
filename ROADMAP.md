@@ -201,7 +201,17 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    slide with the grass's gusts and quiver, and the flecks under the
    trees dance with them; nothing at scale 2 and about 3 ms at
    1470×796 in the bench.
-8. **Light of the blocks.** Torches and a night that needs them.
+8. **Light.** The sun's first (asked for on 2026-09-29: "sinto ela sem
+   graça, sem um lens flare, um bloom, um god-ray"), in three steps. Its
+   colour — done (2026-09-29): the sun's light warm and golden as it
+   sets, the sky's blue in the shade, the sun on a face by its angle, a
+   halo around it that the fog takes, bits 17 and 18 (README); within the
+   noise of the frame. The sun in the camera: a glare that spills over
+   the silhouettes before it and a lens flare, both from how much of the
+   sun the eye sees, found on the host once a frame. Its rays in the air:
+   a few points along a ray tested against the sun, once a 4x4 tile at
+   its corners, blended over the tile and cut at each pixel's hit. Then
+   the blocks': torches and a night that needs them.
 
 **The budget.** At 1470×796 a frame is 47 ms with a ray for every pixel
 and 13 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
@@ -511,7 +521,8 @@ finished world.
 6. the weather over the days, the wind, rain from heavy clouds and the
    wet it leaves — done, 2026-09-27
 7. vegetation: the meadow, the leaves' holes and the wind in them — done, 2026-09-28
-8. light of the blocks
+8. light: the sun's colour — done, 2026-09-29; the sun in the camera and
+   its rays; then the blocks'
 9. survival and crafting
 10. mobs and entities
 

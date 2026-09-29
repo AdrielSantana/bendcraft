@@ -373,6 +373,21 @@ and glow's colour, without celestial discs; its distance term reaches the
 sky at 120 blocks (`Sky.reach`), where the far walk stops; its map ends
 128 blocks from the window's centre on an axis. A separate height term thickens in the low ground.
 
+**The light** has a colour (`Cam.fl` bit 17, `Sky.light`): a lit colour
+takes a factor a channel, the sun's where the face is in the sun, warm
+white overhead and gold as it sets, brighter than the sky's then, and the
+sky's in the shade, blue by day, violet at dusk, deeper under the moon; a
+face takes between the two as much sun as the shadow and the clouds leave
+it. The sun falls on a face as the cosine of its angle to the face's
+normal, never under 0.4 of it (`Sky.sunned`), so at sunset the sides
+turned to it glow and the tops it grazes take the sky's violet. The
+blocks near and far, the meadow's blades and the world in the mirror take
+the same light. With the bit off every factor is 1 and the frame is the
+one before, byte for byte. Around the sun (bit 18, `Sky.halo`) the
+atmosphere takes a tight white glare and a wide warm glow, fading as it
+sets; the fog takes its colour from the atmosphere, so what stands against
+the sun melts into a bright haze.
+
 **The clouds** are cumulus in a slab from y=62 to 78, over the world's
 columns, not the window's (`src/clouds.bend`). A coverage over the
 ground's plane, value noise of four octaves that repeats every 256
@@ -606,20 +621,22 @@ the meadow's, eight rounds alternated with the build before it
 build, which read 7, 7, 11, 20, 38 and 69 ms that evening; the wind's,
 eight rounds alternated with the leaves' build, which read 8, 8, 13,
 23, 44 and 79 that night; the mirror's meadow, eight rounds alternated
-with 2.0.34's build, which read 7, 7, 11, 20, 38 and 73 (2026-09-29).
+with 2.0.34's build, which read 7, 7, 11, 20, 38 and 73 (2026-09-29); the
+light's, eight rounds alternated with that build, which read 7, 7, 11,
+22, 41 and 72 that night.
 The bench
 times the `!` only, five frames a size with the camera turning; its thirty
 checksums are the same on every build that changes nothing visible, both
 compilers too.
 
-| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them | on 2.0.34 with #1132 | and the meadow in the mirror |
-|---|---|---|---|---|---|---|---|---|
-| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms |
-| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms |
-| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms | 11 ms | 11 ms |
-| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms | 21 ms | 21 ms |
-| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms | 40 ms | 39 ms |
-| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms | 73 ms | 75 ms |
+| fastest bench frame | Bend 2.0.25 | 2.0.32 with #1132 and #1140 | and the clouds on their map | and the meadow | and the leaves' holes | and the wind in them | on 2.0.34 with #1132 | and the meadow in the mirror | and the light's colour |
+|---|---|---|---|---|---|---|---|---|---|
+| 512×512 | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms | 8 ms |
+| 512×512, 300 blocks placed | 5 ms | 3 ms | 4 ms | 7 ms | 8 ms | 8 ms | 7 ms | 7 ms | 7 ms |
+| 735×398, a 14" MacBook at scale 2 | 13 ms | 6 ms | 6 ms | 10 ms | 12 ms | 13 ms | 11 ms | 11 ms | 11 ms |
+| 960×540, a 1920×1080 window at scale 2 | 23 ms | 9 ms | 11 ms | 20 ms | 23 ms | 23 ms | 21 ms | 21 ms | 21 ms |
+| 1470×796, a 14" MacBook at every pixel | 48 ms | 19 ms | 24 ms | 40 ms | 44 ms | 47 ms | 40 ms | 39 ms | 40 ms |
+| 1920×1080 | 91 ms | 33 ms | 40 ms | 71 ms | 82 ms | 85 ms | 73 ms | 75 ms | 76 ms |
 
 Stock 2.0.32 took 215 ms at 1470×796: its fix of a race
 ([#975](https://github.com/bendlang/bend/issues/975)) made every read of
@@ -674,8 +691,11 @@ rounds alternated with the build before the meadow:
 | all on, before the meadow | 8.0 | 24.8 | | 28.0 | 23.6 | 19.8 |
 
 The other looks (distance and height fog, HUD, day cycle, gradient, sun,
-glow, stars, moon, water fog, Fresnel, ripples) are arithmetic on a pixel
-and read within the noise of all on. In the bench's view 49% of the rays
+glow, stars, moon, water fog, Fresnel, ripples, the light's colour and the
+sun's halo) are arithmetic on a pixel and read within the noise of all
+on: six rounds read the light's two looks 47.0 against 45.0 on the build
+before them in the bench's view at 1470×796, 57.2 against 56.2 in the
+evening towards the sun, and 12.4 against 12.6 at 735×398. In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 

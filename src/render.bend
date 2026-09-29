@@ -583,7 +583,7 @@ def run_far(fuel: Nat, w: Array<U32>, +fw: U32, +ox: F32, +oy: F32, +oz: F32, +d
 # u runs along z on an x face and along x otherwise, w along z on a y face
 # and along y otherwise; the face's tone is 0.8 on x, 1.0 on top, 0.7 on
 # z; da is the ray's step along the face's axis, so the face looks at the
-# sun when the ray came against the sun's (`sunny`).
+# sun when the ray came against the sun's (`facing`).
 type Face is Data:
   Face{px: F32, py: F32, pz: F32, ax: Bool, ay: Bool, hx: F32, hy: F32, hz: F32, cx: F32, cy: F32, cz: F32, da: F32, u: F32, wf: F32, tone: F32}
 
@@ -607,8 +607,11 @@ def face(+axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
        cx, cy, cz, Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz)),
        Bool.pick(F32, ax, pz, px), Bool.pick(F32, ay, pz, py), Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7))}
 
-def sunny(+da: F32, ax: Bool, ay: Bool, +lx: F32, +ly: F32, +lz: F32) -> Bool:
-  (ly > 0.0 : F32) && ((da * Bool.pick(F32, ax, lx, Bool.pick(F32, ay, ly, lz)) : F32) < 0.0 : F32)
+# the cosine of the sun's angle to the face's normal, 0 for a face turned
+# from it or with the sun under the horizon
+def facing(+da: F32, +ax: Bool, +ay: Bool, +lx: F32, +ly: F32, +lz: F32) -> F32:
+  +l = Bool.pick(F32, ax, lx, Bool.pick(F32, ay, ly, lz))
+  Bool.pick(F32, (ly > 0.0 : F32) && ((da * l : F32) < 0.0 : F32), Util.absf(l), 0.0)
 
 # the word holding the type of the block h: one read through the handle
 def type_word(w: Array<U32>, +base: U32, +hx: F32, +hy: F32, +hz: F32) -> Array<U32> & U32:
@@ -700,7 +703,7 @@ def vao(+s1: Bool, +s2: Bool, c: Bool) -> F32:
   +n = (Bool.pick(U32, s1, 1, 0) + Bool.pick(U32, s2, 1, 0) + Bool.pick(U32, c, 1, 0) : U32)
   Bool.pick(F32, s1 && s2, 0.4, (1.0 - 0.2 * Util.u2f(n) : F32))
 
-def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +fu: F32, +fw: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
+def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +m: U32, +fu: F32, +fw: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, s) = r
   +m8 = Bool.pick(U32, s, (m .|. 128 : U32), m)
   +pp = vao(Util.on(m8, 1), Util.on(m8, 4), Util.on(m8, 16))
@@ -708,34 +711,37 @@ def ao_fin(+v: U32, +col: U32, +f: F32, +sun: F32, +m: U32, +fu: F32, +fw: F32, 
   +pm = vao(Util.on(m8, 1), Util.on(m8, 8), Util.on(m8, 64))
   +mm = vao(Util.on(m8, 2), Util.on(m8, 8), Util.on(m8, 128))
   +ao = ((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)
-  (w, Util.mix(Util.dim(col, (ao * sun : F32)), v, f))
+  (w, Util.mix(Sky.tinted(Util.dim(col, (ao * sun : F32)), tint), v, f))
 
-def ao(n: Nat, +distant: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +base: U32, +fm: U32, +m: U32, +bit: U32, +i: U32,
+def ao(n: Nat, +distant: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +base: U32, +fm: U32, +m: U32, +bit: U32, +i: U32,
        +ox: F32, +oy: F32, +oz: F32, +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
        r: Array<U32> & Bool) -> Array<U32> & U32:
   match n:
     case 0n:
-      ao_fin(v, col, f, sun, m, fu, fw, r)
+      ao_fin(v, col, f, sun, tint, m, fu, fw, r)
     case 1n+k:
       (w, s) = r
       +j = (i + 1 : U32)
       +sj = su(j)
       +wj = sw(j)
-      ao(k, distant, v, col, f, sun, base, fm, Bool.pick(U32, s, (m .|. bit : U32), m), (bit * 2 : U32), j, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      ao(k, distant, v, col, f, sun, tint, base, fm, Bool.pick(U32, s, (m .|. bit : U32), m), (bit * 2 : U32), j, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
          solid_in(distant, w, base, fm, (ox + sj * ux + wj * ex : F32), (oy + sj * uy + wj * ey : F32), (oz + sj * uz + wj * ez : F32)))
 
-# after the sun: the first neighbour read, or none with the occlusion off
+# after the sun: the first neighbour read, or none with the occlusion off;
+# the sun the face takes and the light's colour from it (hue, bit 17)
 def after_sun(+distant: Bool, +v: U32, +col: U32, +f: F32, +base: U32, +fm: U32, +ox: F32, +oy: F32, +oz: F32,
               +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32, +lit: F32,
-              aon: Bool, r: Array<U32> & Bool) -> Array<U32> & U32:
+              +hue: Bool, +ndl: F32, +ly: F32, aon: Bool, r: Array<U32> & Bool) -> Array<U32> & U32:
   match aon:
     case True{}:
-      (w, dark) = r
-      ao(7n, distant, v, col, f, Bool.pick(F32, dark, 0.6, lit), base, fm, 0, 1, 0, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      (w, +dark) = r
+      +sun = Sky.sunned(hue, dark, lit, ndl)
+      ao(7n, distant, v, col, f, sun, Sky.light(hue, sun, ly), base, fm, 0, 1, 0, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
          solid_in(distant, w, base, fm, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
     case False{}:
-      (w, dark) = r
-      (w, Util.mix(Util.dim(col, Bool.pick(F32, dark, 0.6, lit)), v, f))
+      (w, +dark) = r
+      +sun = Sky.sunned(hue, dark, lit, ndl)
+      (w, Util.mix(Sky.tinted(Util.dim(col, sun), Sky.light(hue, sun, ly)), v, f))
 
 def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
   match on:
@@ -771,8 +777,8 @@ def meadow_top(meadow: Bool, +fm: U32, +x: F32, +z: F32, +t: F32, +c: U32, +tone
 def rim_lit(+fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
             +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, lw: Grass.Meadow, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, +dark) = r
-  (w, Grass.over(c, v, Sky.fog(fl, at, eye, (oy + dy * at : F32)),
-    Bool.pick(F32, dark, 0.6, Clouds.shade(Util.on(fl, 256), fw, ck, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz)),
+  +sun = Bool.pick(F32, dark, 0.6, Clouds.shade(Util.on(fl, 256), fw, ck, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz))
+  (w, Grass.over(c, v, Sky.fog(fl, at, eye, (oy + dy * at : F32)), sun, Sky.light(Util.on(fl, 131072), sun, ly),
     Wet.wetness(Util.on(fl, 1024), ck), Grass.dryness(fw, (ox + dx * at : F32), (oz + dz * at : F32)), dx, dy, dz, lx, ly, lz, lw))
 
 def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
@@ -805,17 +811,19 @@ def rimmed(on: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F
 # is turned from the sun; over far water the ray walks the far map, to
 # the walk's reach
 def glance_fin(+distant: Bool, +sky: U32, +fl: U32, +fm: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +x: F32, +z: F32, +t: F32,
-               +tone: F32, +f: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+               +tone: F32, +tint: Sky.Tint, +f: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
   +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
-  (w, Util.mix(meadow_top(Util.on(fl, 2048) && U32.is_eq(what, 0) && Bool.not(side), fm, x, z, t, blockcol(what, side, yf), tone, tex_if(Util.on(fl, 4), u, wf)),
+  (w, Util.mix(Sky.tinted(meadow_top(Util.on(fl, 2048) && U32.is_eq(what, 0) && Bool.not(side), fm, x, z, t, blockcol(what, side, yf), tone, tex_if(Util.on(fl, 4), u, wf)), tint),
     sky, f))
 
 def glance_face(+distant: Bool, +word: U32, +sky: U32, +fl: U32, +base: U32, +fm: U32, +dx: F32, +dy: F32, +dz: F32,
                 +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +t: F32, w: Array<U32>, fc: Face) -> Array<U32> & U32:
   Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, cx, cy, cz, +da, u, wf, +tone} = fc
+  +ndl = facing(da, ax, ay, lx, ly, lz)
+  +sun = Sky.sunned(Util.on(fl, 131072), (ndl <= 0.0 : F32), 1.0, ndl)
   glance_fin(distant, sky, fl, fm, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, px, pz, t,
-    (tone * (0.18 + 0.82 * Sky.daylight(ly)) * Bool.pick(F32, sunny(da, ax, ay, lx, ly, lz), 1.0, 0.6) : F32),
+    (tone * (0.18 + 0.82 * Sky.daylight(ly)) * sun : F32), Sky.light(Util.on(fl, 131072), sun, ly),
     F32.max(Sky.fog(fl, t, eye, py), Water.reach((t - far : F32), dx, dy, dz)),
     type_of(distant, w, base, word, hx, hy, hz))
 
@@ -970,7 +978,7 @@ def facing_up(m: Water.Reflection) -> Bool:
 # puddles
 def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
           +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-          +lx: F32, +ly: F32, +lz: F32, +sunny: Bool, +sx: F32, +sy: F32, +sz: F32, +t: F32, +oy: F32, +m: Water.Reflection,
+          +lx: F32, +ly: F32, +lz: F32, +ndl: F32, +sx: F32, +sy: F32, +sz: F32, +t: F32, +oy: F32, +m: Water.Reflection,
           r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
   +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
@@ -979,8 +987,8 @@ def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy
   soak((wet > 0.0 : F32), distant, wet, base, fm, ck, cx, cy, cz,
     Bool.not(side) && ((what < 4 : U32) || U32.is_eq(what, 6)) && facing_up(m), u, wf, t, oy, m, v, f, fl, lx, ly, lz,
     after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
-              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, lx, ly, lz), Util.on(fl, 2),
-              shadow_if(Util.on(fl, 1), sunny, distant, w, base, fm, sx, sy, sz, lx, ly, lz, sun_gaps(fl), wind_of(fl, ck))))
+              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, lx, ly, lz), Util.on(fl, 131072), ndl, ly, Util.on(fl, 2),
+              shadow_if(Util.on(fl, 1), (ndl > 0.0 : F32), distant, w, base, fm, sx, sy, sz, lx, ly, lz, sun_gaps(fl), wind_of(fl, ck))))
 
 # the look of the block behind the face: its unit steps of u and w in
 # space, where on the face for the blend of the four vertices, the
@@ -992,7 +1000,7 @@ def shade_face(+distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +w
   +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
   typed(distant, v, fl, base, fm, ck, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, (tone * (0.18 + 0.82 * Sky.daylight(ly)) : F32), Sky.fog(fl, t, oy, py),
         cx, cy, cz, Bool.pick(F32, ax, 0.0, 1.0), Bool.pick(F32, ax, 1.0, 0.0), Bool.pick(F32, ay, 0.0, 1.0), Bool.pick(F32, ay, 1.0, 0.0),
-        Util.fracf(u), Util.fracf(wf), lx, ly, lz, sunny(da, ax, ay, lx, ly, lz),
+        Util.fracf(u), Util.fracf(wf), lx, ly, lz, facing(da, ax, ay, lx, ly, lz),
         Bool.pick(F32, ax, (px + nudge : F32), px),
         Bool.pick(F32, ay, (py + nudge : F32), py),
         Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (pz + nudge : F32), pz),
@@ -1240,7 +1248,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4294049695
+def looks() -> U32: 4294442911
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds

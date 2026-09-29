@@ -438,12 +438,12 @@ def afar(+fm: U32, +x: F32, +z: F32, +t: F32) -> U32:
     (0.3 + 0.4 * F32.clamp((0.35 + 0.3 * Meadow.wild(xw, zw) + (Clouds.lattice(xw, zw, 4.0, 1024, 977) - 0.5) * 0.4 * F32.clamp((1.0 - t * 0.03 : F32), 0.0, 1.0) : F32), 0.0, 1.0) : F32))
 
 # The grass's colour: its green by how dry, yellower up the blades, darker down in the grass; in
-# the sun's light where the ray met it (sun: 0.6 in the shade), more of
+# the sun's light where the ray met it (sun: 0.6 in the shade), its colour tint, more of
 # it on the side the ray sees when the sun is behind it, and through the
 # blades against it; darker when wet, the flowers' heads among them;
 # fogged as the ray (v, f) and over what it met behind them (c), whose
 # floor under the grass is the shade at the blades' feet.
-def over(+c: U32, +v: U32, +f: F32, +sun: F32, +wet: F32, +dry: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32,
+def over(+c: U32, +v: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +wet: F32, +dry: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32,
          lw: Meadow) -> U32:
   Meadow{+tr, +n, +lit, +s, +head, +heart, +t, +hue, +low} = lw
   +m = (1.0 / F32.max(n, 0.0001) : F32)
@@ -455,6 +455,6 @@ def over(+c: U32, +v: U32, +f: F32, +sun: F32, +wet: F32, +dry: F32, +dx: F32, +
   +base = green(dry)
   +blades = Util.dim(Util.mix(Util.dim(Util.mix(base, Util.rgb(168, 206, 92), (0.25 * tip * tip : F32)), (tone * (0.6 + (sun - 0.6) * (0.85 - 0.25 * dl)) * lit * m : F32)),
     Util.dim(Util.rgb(200, 220, 100), tone), (0.5 * glow * tip : F32)), (1.0 - 0.3 * wet : F32))
-  Util.mix(Util.mix(c, Util.mix(Util.dim(base, (0.3 * tone * (0.6 + (sun - 0.6) * 0.85) * (1.0 - 0.3 * wet) : F32)), v, f), low),
-    Util.mix(Util.mix(Util.mix(blades, Util.dim(hue, (tone * sun : F32)), (head * m : F32)), Util.dim(eye(hue), (tone * sun : F32)), (heart * m : F32)), v, f),
+  Util.mix(Util.mix(c, Util.mix(Sky.tinted(Util.dim(base, (0.3 * tone * (0.6 + (sun - 0.6) * 0.85) * (1.0 - 0.3 * wet) : F32)), tint), v, f), low),
+    Util.mix(Sky.tinted(Util.mix(Util.mix(blades, Util.dim(hue, (tone * sun : F32)), (head * m : F32)), Util.dim(eye(hue), (tone * sun : F32)), (heart * m : F32)), tint), v, f),
     (1.0 - tr : F32))
