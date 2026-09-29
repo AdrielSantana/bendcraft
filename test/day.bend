@@ -13,6 +13,7 @@ import ../src/wet.bend as Wet
 import ../src/util.bend as Util
 import ../src/water.bend as Water
 import ../src/lens.bend as Lens
+import ../src/shafts.bend as Shafts
 
 def blocked(r: Array<U32> & Bool) -> Bool:
   (w, got) = r
@@ -44,6 +45,16 @@ def seen_in(r: Array<U32> & Render.Cam) -> F32:
 def eye_sun(w: Array<U32>, +night: Bool) -> F32:
   seen_in(Render.sighted(w, Render.camera(64.5, 10.5, 64.5, 0.0, 0.0, 0, 0, 0, 0, 0, 0,
     Bool.pick(U32, night, (524288 + 33554432 : U32), 524288), 64, 64, (524288 + Day.morning() : U32))))
+
+def near_corner(r: Array<U32> & Shafts.Beams) -> U32:
+  (w, b) = r
+  Shafts.Beams{tl, tr, bl, br} = b
+  tl
+
+# the shafts along the ray from an eye at y 20 of the world w straight
+# ahead, level, under the fixed sun, the clouds' shadows off
+def shafts_in(w: Array<U32>) -> U32:
+  near_corner(Render.beams(Render.camera(64.5, 20.0, 64.5, 0.0, 0.0, 0, 0, Render.looks_base(), 0, 0, 0, 0, 64, 64, 0), w, 32, 32))
 
 def clock(g: Player.Game) -> U32:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, t, bag} = g
@@ -286,6 +297,15 @@ def main() -> IO(Unit):
       && U32.is_eq(Lens.through(True{}, 123456, 0.0, 0.0, 0.0, 0.48, 0.8, 0.36, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.48, 0.8, 0.36), 123456)
       && (Lens.through(True{}, 123456, 1.0, 0.0, 0.0, 0.48, 0.8, 0.36, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.48, 0.8, 0.36) > 123456 : U32),
       "the lens leaves a pixel as it was when off or when the sun is hidden, and brightens one towards a seen sun")
+    Lib.expect(F32.is_eq(Shafts.lit(8n, 0, 50.0, 0, 0.0), 0.0) && Lib.near(Shafts.lit(8n, 4294967295, 50.0, 0, 0.0), Shafts.depth(50.0), 0.001)
+      && (Shafts.lit(8n, 4294967295, 10.0, 0, 0.0) < Shafts.lit(8n, 4294967295, 50.0, 0, 0.0) : F32),
+      "the shafts' light grows with the haze the eye looks through, and none shines where the sun reaches none of it")
+    Lib.expect(U32.is_eq(Shafts.glowed(False{}, 123456, 4294967295, 50.0, 1.0, Day.morning(), 0.48, 0.8, 0.36, 0.48, 0.8, 0.36), 123456)
+      && U32.is_eq(Shafts.glowed(True{}, 123456, 0, 50.0, 1.0, Day.morning(), 0.48, 0.8, 0.36, 0.48, 0.8, 0.36), 123456)
+      && (Shafts.glowed(True{}, 123456, 4294967295, 50.0, 1.0, Day.morning(), 0.48, 0.8, 0.36, 0.48, 0.8, 0.36) > 123456 : U32),
+      "the shafts leave a pixel as it was when off or when the haze before it is in the shade, and brighten it towards the sun")
+    Lib.expect(U32.is_eq(shafts_in([0 : U32^20n]), 4294967295) && U32.is_eq(shafts_in([33554432 : U32^20n]), 4278190080),
+      "the sun reaches every point of a ray's shafts in an open world, and none of the six within the window under a roof")
     Lib.expect(U32.is_ne(Sky.moon(True{}, 0, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 0), "moon disc")
     Lib.expect(U32.is_eq(Sky.moon(False{}, 123, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 123), "moon flag")
     Lib.expect(probe(69, 10, 64, 1.0, 0.0, 0.0), "shadow +x")

@@ -210,17 +210,30 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    glare that spills over the silhouettes before it and a lens flare,
    both from how much of the sun the eye sees, thirteen rays walked on
    the host once a frame, bit 19; 1 to 3 ms at 1470×796, none at scale 2;
-   the moon's, a third as bright, once the sun has set. Its rays in the air:
-   a few points along a ray tested against the sun, once a 4x4 tile at
-   its corners, blended over the tile and cut at each pixel's hit. Then
-   the blocks': torches and a night that needs them.
+   the moon's, a third as bright, once the sun has set. Its light in the
+   haze — done (2026-09-29, their choice once three prototypes of rays
+   had not read as rays: "uma névoa atmosférica mesmo"): eight points
+   along the rays through a 4x4 tile's corners, out to 96 blocks, tested
+   against the sun and the clouds, weighed by each pixel and summed to its
+   hit, bit 30 of the base (README, the shafts); 8 ms at 1470×796 and 2
+   at scale 2. Tried and failed on the way: the same points out to 240
+   blocks over a haze of 60 read as a wash, and a beam through the leaves
+   needs a point every texel; the halo weighed by the lit air read too
+   faint, the halo being a fifth of the sky near the sun; 32 rays from
+   the host in a ring around the sun gave a glow, not rays; shaded air
+   that darkens as lit air brightens greyed the whole sky under the
+   clouds. Light laid on a bright sky has no room left: rays need
+   something dark close to the sun's line. Then the night (asked for on
+   2026-09-29): brighter under the full moon, its light in the haze, and
+   a mist; then the blocks': torches.
 
 **The budget.** At 1470×796 a frame is 47 ms with a ray for every pixel
 and 13 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
 with #1132 and #1140, and 40 and 11 on 2.0.34 with #1132; the clouds took 19 → 24 and 6 → 7, the weather,
 the rain and the wet then 27 and 8, the clouds' map gave back 3 and 2,
 the meadow took 24 → 40 and 6 → 10, the leaves' holes 6 and 1 more,
-and the wind in them 3 and none;
+and the wind in them 3 and none, the light's lens up to 3 and none,
+the shafts 7 and 2;
 the far horizon took 7 → 12 of the second on 2.0.25). At 60 frames a
 second that leaves 3 ms at scale 2 for the looks still to come, and none
 at 120. Every

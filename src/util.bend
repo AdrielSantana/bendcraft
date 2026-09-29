@@ -35,5 +35,9 @@ def mix(+a: U32, +b: U32, +f: F32) -> U32:
 def scale(+c: U32, +k: F32) -> U32:
   F32.to_u32(F32.min((U32.to_f32(c) * k : F32), 255.0))
 
+# light a added over a channel c as a screen does: toward white, never past it
+def screen(+c: U32, +a: F32) -> U32:
+  F32.to_u32((U32.to_f32(c) + (255.0 - U32.to_f32(c)) * F32.clamp(a, 0.0, 1.0) : F32))
+
 def dim(+c: U32, +k: F32) -> U32:
   rgb(scale((c / 65536 : U32), k), scale((c / 256 % 256 : U32), k), scale((c % 256 : U32), k))

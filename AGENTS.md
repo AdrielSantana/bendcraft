@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `04341456956994e1538c124991391c66` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `0f2a98a8e202ecbb061694f4351abd56` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -224,9 +224,10 @@ looks `Cam.fl` has no room for: `Render.looks_base()` holds the ones on
 by default and `Water.with_looks` puts them in; 27 is the world in the
 water's mirror, 28 the caustic on its bed, 29 says the window holds
 partial water (`Render.with_partial`, from `World.partials`; the DDA is
-specialized on it, `~partial`), 30 remains spare.
+specialized on it, `~partial`), 30 the shafts, the sun's light in the haze (`src/shafts.bend`); none is spare.
 - A walk is the unit of cost: a DDA step is about 0.1 ms a frame at
-1470×796 (0.16 on 2.0.25) wherever it happens (primary 60, shadow 24, mirror 32), because
+1470×796 (0.16 on 2.0.25) wherever it happens (primary 60, shadow 24, mirror 32, the shafts'
+six glances of 16 at a tile's four corners), because
 the frame is its slowest lane. Count the steps a new look adds before
 writing it.
 - `Cam.sel`: selection in bits 0..3 (eight types and the bucket, 8), four

@@ -54,16 +54,12 @@ def flare(+u: F32, +v: F32, +su: F32, +sv: F32) -> Sky.Tint:
 def streak(+u: F32, +v: F32, +su: F32, +sv: F32) -> F32:
   (0.28 * F32.exp((0.0 - Util.absf((v - sv : F32)) * 90.0 : F32)) * F32.exp((0.0 - Util.absf((u - su : F32)) * 1.2 : F32)) : F32)
 
-# light a added over a channel c as a screen does: toward white, never past it
-def screen(+c: U32, +a: F32) -> U32:
-  F32.to_u32((U32.to_f32(c) + (255.0 - U32.to_f32(c)) * F32.clamp(a, 0.0, 1.0) : F32))
-
 # the glare g in the body's colour and the flare f, k of it, over c
 def lit(+c: U32, +g: F32, +body: U32, +k: F32, f: Sky.Tint) -> U32:
   Sky.Tint{+r, +gr, +b} = f
-  Util.rgb(screen((c / 65536 : U32), (g * U32.to_f32((body / 65536 : U32)) / 255.0 + k * r : F32)),
-    screen((c / 256 % 256 : U32), (g * U32.to_f32((body / 256 % 256 : U32)) / 255.0 + k * gr : F32)),
-    screen((c % 256 : U32), (g * U32.to_f32((body % 256 : U32)) / 255.0 + k * b : F32)))
+  Util.rgb(Util.screen((c / 65536 : U32), (g * U32.to_f32((body / 65536 : U32)) / 255.0 + k * r : F32)),
+    Util.screen((c / 256 % 256 : U32), (g * U32.to_f32((body / 256 % 256 : U32)) / 255.0 + k * gr : F32)),
+    Util.screen((c % 256 : U32), (g * U32.to_f32((body % 256 : U32)) / 255.0 + k * b : F32)))
 
 # the body's place on the screen from its direction s l on the camera's
 # forward f, right r and up e, as the ray is cast (d = f + 0.9 u r + 0.9 v e);

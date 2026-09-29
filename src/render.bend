@@ -10,6 +10,7 @@ import ./rain.bend as Rain
 import ./wet.bend as Wet
 import ./grass.bend as Grass
 import ./lens.bend as Lens
+import ./shafts.bend as Shafts
 
 # THE RENDER: a ray per pixel through the ring of columns, on the GPU.
 #
@@ -791,21 +792,24 @@ def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +o
       rim_lit(fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at, lw,
         shadow_if(Util.on(fl, 1), (ly > 0.0 : F32), False{}, w, base, fw, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz, sun_gaps(fl), wind_of(fl, ck)))
 
+# the blades take the sun's shafts in the air before them (sh, Shafts)
 def rim_met(+base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
-            +lx: F32, +ly: F32, +lz: F32, +c: U32, +t1: F32, r: Array<U32> & Grass.Meadow) -> Array<U32> & U32:
+            +lx: F32, +ly: F32, +lz: F32, +c: U32, +t1: F32, +sh: U32, r: Array<U32> & Grass.Meadow) -> Array<U32> & U32:
   (w, lw) = r
   Grass.Meadow{+tr, +n, +lit, +s, +head, +heart, +t, +hue, +low} = lw
-  rim_seen((tr < 0.999 : F32) || (low > 0.0 : F32), base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, ((t + 0.001 * t1) / (n + 0.001) : F32),
-    Grass.Meadow{tr, n, lit, s, head, heart, t, hue, low}, w)
+  +at = ((t + 0.001 * t1) / (n + 0.001) : F32)
+  Shafts.over(Shafts.on(fl, base, ly), sh, at, (1.0 - tr : F32), ck, dx, dy, dz, lx, ly, lz,
+    rim_seen((tr < 0.999 : F32) || (low > 0.0 : F32), base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at,
+      Grass.Meadow{tr, n, lit, s, head, heart, t, hue, low}, w))
 
 def rimmed(on: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-           +rim: F32, +t1: F32, +v: U32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+           +rim: F32, +t1: F32, +v: U32, +lx: F32, +ly: F32, +lz: F32, +sh: U32, r: Array<U32> & U32) -> Array<U32> & U32:
   match on:
     case False{}:
       r
     case True{}:
       (w, +c) = r
-      rim_met(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, t1, Grass.march(w, base, fw, ck, ox, oy, oz, dx, dy, dz, rim, t1))
+      rim_met(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, t1, sh, Grass.march(w, base, fw, ck, ox, oy, oz, dx, dy, dz, rim, t1))
 
 # the block the mirror's ray met: its type's colour, the texture (a grass
 # top the meadow seen from afar), the face's tone, darker when the face
@@ -860,15 +864,15 @@ def glance_past(past: Bool, +sky: U32, +fl: U32, +base: U32, +fm: U32,
           (far + reach_of(28.0, dx, dy, dz) : F32), False{}, Water.Trace{0.0, 0.0}))
 
 # the mirror's walk: what it met, and the meadow it passed over (bit 16),
-# without the blades' shadows
+# without the blades' shadows or the shafts in the air
 def mirror_open(+sky: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32,
                 +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
                 +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Ray) -> Array<U32> & U32:
   (w, ray) = r
   Ray{+code, +t, +rim, +rim_end, tr} = ray
   +c = (code % 4 : U32)
-  rimmed(Util.on(fl, 2048) && Util.on(fl, 65536) && (rim >= 0.0 : F32), base, fm, ck, (fl .&. 4294967294 : U32), eye, ox, oy, oz, dx, dy, dz,
-    rim, F32.min(t, rim_end), sky, lx, ly, lz,
+  rimmed(Util.on(fl, 2048) && Util.on(fl, 65536) && (rim >= 0.0 : F32), (base .&. 3221225471 : U32), fm, ck, (fl .&. 4294967294 : U32), eye, ox, oy, oz, dx, dy, dz,
+    rim, F32.min(t, rim_end), sky, lx, ly, lz, 0,
     glance_past((c < 1 : U32) && Bool.not(inside(128.0, (ox + dx * t : F32), (oz + dz * t : F32))), sky, fl, base, fm,
       ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, c, t, w))
 
@@ -1165,38 +1169,43 @@ def after_walk(near: Bool, +c: U32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: 
 
 # The grass stands from the rim to its end, what the ray met or the
 # water it went into, which hides what it holds.
+# The shafts (sh, Shafts) lie over the air the ray crossed to what it met,
+# or to its water, or as far as they reach where the window's walk let it
+# go on.
 def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-              +c: U32, +t: F32, +rim: F32, +rim_end: F32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
+              +c: U32, +t: F32, +rim: F32, +rim_end: F32, +sh: U32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
   Water.Trace{+entry, +depth} = tr
   rimmed(Util.on(fl, 2048) && (rim >= 0.0 : F32),
-    base, fw, ck, fl, oy, ox, oy, oz, dx, dy, dz, rim, F32.min(F32.min(t, rim_end), Bool.pick(F32, (depth > 0.0 : F32), entry, t)), v, lx, ly, lz,
-    after_walk(((c % 4 : U32) > 0 : U32) || Util.on(fl, 96) || rises(fl, dy, t, entry, depth), c, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, t, entry, depth, w))
+    base, fw, ck, fl, oy, ox, oy, oz, dx, dy, dz, rim, F32.min(F32.min(t, rim_end), Bool.pick(F32, (depth > 0.0 : F32), entry, t)), v, lx, ly, lz, sh,
+    Shafts.over(Shafts.on(fl, base, ly), sh, Bool.pick(F32, (depth > 0.0 : F32), entry, Bool.pick(F32, ((c % 4 : U32) > 0 : U32), t, Shafts.open_air(oy, dy))), 1.0,
+      ck, dx, dy, dz, lx, ly, lz,
+      after_walk(((c % 4 : U32) > 0 : U32) || Util.on(fl, 96) || rises(fl, dy, t, entry, depth), c, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, t, entry, depth, w)))
 
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-          ct: Ray) -> Array<U32> & U32:
+          +sh: U32, ct: Ray) -> Array<U32> & U32:
   Ray{+c, +t, +rim, +rim_end, tr} = ct
-  shade_fin(v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, c, t, rim, rim_end, w, tr)
+  shade_fin(v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, c, t, rim, rim_end, sh, w, tr)
 
 def finish(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-           r: Array<U32> & Ray) -> Array<U32> & U32:
+           +sh: U32, r: Array<U32> & Ray) -> Array<U32> & U32:
   (w, ct) = r
-  shade(v, fl, lx, ly, lz, w, base, fw, ck, ox, oy, oz, dx, dy, dz, ct)
+  shade(v, fl, lx, ly, lz, w, base, fw, ck, ox, oy, oz, dx, dy, dz, sh, ct)
 
 def run_dda(~water: Bool, ~partial: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32,
-            +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
-  finish(v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, walk_from(~water, ~partial, 60n, w, base, fl, ck, ox, oy, oz, dx, dy, dz, 0.0))
+            +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +sh: U32) -> Array<U32> & U32:
+  finish(v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, sh, walk_from(~water, ~partial, 60n, w, base, fl, ck, ox, oy, oz, dx, dy, dz, 0.0))
 
 def run_partial(part: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32,
-                +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+                +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +sh: U32) -> Array<U32> & U32:
   match part:
-    case False{}: run_dda(~True{}, ~False{}, w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
-    case True{}: run_dda(~True{}, ~True{}, w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
+    case False{}: run_dda(~True{}, ~False{}, w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz, sh)
+    case True{}: run_dda(~True{}, ~True{}, w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz, sh)
 
 def run_water(on: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32,
-              +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+              +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +sh: U32) -> Array<U32> & U32:
   match on:
-    case False{}: run_dda(~False{}, ~False{}, w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
-    case True{}: run_partial(Util.on(base, 536870912), w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
+    case False{}: run_dda(~False{}, ~False{}, w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz, sh)
+    case True{}: run_partial(Util.on(base, 536870912), w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz, sh)
 
 def blank(+counts: Bool, r: Array<U32> & U32) -> Array<U32> & U32:
   (w, c) = r
@@ -1205,15 +1214,15 @@ def blank(+counts: Bool, r: Array<U32> & U32) -> Array<U32> & U32:
 # A ray that misses the loaded box reads the world zero times but for the
 # clouds' map (and counts no step and no hit under the profile's flags).
 def shoot(go: Bool, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32,
-          +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+          +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +sh: U32) -> Array<U32> & U32:
   match go:
     case False{}:
       blank(((fl .&. 96) > 0 : U32), Clouds.above(w, fl, fw, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz))
     case True{}:
-      run_water(Util.on(fl, 2097152), w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz)
+      run_water(Util.on(fl, 2097152), w, base, fw, ck, ox, oy, oz, dx, dy, dz, v, fl, lx, ly, lz, sh)
 
 def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32,
-            +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+            +dx: F32, +dy: F32, +dz: F32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +sh: U32) -> Array<U32> & U32:
   +rx = (1.0 / F32.max(Util.absf(dx), 0.00001) * Bool.pick(F32, (dx > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
   +ry = (1.0 / F32.max(Util.absf(dy), 0.00001) * Bool.pick(F32, (dy > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
   +rz = (1.0 / F32.max(Util.absf(dz), 0.00001) * Bool.pick(F32, (dz > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32)
@@ -1226,7 +1235,7 @@ def clipped(w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +
   +tin  = F32.max(F32.max(F32.min(xa, xb), F32.min(ya, yb)), F32.max(F32.min(za, zb), 0.0))
   +tout = F32.min(F32.min(F32.max(xa, xb), F32.max(ya, yb)), F32.max(za, zb))
   +s = (tin + 0.002 : F32)
-  shoot((tin < tout : F32), w, base, fw, ck, (ox + dx * s : F32), (oy + dy * s : F32), (oz + dz * s : F32), dx, dy, dz, v, fl, lx, ly, lz)
+  shoot((tin < tout : F32), w, base, fw, ck, (ox + dx * s : F32), (oy + dy * s : F32), (oz + dz * s : F32), dx, dy, dz, v, fl, lx, ly, lz, sh)
 
 # ---------- the player ----------
 
@@ -1256,8 +1265,8 @@ def looks() -> U32: 4294967199
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds
 # a cell of partial water, so the rays clip to planes (Frame.view_w
-# sets it from the world's count); 30 is spare
-def looks_base() -> U32: 402653184
+# sets it from the world's count); 30 the sun's light in the haze (Shafts)
+def looks_base() -> U32: 1476395008
 
 def with_partial(+more: U32, some: Bool) -> U32:
   Bool.pick(U32, some, (more .|. 536870912 : U32), more)
@@ -1367,35 +1376,46 @@ def norm3(+x: F32, +y: F32, +z: F32) -> F32:
 def p2f(+p: U32, +size: U32, +rh: U32) -> F32:
   ((U32.to_f32((p * 2 : U32)) - U32.to_f32(size)) / U32.to_f32(rh) : F32)
 
+# the eye's ray through the screen's point (u, v), normalised, with the
+# camera's forward f, its level right r (f across the world's up) and its
+# up e (r across f), which the lens reads
+type Aim is Data:
+  Aim{dx: F32, dy: F32, dz: F32, fx: F32, fy: F32, fz: F32, rx: F32, rz: F32, ex: F32, ey: F32, ez: F32}
+
+def aim(+yaw: F32, +pit: F32, +u: F32, +v: F32) -> Aim:
+  +fx = look_x(yaw, pit)
+  +fy = look_y(pit)
+  +fz = look_z(yaw, pit)
+  +rl = F32.max(norm3(fz, 0.0, (0.0 - fx : F32)), 0.00001)
+  +rx = (fz / rl : F32)
+  +rz = ((0.0 - fx) / rl : F32)
+  +ex = (0.0 - rz * fy : F32)
+  +ey = (rz * fx - rx * fz : F32)
+  +ez = (rx * fy : F32)
+  +dx = (fx + 0.9 * u * rx + 0.9 * v * ex : F32)
+  +dy = (fy + 0.9 * v * ey : F32)
+  +dz = (fz + 0.9 * u * rz + 0.9 * v * ez : F32)
+  +n = F32.max(norm3(dx, dy, dz), 0.00001)
+  Aim{(dx / n : F32), (dy / n : F32), (dz / n : F32), fx, fy, fz, rx, rz, ex, ey, ez}
+
 def lensed(on: Bool, +seen: F32, +u: F32, +v: F32, +dx: F32, +dy: F32, +dz: F32, +fx: F32, +fy: F32, +fz: F32,
            +rx: F32, +rz: F32, +ex: F32, +ey: F32, +ez: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +c) = r
   (w, Lens.through(on, c, seen, u, v, dx, dy, dz, fx, fy, fz, rx, rz, ex, ey, ez, lx, ly, lz))
 
-def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
+def shade_aim(+ox: F32, +oy: F32, +oz: F32, +base: U32, +far: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +ck: U32, +seen: F32,
+              +u: F32, +v: F32, +prof: U32, w: Array<U32>, a: Aim) -> Array<U32> & U32:
+  Aim{+dx, +dy, +dz, +fx, +fy, +fz, +rx, +rz, +ex, +ey, +ez} = a
+  lensed(Util.on(fl, 524288), seen, u, v, dx, dy, dz, fx, fy, fz, rx, rz, ex, ey, ez, lx, ly, lz,
+    clipped(w, base, far, ck, ox, oy, oz, dx, dy, dz, Clouds.sky(fl, ck, dx, dy, dz, lx, ly, lz), fl, lx, ly, lz, prof))
+
+# sh holds the tile's shafts (beams), which the pixel weighs by its place
+def shade_px(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32, +sh: Shafts.Beams) -> Array<U32> & U32:
   Cam{ox, oy, oz, yaw, pit, base, far, sel, items, stat, +fl, +rw, +rh, +lx, +ly, +lz, +ck, +seen} = cam
   +u = p2f(pxi, rw, rh)
   +v = p2f(pyi, rh, rh)
-  +fx = look_x(yaw, pit)
-  +fy = look_y(pit)
-  +fz = look_z(yaw, pit)
-  # right = normalize(cross(fwd, up)), up = (0,1,0)
-  +rl = F32.max(norm3(fz, 0.0, (0.0 - fx : F32)), 0.00001)
-  +rx = (fz / rl : F32)
-  +rz = ((0.0 - fx) / rl : F32)
-  # up' = cross(right, fwd)
-  +ux = (0.0 - rz * fy : F32)
-  +uy = (rz * fx - rx * fz : F32)
-  +uz = (rx * fy : F32)
-  +dx = (fx + 0.9 * u * rx + 0.9 * v * ux : F32)
-  +dy = (fy + 0.9 * v * uy : F32)
-  +dz = (fz + 0.9 * u * rz + 0.9 * v * uz : F32)
-  +n = F32.max(norm3(dx, dy, dz), 0.00001)
-  +nx = (dx / n : F32)
-  +ny = (dy / n : F32)
-  +nz = (dz / n : F32)
-  lensed(Util.on(fl, 524288), seen, u, v, nx, ny, nz, fx, fy, fz, rx, rz, ux, uy, uz, lx, ly, lz,
-    clipped(w, base, far, ck, ox, oy, oz, nx, ny, nz, Clouds.sky(fl, ck, nx, ny, nz, lx, ly, lz), fl, lx, ly, lz))
+  shade_aim(ox, oy, oz, base, far, fl, lx, ly, lz, ck, seen, u, v,
+    Shafts.profile(sh, (U32.to_f32((pxi % 4 : U32)) * 0.25 : F32), (U32.to_f32((pyi % 4 : U32)) * 0.25 : F32)), w, aim(yaw, pit, u, v))
 
 # a crosshair straight over the middle
 def cross_at(+pxi: U32, +pyi: U32, +rw: U32, +rh: U32) -> Bool:
@@ -1543,16 +1563,93 @@ def hud_of(+cam: Cam, +pxi: U32, +pyi: U32) -> U32:
   Cam{ox, oy, oz, yaw, pit, base, far, sel, items, stat, +fl, rw, rh, lx, ly, lz, ck, seen} = cam
   hud_if(Util.on(fl, 16), sel, items, stat, pxi, pyi, rw, rh)
 
-def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
+def paint(over: Bool, +code: U32, +cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32, +sh: Shafts.Beams) -> Array<U32> & U32:
   match over:
     case True{}:
       (w, (code - 1 : U32))
     case False{}:
-      shade_px(cam, w, pxi, pyi)
+      shade_px(cam, w, pxi, pyi, sh)
 
-def pixel(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32) -> Array<U32> & U32:
+def pixel(+cam: Cam, w: Array<U32>, +pxi: U32, +pyi: U32, +sh: Shafts.Beams) -> Array<U32> & U32:
   +code = hud_of(cam, pxi, pyi)
-  paint((code > 0 : U32), code, cam, w, pxi, pyi)
+  paint((code > 0 : U32), code, cam, w, pxi, pyi, sh)
+
+# ---------- the sun's shafts in the air ----------
+# The tile's shafts (src/shafts.bend): along the rays through its four
+# corners, how much of the sun reaches each of eight points (Shafts.at):
+# the clouds' shadow, and within the window's reach a glance of 16 steps
+# towards the sun, the leaves' gaps and their wind as the ground's shadow
+# sees them; a nibble a point. A point inside a block, past the corner
+# ray's hit, counts as lit: a pixel beside it looks past the block, and
+# a shadow there would ring the block's outline.
+def clear(r: Array<U32> & Glance) -> Array<U32> & F32:
+  (w, g) = r
+  Glance{+c, +t} = g
+  (w, Bool.pick(F32, (c < 1 : U32) || (t <= 0.0 : F32), 1.0, 0.0))
+
+def sunlit(near: Bool, w: Array<U32>, +base: U32, +open: U32, +wind: U32, +x: F32, +y: F32, +z: F32,
+           +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & F32:
+  match near:
+    case False{}:
+      (w, 1.0)
+    case True{}:
+      clear(run_glance(16n, w, base, x, y, z, lx, ly, lz, open, wind))
+
+def beamed(+q: U32, +bits: U32, +cloud: F32, r: Array<U32> & F32) -> Array<U32> & U32:
+  (w, +sun) = r
+  (w, (bits + q * F32.to_u32((sun * cloud * 15.0 + 0.5 : F32)) : U32))
+
+def beam(n: Nat, +base: U32, +fm: U32, +ck: U32, +clouds: Bool, +open: U32, +wind: U32, +ox: F32, +oy: F32, +oz: F32,
+         +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, +i: U32, +q: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+  match n:
+    case 0n:
+      r
+    case 1n+k:
+      (w, +bits) = r
+      +t = Shafts.at(i)
+      +x = (ox + dx * t : F32)
+      +y = (oy + dy * t : F32)
+      +z = (oz + dz * t : F32)
+      beam(k, base, fm, ck, clouds, open, wind, ox, oy, oz, dx, dy, dz, lx, ly, lz, (i + 1 : U32), (q * 16 : U32),
+        beamed(q, bits, Clouds.through(clouds && (y < Clouds.middle() : F32), fm, ck, x, y, z, lx, ly, lz),
+          sunlit((i < 6 : U32), w, base, open, wind, x, y, z, lx, ly, lz)))
+
+def beam_aim(+base: U32, +fm: U32, +ck: U32, +clouds: Bool, +open: U32, +wind: U32, +ox: F32, +oy: F32, +oz: F32,
+             +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, a: Aim) -> Array<U32> & U32:
+  Aim{+dx, +dy, +dz, fx, fy, fz, rx, rz, ex, ey, ez} = a
+  beam(8n, base, fm, ck, clouds, open, wind, ox, oy, oz, dx, dy, dz, lx, ly, lz, 0, 1, (w, 0))
+
+def corner(+cam: Cam, w: Array<U32>, +cx: U32, +cy: U32) -> Array<U32> & U32:
+  Cam{ox, oy, oz, yaw, pit, base, far, sel, items, stat, +fl, +rw, +rh, lx, ly, lz, +ck, seen} = cam
+  beam_aim(base, far, ck, Util.on(fl, 256), sun_gaps(fl), wind_of(fl, ck), ox, oy, oz, lx, ly, lz, w, aim(yaw, pit, p2f(cx, rw, rh), p2f(cy, rh, rh)))
+
+def beams_fin(+a: U32, +b: U32, +c: U32, r: Array<U32> & U32) -> Array<U32> & Shafts.Beams:
+  (w, +d) = r
+  (w, Shafts.Beams{a, b, c, d})
+
+def beams_c(+cam: Cam, +x: U32, +y: U32, +a: U32, +b: U32, r: Array<U32> & U32) -> Array<U32> & Shafts.Beams:
+  (w, +c) = r
+  beams_fin(a, b, c, corner(cam, w, (x + 4 : U32), (y + 4 : U32)))
+
+def beams_b(+cam: Cam, +x: U32, +y: U32, +a: U32, r: Array<U32> & U32) -> Array<U32> & Shafts.Beams:
+  (w, +b) = r
+  beams_c(cam, x, y, a, b, corner(cam, w, x, (y + 4 : U32)))
+
+def beams_a(+cam: Cam, +x: U32, +y: U32, r: Array<U32> & U32) -> Array<U32> & Shafts.Beams:
+  (w, +a) = r
+  beams_b(cam, x, y, a, corner(cam, w, (x + 4 : U32), y))
+
+def beams_if(on: Bool, +cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Shafts.Beams:
+  match on:
+    case False{}:
+      (w, Shafts.Beams{0, 0, 0, 0})
+    case True{}:
+      beams_a(cam, x, y, corner(cam, w, x, y))
+
+# the shafts of the tile at (x, y)
+def beams(+cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Shafts.Beams:
+  Cam{ox, oy, oz, yaw, pit, +base, far, sel, items, stat, +fl, rw, rh, lx, +ly, lz, ck, seen} = cam
+  beams_if(Shafts.on(fl, base, ly), cam, w, x, y)
 
 # ---------- tile, straight-line ----------
 # Four pixels in a row, the handle passed from one to the next; a 2x2 of one
@@ -1569,36 +1666,40 @@ def t2d(+k0: U32, +k1: U32, +k2: U32, r: Array<U32> & U32) -> Array<U32> & Image
   (w, +k3) = r
   (w, one4(U32.is_eq(k0, k1) && U32.is_eq(k1, k2) && U32.is_eq(k2, k3), k0, k1, k2, k3))
 
-def t2c(+cam: Cam, +x: U32, +y: U32, +k0: U32, +k1: U32, r: Array<U32> & U32) -> Array<U32> & Image:
+def t2c(+cam: Cam, +x: U32, +y: U32, +sh: Shafts.Beams, +k0: U32, +k1: U32, r: Array<U32> & U32) -> Array<U32> & Image:
   (w, k2) = r
-  t2d(k0, k1, k2, pixel(cam, w, (x + 1 : U32), (y + 1 : U32)))
+  t2d(k0, k1, k2, pixel(cam, w, (x + 1 : U32), (y + 1 : U32), sh))
 
-def t2b(+cam: Cam, +x: U32, +y: U32, +k0: U32, r: Array<U32> & U32) -> Array<U32> & Image:
+def t2b(+cam: Cam, +x: U32, +y: U32, +sh: Shafts.Beams, +k0: U32, r: Array<U32> & U32) -> Array<U32> & Image:
   (w, k1) = r
-  t2c(cam, x, y, k0, k1, pixel(cam, w, x, (y + 1 : U32)))
+  t2c(cam, x, y, sh, k0, k1, pixel(cam, w, x, (y + 1 : U32), sh))
 
-def t2a(+cam: Cam, +x: U32, +y: U32, r: Array<U32> & U32) -> Array<U32> & Image:
+def t2a(+cam: Cam, +x: U32, +y: U32, +sh: Shafts.Beams, r: Array<U32> & U32) -> Array<U32> & Image:
   (w, k0) = r
-  t2b(cam, x, y, k0, pixel(cam, w, (x + 1 : U32), y))
+  t2b(cam, x, y, sh, k0, pixel(cam, w, (x + 1 : U32), y, sh))
 
-def t2(+cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
-  t2a(cam, x, y, pixel(cam, w, x, y))
+def t2(+cam: Cam, w: Array<U32>, +x: U32, +y: U32, +sh: Shafts.Beams) -> Array<U32> & Image:
+  t2a(cam, x, y, sh, pixel(cam, w, x, y, sh))
 
 def t4d(a: Image, b: Image, c: Image, r: Array<U32> & Image) -> Array<U32> & Image:
   (w, d) = r
   (w, Qua{a, b, c, d})
 
-def t4c(+cam: Cam, +x: U32, +y: U32, a: Image, b: Image, r: Array<U32> & Image) -> Array<U32> & Image:
+def t4c(+cam: Cam, +x: U32, +y: U32, +sh: Shafts.Beams, a: Image, b: Image, r: Array<U32> & Image) -> Array<U32> & Image:
   (w, c) = r
-  t4d(a, b, c, t2(cam, w, (x + 2 : U32), (y + 2 : U32)))
+  t4d(a, b, c, t2(cam, w, (x + 2 : U32), (y + 2 : U32), sh))
 
-def t4b(+cam: Cam, +x: U32, +y: U32, a: Image, r: Array<U32> & Image) -> Array<U32> & Image:
+def t4b(+cam: Cam, +x: U32, +y: U32, +sh: Shafts.Beams, a: Image, r: Array<U32> & Image) -> Array<U32> & Image:
   (w, b) = r
-  t4c(cam, x, y, a, b, t2(cam, w, x, (y + 2 : U32)))
+  t4c(cam, x, y, sh, a, b, t2(cam, w, x, (y + 2 : U32), sh))
 
-def t4a(+cam: Cam, +x: U32, +y: U32, r: Array<U32> & Image) -> Array<U32> & Image:
+def t4a(+cam: Cam, +x: U32, +y: U32, +sh: Shafts.Beams, r: Array<U32> & Image) -> Array<U32> & Image:
   (w, a) = r
-  t4b(cam, x, y, a, t2(cam, w, (x + 2 : U32), y))
+  t4b(cam, x, y, sh, a, t2(cam, w, (x + 2 : U32), y, sh))
+
+def t4s(+cam: Cam, +x: U32, +y: U32, r: Array<U32> & Shafts.Beams) -> Array<U32> & Image:
+  (w, +sh) = r
+  t4a(cam, x, y, sh, t2(cam, w, x, y, sh))
 
 def t4(+cam: Cam, w: Array<U32>, +x: U32, +y: U32) -> Array<U32> & Image:
-  t4a(cam, x, y, t2(cam, w, x, y))
+  t4s(cam, x, y, beams(cam, w, x, y))

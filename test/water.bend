@@ -190,7 +190,7 @@ def pixel(r: Array<U32> & U32) -> U32:
 def fog_ray_w(+fl: U32, +oy: F32, w: World.World) -> U32:
   World.W{ring, meta} = w
   pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 0, 0, 1.5, oy, 64.5,
-    1.0, 0.0, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
+    1.0, 0.0, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36, 0))
 
 # a level ray through a pool of cells at height y, to a wall at that height
 def fog_ray_y(fl: U32, +y: U32, wet_until: U32, wall: U32) -> U32:
@@ -204,7 +204,7 @@ def fog_ray(fl: U32, wet_until: U32, wall: U32) -> U32:
 def emerged_ray_w(+fl: U32, +sun_y: F32, w: World.World) -> U32:
   World.W{ring, meta} = w
   pixel(Render.run_water(Util.on(fl, 2097152), ring, 0, 0, 0, 1.5, 2.5, 64.5,
-    0.99875, 0.05, 0.0, Sky.gradient(True{}, 0.05, sun_y), fl, 0.48, sun_y, 0.36))
+    0.99875, 0.05, 0.0, Sky.gradient(True{}, 0.05, sun_y), fl, 0.48, sun_y, 0.36, 0))
 
 def emerged_wall(fl: U32, sun_y: F32, wall: U32, w: World.World) -> U32:
   World.W{ring, +meta} = w
@@ -227,7 +227,7 @@ def surface_ray_w(+fl: U32, +under: Bool, w: World.World) -> U32:
   World.W{ring, meta} = w
   World.Meta{m, ox, oz, q, +np, gone} = meta
   pixel(Render.run_water(Util.on(fl, 2097152), ring, Render.with_partial(0, (np > 0 : U32)), 0, 0, 64.5, Bool.pick(F32, under, 10.5, 14.5), 64.5,
-    0.0, (0.0 - 1.0 : F32), 0.0, Util.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36))
+    0.0, (0.0 - 1.0 : F32), 0.0, Util.rgb(130, 170, 235), fl, 0.48, 0.8, 0.36, 0))
 
 def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
   surface_ray_w(fl, under, World.edit(World.edit(World.edit(empty(), 64, 64, 9, True{}, 2),
@@ -237,7 +237,7 @@ def surface_ray(fl: U32, under: Bool, blocked: Bool) -> U32:
 def far_surface_w(w: World.World, +fl: U32, +oy: F32, +dy: F32) -> U32:
   World.W{ring, meta} = w
   pixel(Render.run_water(True{}, ring, 0, 0, 0, 1.5, oy, 64.5,
-    0.9949874, dy, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36))
+    0.9949874, dy, 0.0, Util.rgb(100, 140, 180), fl, 0.48, 0.8, 0.36, 0))
 
 def low_pool() -> World.World:
   pool_at(2n, empty(), 51, 2, 53)

@@ -161,7 +161,7 @@ def near_then(+acc: U32, +dx: F32, +dy: F32, +dz: F32, +v: U32, +lx: F32, +ly: F
 
 def look_both(ring: Array<U32>, +acc: U32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
   +v = Sky.atmosphere(looks(), dx, dy, dz, lx, ly, lz)
-  near_then(acc, dx, dy, dz, v, lx, ly, lz, Render.clipped(ring, eye_base(), eye_far(), 0, 64.5, 30.0, 64.5, dx, dy, dz, v, looks(), lx, ly, lz))
+  near_then(acc, dx, dy, dz, v, lx, ly, lz, Render.clipped(ring, eye_base(), eye_far(), 0, 64.5, 30.0, 64.5, dx, dy, dz, v, looks(), lx, ly, lz, 0))
 
 # ray i: 24 headings, eight pitches from 0.08 to 0.5 down
 def look_ray(ring: Array<U32>, +acc: U32, +yaw: F32, +pit: F32) -> Array<U32> & U32:

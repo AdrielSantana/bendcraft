@@ -107,7 +107,8 @@ def plan() -> List<Run>:
    off("lens off         ", 524288, 0),
    off("world mirror off ", 0, 134217728),
    off("caustic off      ", 0, 268435456),
-   Run{"rays alone       ", 1, 0, Render.looks_base()},
+   off("shafts off       ", 0, 1073741824),
+   Run{"rays alone       ", 1, 0, 0},
    Run{"hits             ", 2, 64, Render.looks_base()},
    Run{"steps           ", 3, 32, Render.looks_base()}]
 
