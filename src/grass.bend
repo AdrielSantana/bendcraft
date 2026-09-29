@@ -4,6 +4,7 @@ import ./sky.bend as Sky
 import ./clouds.bend as Clouds
 import ./meadow.bend as Meadow
 import ./world.bend as World
+import ./wet.bend as Wet
 
 # THE MEADOW: a carpet of tall grass on the grass tops, a ray meeting
 # its blades on three walks over grids of cells: a fine one near, four
@@ -93,6 +94,25 @@ def gusting(+xw: F32, +ck: U32, +zphase: F32) -> F32:
 def quiver(+ck: U32, +phase: F32) -> F32:
   (0.65 + 1.4 * Util.absf((Util.fracf((U32.to_f32((ck % 1571 : U32)) * 0.00063654 + phase : F32)) - 0.5 : F32)) : F32)
 
+# where the rain reaches the cell's floor (on), how deep into a puddle its
+# middle (x, z) lies, and the slope (Wet.pool); else in none
+def pooled(on: Bool, +fm: U32, +x: F32, +z: F32, +soak: F32) -> Clouds.Slope:
+  match on:
+    case False{}:
+      Clouds.Slope{(0.0 - 1.0 : F32), 0.0, 0.0}
+    case True{}:
+      Wet.pool(fm, x, z, soak)
+
+# what the puddle of a cell pl leaves, in the rain, of a share of its
+# grass (dx, dz) off its middle
+def thin(rain: Bool, +share: F32, +pl: Clouds.Slope, +dx: F32, +dz: F32) -> F32:
+  match rain:
+    case False{}:
+      share
+    case True{}:
+      Clouds.Slope{+v, +gx, +gz} = pl
+      (share * (1.0 - Wet.cover((v + gx * dx + gz * dz : F32))) : F32)
+
 # The blade hashed b of the cell whose corner is (x, z), on the floor at
 # y: there where bits 26..31 fall under the patch's thickness; from 0.6
 # to 1.2 of the patch's height (tall, its inverse itall; bits 8..9), up to
@@ -100,8 +120,9 @@ def quiver(+ck: U32, +phase: F32) -> F32:
 # the cell, sz wide, (0..7) that leaves its tip in it; the wind pushes
 # its tip along x, quivering back and forth every second and a half at
 # its own phase (18..21), no further than the cell's side, and never its
-# root. Bits 22..25 make it brighter or darker; wf times as wide.
-def stalk(+b: U32, +wf: F32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +itall: F32, +dense: F32, +wind: F32, +ck: U32,
+# root. Bits 22..25 make it brighter or darker; wf times as wide. In the
+# rain the cell's puddle pl thins them at their roots.
+def stalk(+b: U32, +wf: F32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +itall: F32, +dense: F32, +rain: Bool, +pl: Clouds.Slope, +wind: F32, +ck: U32,
           +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t1: F32, +ifp: F32, +qh: F32, +qr: F32) -> Tuft:
   +v = (b / 256 % 4 : U32)
   +h = (tall * way4(v, 0.6, 0.8, 1.0, 1.2) : F32)
@@ -110,7 +131,7 @@ def stalk(+b: U32, +wf: F32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +i
   +rx = (x + 0.06 * sz + F32.max((0.0 - lx : F32), 0.0) + (0.88 * sz - Util.absf(lx)) * nib(b) : F32)
   +rz = (z + 0.06 * sz + F32.max((0.0 - lz : F32), 0.0) + (0.88 * sz - Util.absf(lz)) * nib((b / 16 : U32)) : F32)
   +push = (wind * quiver(ck, nib((b / 262144 : U32))) : F32)
-  blade((U32.to_f32((b / 67108864 : U32)) * 0.015625 < dense : F32), rx, rz, y, (itall * way4(v, 1.6666667, 1.25, 1.0, 0.8333333) : F32),
+  blade((U32.to_f32((b / 67108864 : U32)) * 0.015625 < thin(rain, dense, pl, (rx - x - 0.5 * sz : F32), (rz - z - 0.5 * sz : F32)) : F32), rx, rz, y, (itall * way4(v, 1.6666667, 1.25, 1.0, 0.8333333) : F32),
     (F32.min((rx + lx + push : F32), (x + 0.96 * sz : F32)) - rx : F32), lz, (0.85 + 0.3 * nib((b / 4194304 : U32)) : F32), wf,
     ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr)
 
@@ -178,15 +199,15 @@ def flower(on: Bool, +c: U32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +
         (a * tc : F32)}
 
 # the cell's blades 4 to 6, wf times as wide (where on)
-def rest(on: Bool, +c: U32, +wf: F32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +itall: F32, +dense: F32, +wind: F32, +ck: U32,
+def rest(on: Bool, +c: U32, +wf: F32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +itall: F32, +dense: F32, +rain: Bool, +pl: Clouds.Slope, +wind: F32, +ck: U32,
          +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t1: F32, +ifp: F32, +qh: F32, +qr: F32) -> Tuft:
   match on:
     case False{}:
       none()
     case True{}:
-      both(stalk(Sky.star_hash(c, 4), wf, sz, x, z, y, tall, itall, dense, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
-           both(stalk(Sky.star_hash(c, 5), wf, sz, x, z, y, tall, itall, dense, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
-                stalk(Sky.star_hash(c, 6), wf, sz, x, z, y, tall, itall, dense, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr)))
+      both(stalk(Sky.star_hash(c, 4), wf, sz, x, z, y, tall, itall, dense, rain, pl, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
+           both(stalk(Sky.star_hash(c, 5), wf, sz, x, z, y, tall, itall, dense, rain, pl, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
+                stalk(Sky.star_hash(c, 6), wf, sz, x, z, y, tall, itall, dense, rain, pl, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr)))
 
 # the hash of the window's cell (i, j), per of them a block, by its
 # place in the world's 256 blocks (fm, the far map's corner) and a seed
@@ -200,20 +221,22 @@ def cell(+fm: U32, +per: F32, +seed: U32, +i: F32, +j: F32) -> U32:
 # blades wm times as wide, and a flower where bits 8..15 fall under the
 # patch's rate, somewhere in its middle (16..23). As q goes from 0 to 1
 # three of the blades thin away as the other three widen to 1.6 times,
-# and past that the ray meets those three alone.
-def blades(on: Bool, +fm: U32, +per: F32, +seed: U32, +i: F32, +j: F32, +q: F32, +wm: F32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +itall: F32, +dense: F32, +wind: F32, +rate: F32, +ck: U32,
-           +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t1: F32, +ifp: F32, +qh: F32, +qr: F32) -> Tuft:
+# and past that the ray meets those three alone. In the rain a puddle
+# thins them, and its flower, where the rain reaches the floor (soak).
+def blades(on: Bool, +fm: U32, +per: F32, +seed: U32, +i: F32, +j: F32, +q: F32, +wm: F32, +sz: F32, +x: F32, +z: F32, +y: F32, +tall: F32, +itall: F32, +dense: F32, +wind: F32, +rate: F32,
+           +rain: Bool, +soak: F32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t1: F32, +ifp: F32, +qh: F32, +qr: F32) -> Tuft:
   match on:
     case False{}:
       none()
     case True{}:
       +c = cell(fm, per, seed, i, j)
       +wf = (wm * (1.0 + 0.6 * q) : F32)
-      both(both(stalk(Sky.star_hash(c, 1), wf, sz, x, z, y, tall, itall, dense, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
-                stalk(Sky.star_hash(c, 2), wf, sz, x, z, y, tall, itall, dense, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr)),
-           both(stalk(Sky.star_hash(c, 3), wf, sz, x, z, y, tall, itall, dense, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
-                both(rest((q < 1.0 : F32), c, (wm * (1.0 - q) : F32), sz, x, z, y, tall, itall, dense, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
-                  flower((byte((c / 256 : U32)) < rate : F32), c, sz, x, z, y, tall, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr))))
+      +pl = pooled(rain && (soak > 0.0 : F32), fm, (x + 0.5 * sz : F32), (z + 0.5 * sz : F32), soak)
+      both(both(stalk(Sky.star_hash(c, 1), wf, sz, x, z, y, tall, itall, dense, rain, pl, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
+                stalk(Sky.star_hash(c, 2), wf, sz, x, z, y, tall, itall, dense, rain, pl, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr)),
+           both(stalk(Sky.star_hash(c, 3), wf, sz, x, z, y, tall, itall, dense, rain, pl, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
+                both(rest((q < 1.0 : F32), c, (wm * (1.0 - q) : F32), sz, x, z, y, tall, itall, dense, rain, pl, wind, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr),
+                  flower((byte((c / 256 : U32)) < thin(rain, rate, pl, 0.0, 0.0) : F32), c, sz, x, z, y, tall, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr))))
 
 # whether the ray passes the cell whose middle is (x, z), anywhere in it
 # (reach from the middle), while as low as its grass grows (top) over the
@@ -252,49 +275,50 @@ def eye(+hue: U32) -> U32:
 # A block column's patch of the meadow: the floor y when it is a grass
 # top there (else under 0), its blades' height and its inverse, the share
 # of them that grow, the wind's push at their tips, how often a cell
-# flowers and in what colour; and the pixel's inverse width where the ray
-# came over it. How wild the meadow grows at the column makes the grass
-# taller and thicker, or shorter and thinner, and the short grass
-# flowers, each 8 by 8 blocks in one colour.
+# flowers and in what colour, what of the rain's wet reaches its floor;
+# and the pixel's inverse width where the ray came over it. How wild the
+# meadow grows at the column makes the grass taller and thicker, or
+# shorter and thinner, and the short grass flowers, each 8 by 8 blocks
+# in one colour.
 type Patch is Data:
-  Patch{y: F32, tall: F32, itall: F32, dense: F32, wind: F32, rate: F32, hue: U32, ifp: F32}
+  Patch{y: F32, tall: F32, itall: F32, dense: F32, wind: F32, rate: F32, hue: U32, soak: F32, ifp: F32}
 
-def patch_word(+y: F32, +xw: F32, +ck: U32, +ifp: F32, r: Array<U32> & U32) -> Array<U32> & Patch:
+def patch_word(+y: F32, +xw: F32, +ck: U32, +soak: F32, +ifp: F32, r: Array<U32> & U32) -> Array<U32> & Patch:
   (w, +word) = r
   +wild = byte(word)
   +tall = (0.25 + 0.17 * wild : F32)
   (w, Patch{y, tall, (1.0 / tall : F32), F32.clamp((0.6 + wild : F32), 0.0, 1.0), (gusting(xw, ck, ((byte(Meadow.phase(word)) - 0.5) * 3.4 : F32)) * 0.07 : F32),
-    (F32.clamp(((0.45 - wild) * 3.0 : F32), 0.0, 1.0) * 0.04 : F32), bloom(Meadow.flower(word)), ifp})
+    (F32.clamp(((0.45 - wild) * 3.0 : F32), 0.0, 1.0) * 0.04 : F32), bloom(Meadow.flower(word)), soak, ifp})
 
-def patch_grass(grass: Bool, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +ifp: F32, w: Array<U32>) -> Array<U32> & Patch:
+def patch_grass(grass: Bool, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +soak: F32, +ifp: F32, w: Array<U32>) -> Array<U32> & Patch:
   match grass:
     case False{}:
-      (w, Patch{(0.0 - 1.0 : F32), 0.0, 0.0, 0.0, 0.0, 0.0, 0, ifp})
+      (w, Patch{(0.0 - 1.0 : F32), 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, ifp})
     case True{}:
       +xw = (bx + Clouds.corner_x(fm) : F32)
-      patch_word(y, (xw + 0.5 : F32), ck, ifp,
+      patch_word(y, (xw + 0.5 : F32), ck, soak, ifp,
         Array.get(U32, w, Meadow.map_at(Util.f2u(xw), Util.f2u((bz + Clouds.corner_z(fm) : F32)))))
 
-def patch_type(+mask: U32, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +ifp: F32, r: Array<U32> & U32) -> Array<U32> & Patch:
+def patch_type(+mask: U32, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +wet: F32, +ifp: F32, r: Array<U32> & U32) -> Array<U32> & Patch:
   (w, +word) = r
-  patch_grass(floor_top(mask, y) && U32.is_eq(World.nib_at(word, Util.f2u((y - 1.0 : F32))), 0), bx, bz, y, fm, ck, ifp, w)
+  patch_grass(floor_top(mask, y) && U32.is_eq(World.nib_at(word, Util.f2u((y - 1.0 : F32))), 0), bx, bz, y, fm, ck, Wet.reached(False{}, wet, y, mask), ifp, w)
 
-def patch_mask(+base: U32, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +ifp: F32, r: Array<U32> & U32) -> Array<U32> & Patch:
+def patch_mask(+base: U32, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +wet: F32, +ifp: F32, r: Array<U32> & U32) -> Array<U32> & Patch:
   (w, +mask) = r
-  patch_type(mask, bx, bz, y, fm, ck, ifp,
+  patch_type(mask, bx, bz, y, fm, ck, wet, ifp,
     Array.get(U32, w, (World.col_at(base, Util.f2u(bx), Util.f2u(bz)) + 1 + Util.f2u((y - 1.0 : F32)) / 8 : U32)))
 
 # the patch of the block column (bx, bz) over its floor at y, where the
-# ray comes over it t from the eye
-def patch(w: Array<U32>, +base: U32, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +t: F32) -> Array<U32> & Patch:
-  patch_mask(base, bx, bz, y, fm, ck, (1.0 / ((t + 0.3) * pixel()) : F32), Array.get(U32, w, World.col_at(base, Util.f2u(bx), Util.f2u(bz))))
+# ray comes over it t from the eye, in a world as wet as wet
+def patch(w: Array<U32>, +base: U32, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +wet: F32, +t: F32) -> Array<U32> & Patch:
+  patch_mask(base, bx, bz, y, fm, ck, wet, (1.0 / ((t + 0.3) * pixel()) : F32), Array.get(U32, w, World.col_at(base, Util.f2u(bx), Util.f2u(bz))))
 
-def refetch(moved: Bool, w: Array<U32>, +base: U32, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +t: F32, +p: Patch) -> Array<U32> & Patch:
+def refetch(moved: Bool, w: Array<U32>, +base: U32, +bx: F32, +bz: F32, +y: F32, +fm: U32, +ck: U32, +wet: F32, +t: F32, +p: Patch) -> Array<U32> & Patch:
   match moved:
     case False{}:
       (w, p)
     case True{}:
-      patch(w, base, bx, bz, y, fm, ck, t)
+      patch(w, base, bx, bz, y, fm, ck, wet, t)
 
 # How finely a walk meets the grass: cells sz blocks wide, per of them a
 # block, hashed with seed; blades wm times as
@@ -339,6 +363,13 @@ def met(+tr: F32, +n: F32, +lit: F32, +s: F32, +head: F32, +heart: F32, +t: F32,
 def level(+oy: F32, +dy: F32, +ta: F32, +tb: F32) -> F32:
   F32.floor((oy + dy * Bool.pick(F32, (dy < 0.0 : F32), tb, ta) + 0.001 : F32))
 
+# the shade at the blades' feet where the ray ends on their floor (on),
+# t1 from the eye at (x, z), gone by 11 blocks; in the rain none over a
+# puddle there, looked up in the cell that holds the end (last) alone
+def feet(+rain: Bool, +on: Bool, +last: Bool, +fm: U32, +soak: F32, +x: F32, +z: F32, +t1: F32) -> F32:
+  +fade = (1.0 - Util.smooth(F32.clamp(((t1 - 6.0) * 0.2 : F32), 0.0, 1.0)) : F32)
+  Bool.pick(F32, on, thin(rain, (0.85 * fade : F32), pooled(rain && on && last && (soak > 0.0 : F32) && (fade > 0.0 : F32), fm, x, z, soak), 0.0, 0.0), 0.0)
+
 # The cells of lvl the ray crosses, as the render's walk crosses blocks,
 # until t1 or once what it sees through is spent (go): (ix, iz) the cell,
 # mx and mz the distance to its next side along x and z, ux and uz
@@ -346,9 +377,10 @@ def level(+oy: F32, +dy: F32, +ta: F32, +tb: F32) -> F32:
 # (lv) can hold grass it meets there (a floor higher up would have
 # stopped it), so the walk follows the floors as the ray climbs or falls;
 # the patch is read again as it comes into another block column or over
-# another floor (r).
-def walk(fuel: Nat, go: Bool, +lvl: Level, +ix: F32, +iz: F32, +mx: F32, +mz: F32, +ux: F32, +uz: F32, +lv: F32,
-         +base: U32, +fm: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t1: F32, +qh: F32, +qr: F32,
+# another floor (r). In the rain (rain) a copy of its own thins the grass
+# over the puddles.
+def walk(~rain: Bool, fuel: Nat, go: Bool, +lvl: Level, +ix: F32, +iz: F32, +mx: F32, +mz: F32, +ux: F32, +uz: F32, +lv: F32,
+         +base: U32, +fm: U32, +ck: U32, +wet: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t1: F32, +qh: F32, +qr: F32,
          acc: Meadow, r: Array<U32> & Patch) -> Array<U32> & Meadow:
   match fuel:
     case 0n:
@@ -361,7 +393,7 @@ def walk(fuel: Nat, go: Bool, +lvl: Level, +ix: F32, +iz: F32, +mx: F32, +mz: F3
           Level{+sz, +per, +seed, +wm, +q0, +fi, +fo, +fk} = lvl
           Meadow{+tr, +n, +lit, +s, +head, +heart, +t, +hue, +low} = acc
           (w, +p) = r
-          Patch{+py, +tall, +itall, +dense, +wind, +rate, +phue, +ifp} = p
+          Patch{+py, +tall, +itall, +dense, +wind, +rate, +phue, +soak, +ifp} = p
           +next = F32.min(mx, mz)
           +xs = (mx < mz : F32)
           +nx = Bool.pick(F32, xs, (ix + Bool.pick(F32, (dx > 0.0 : F32), 1.0, (0.0 - 1.0 : F32)) : F32), ix)
@@ -369,23 +401,22 @@ def walk(fuel: Nat, go: Bool, +lvl: Level, +ix: F32, +iz: F32, +mx: F32, +mz: F3
           +nmx = Bool.pick(F32, xs, (mx + ux : F32), mx)
           +nmz = Bool.pick(F32, xs, mz, (mz + uz : F32))
           +nlv = level(oy, dy, next, F32.min(F32.min(nmx, nmz), t1))
-          walk(f, (next < t1 : F32) && (tr > 0.05 : F32), lvl, nx, nz, nmx, nmz, ux, uz, nlv, base, fm, ck, ox, oy, oz, dx, dy, dz, t1, qh, qr,
+          walk(~rain, f, (next < t1 : F32) && (tr > 0.05 : F32), lvl, nx, nz, nmx, nmz, ux, uz, nlv, base, fm, ck, wet, ox, oy, oz, dx, dy, dz, t1, qh, qr,
             met(tr, n, lit, s, head, heart, t, hue,
               (Util.smooth(F32.clamp(((next - fi) * 0.5 : F32), 0.0, 1.0)) * (1.0 - Util.smooth(F32.clamp(((next - fo) * fk : F32), 0.0, 1.0))) : F32), phue,
-              Bool.pick(F32, (py >= 0.0 : F32) && (Util.absf((oy + dy * t1 - py : F32)) < 0.01 : F32),
-                (0.85 * (1.0 - Util.smooth(F32.clamp(((t1 - 6.0) * 0.2 : F32), 0.0, 1.0))) : F32), 0.0),
+              feet(rain, (py >= 0.0 : F32) && (Util.absf((oy + dy * t1 - py : F32)) < 0.01 : F32), (next >= t1 : F32), fm, soak, (ox + dx * t1 : F32), (oz + dz * t1 : F32), t1),
               blades((py >= 0.0 : F32)
                   && near_cell(((ix + 0.5) * sz : F32), ((iz + 0.5) * sz : F32), (0.76 * sz : F32), py, (tall * 1.2 + 0.07 : F32), ox, oy, oz, dx, dy, dz, t1, qh, qr),
-                fm, per, seed, ix, iz, F32.clamp(((next - q0) * 0.5 : F32), 0.0, 1.0), wm, sz, (ix * sz : F32), (iz * sz : F32), py, tall, itall, dense, wind, rate, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr)),
+                fm, per, seed, ix, iz, F32.clamp(((next - q0) * 0.5 : F32), 0.0, 1.0), wm, sz, (ix * sz : F32), (iz * sz : F32), py, tall, itall, dense, wind, rate, rain, soak, ck, ox, oy, oz, dx, dy, dz, t1, ifp, qh, qr)),
             refetch((Util.absf((F32.floor((nx * sz : F32)) - F32.floor((ix * sz : F32)) : F32))
                    + Util.absf((F32.floor((nz * sz : F32)) - F32.floor((iz * sz : F32)) : F32))
                    + Util.absf((nlv - lv : F32)) > 0.5 : F32),
-              w, base, F32.floor((nx * sz : F32)), F32.floor((nz * sz : F32)), nlv, fm, ck, next, p))
+              w, base, F32.floor((nx * sz : F32)), F32.floor((nz * sz : F32)), nlv, fm, ck, wet, next, p))
 
 # The walk of level lvl from t0 to t1 (where on), on from what the ray
 # saw; it starts a hair past t0, in the block past a side the ray came in
 # by there.
-def march_at(on: Bool, +lvl: Level, +base: U32, +fm: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+def march_at(~rain: Bool, on: Bool, +lvl: Level, +base: U32, +fm: U32, +ck: U32, +wet: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
              +t0: F32, +t1: F32, r: Array<U32> & Meadow) -> Array<U32> & Meadow:
   match on:
     case False{}:
@@ -406,17 +437,26 @@ def march_at(on: Bool, +lvl: Level, +base: U32, +fm: U32, +ck: U32, +ox: F32, +o
       +mz = (ts + Bool.pick(F32, (dz > 0.0 : F32), (iz + 1.0 - gz : F32), (gz - iz : F32)) * uz : F32)
       +qh = (1.0 / F32.max((dx * dx + dz * dz : F32), 0.000001) : F32)
       +lv = level(oy, dy, ts, F32.min(F32.min(mx, mz), t1))
-      walk(64n, True{}, lvl, ix, iz, mx, mz, ux, uz, lv, base, fm, ck, ox, oy, oz, dx, dy, dz, t1, qh, F32.sqrt(qh), acc,
-        patch(w, base, F32.floor(px), F32.floor(pz), lv, fm, ck, ts))
+      walk(~rain, 64n, True{}, lvl, ix, iz, mx, mz, ux, uz, lv, base, fm, ck, wet, ox, oy, oz, dx, dy, dz, t1, qh, F32.sqrt(qh), acc,
+        patch(w, base, F32.floor(px), F32.floor(pz), lv, fm, ck, wet, ts))
 
 # The grass the ray from the eye passes from t0 to t1, over whatever
-# floors: the fine walk to 12 blocks, the coarse one from 10 to 22, and
-# the broad one from 20 to 40.
-def march(w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+# floors, in a world as wet as wet: the fine walk to 12 blocks, the
+# coarse one from 10 to 22, and the broad one from 20 to 40.
+def march_in(~rain: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +wet: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+             +t0: F32, +t1: F32) -> Array<U32> & Meadow:
+  march_at(~rain, (t1 > 20.0 : F32) && (t0 < 40.0 : F32), broad(), base, fm, ck, wet, ox, oy, oz, dx, dy, dz, F32.max(t0, 20.0), F32.min(t1, 40.0),
+    march_at(~rain, (t1 > 10.0 : F32) && (t0 < 22.0 : F32), coarse(), base, fm, ck, wet, ox, oy, oz, dx, dy, dz, F32.max(t0, 10.0), F32.min(t1, 22.0),
+      march_at(~rain, (t0 < 12.0 : F32), fine(), base, fm, ck, wet, ox, oy, oz, dx, dy, dz, t0, F32.min(t1, 12.0), (w, Meadow{1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0}))))
+
+# the same where it rains, or the rain has left it wet (rain)
+def march(rain: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +wet: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           +t0: F32, +t1: F32) -> Array<U32> & Meadow:
-  march_at((t1 > 20.0 : F32) && (t0 < 40.0 : F32), broad(), base, fm, ck, ox, oy, oz, dx, dy, dz, F32.max(t0, 20.0), F32.min(t1, 40.0),
-    march_at((t1 > 10.0 : F32) && (t0 < 22.0 : F32), coarse(), base, fm, ck, ox, oy, oz, dx, dy, dz, F32.max(t0, 10.0), F32.min(t1, 22.0),
-      march_at((t0 < 12.0 : F32), fine(), base, fm, ck, ox, oy, oz, dx, dy, dz, t0, F32.min(t1, 12.0), (w, Meadow{1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0}))))
+  match rain:
+    case False{}:
+      march_in(~False{}, w, base, fm, ck, wet, ox, oy, oz, dx, dy, dz, t0, t1)
+    case True{}:
+      march_in(~True{}, w, base, fm, ck, wet, ox, oy, oz, dx, dy, dz, t0, t1)
 
 # how dry the meadow is at (x, z) of the window
 def dryness(+fm: U32, +x: F32, +z: F32) -> F32:

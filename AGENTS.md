@@ -314,7 +314,9 @@ The render's DDA marks a ray's rim, where it first came into air over a
 solid block low enough to meet the grass (`Grass.top()`), and its end
 (`Render.Ray`); the walks run between, to what the ray met. The grass
 is throughput-bound, not tail-bound: cutting its skimming rays' work
-gave a millisecond at most (PERF.md, 5, 17 and 22).
+gave a millisecond at most (PERF.md, 5, 17 and 22). In a wet world a
+copy of the walks (`~rain`) thins the blades over the puddles, each by
+the puddle's depth at its root (`Grass.thin`, `Wet.pool`).
 - The leaves' holes (`Render.pierced`): a walk that enters a leaf block
 through an open texel of its face (8x8, `Render.hole`, the same on every
 block) goes through it. The eye's walk and the mirror see

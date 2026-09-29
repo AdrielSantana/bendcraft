@@ -172,8 +172,15 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    does it once a column. The wet it leaves — done (2026-09-27): a face
    under the open sky darkens and mirrors the sky, and puddles gather on
    the ground's tops, for a while after the rain too; the drops ring the
-   puddles and the lake, and the puddles mirror the world. Still to do:
-   splashes, and rain in the water's mirror.
+   puddles and the lake, and the puddles mirror the world. The meadow's
+   blades hid the puddles on the grass tops until they thinned over them
+   (2026-09-29: "eu gostaria sim de conseguir ver as poças nos blocos de
+   grama"). A cell's blades thinned by the puddle at its middle left the
+   broad walk's cells of a block as squares; each blade by its root, from
+   the noise's slope, costs the same hashes. A dry day reads about 3 ms
+   more at 1470×796 with the rain's code in the program, whether one walk
+   serves both or the rain has a copy of its own (`~rain`): not yet
+   explained. Still to do: splashes, and rain in the water's mirror.
 7. **Vegetation.** The meadow — done (2026-09-28): tall grass and
    flowers on the grass tops, blades a ray walks on three grids of cells
    to 40 blocks, their tips pushed by the wind's gusts, flowers in cups of

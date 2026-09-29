@@ -23,13 +23,25 @@ def wetness(on: Bool, +ck: U32) -> F32:
         F32.max((0.7 * Rain.amount(Clouds.weather((ck - U32.min(ck, 262144) : U32))) : F32),
           (0.4 * Rain.amount(Clouds.weather((ck - U32.min(ck, 524288) : U32))) : F32)))
 
-# how much of a top of the ground at (x, z), in the window's columns, a
-# puddle covers: cells of two columns and of one, more the wetter
-def puddle(+fm: U32, +x: F32, +z: F32, +wet: F32) -> F32:
+def pool_fin(+wet: F32, p: Clouds.Slope, q: Clouds.Slope) -> Clouds.Slope:
+  Clouds.Slope{+v, +gx, +gz} = p
+  Clouds.Slope{+v2, +gx2, +gz2} = q
+  Clouds.Slope{((0.65 * v + 0.35 * v2 - 1.0 + 0.45 * wet) * 8.0 : F32), ((0.65 * gx + 0.35 * gx2) * 8.0 : F32), ((0.65 * gz + 0.35 * gz2) * 8.0 : F32)}
+
+# how deep into a puddle a top of the ground at (x, z), in the window's
+# columns, lies, 0 at its edge and 1 where it covers the top whole, with
+# its slope: a noise over cells of two columns and of one, deeper the wetter
+def pool(+fm: U32, +x: F32, +z: F32, +wet: F32) -> Clouds.Slope:
   +a = Clouds.wrap((x + Clouds.corner_x(fm) : F32))
   +b = Clouds.wrap((z + Clouds.corner_z(fm) : F32))
-  +n = (0.65 * Clouds.lattice(a, b, 0.5, 128, 509) + 0.35 * Clouds.lattice(a, b, 1.0, 256, 601) : F32)
-  Util.smooth(F32.clamp(((n - 1.0 + 0.45 * wet) * 8.0 : F32), 0.0, 1.0))
+  pool_fin(wet, Clouds.slope(a, b, 0.5, 128, 509), Clouds.slope(a, b, 1.0, 256, 601))
+
+# how much of the top a puddle covers at a depth d
+def cover(+d: F32) -> F32:
+  Util.smooth(F32.clamp(d, 0.0, 1.0))
+
+def puddle(+fm: U32, +x: F32, +z: F32, +wet: F32) -> F32:
+  cover(Clouds.value(pool(fm, x, z, wet)))
 
 # what of the rain, or of the wet it left, reaches the cell at cy: all of
 # it if no block of the cell's column (its mask) is over it, none under a

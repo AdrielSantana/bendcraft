@@ -60,9 +60,17 @@ def corner_z(+fm: U32) -> F32: U32.to_f32(((fm % 256 + 64) % 256 : U32))
 def blown(+fm: U32, +t: U32) -> F32:
   (corner_x(fm) - U32.to_f32((t % 524288 : U32)) * 0.00048828125 : F32)
 
+# a value v and how fast it rises a block along x and along z
+type Slope is Data:
+  Slope{v: F32, gx: F32, gz: F32}
+
+def value(s: Slope) -> F32:
+  Slope{v, gx, gz} = s
+  v
+
 # value noise over cells of 1/k columns, n of them to the 256, so that it
-# repeats with the columns; x and z in 0..256
-def lattice(+x: F32, +z: F32, +k: F32, +n: U32, +seed: U32) -> F32:
+# repeats with the columns, with its slope; x and z in 0..256
+def slope(+x: F32, +z: F32, +k: F32, +n: U32, +seed: U32) -> Slope:
   +u = (x * k : F32)
   +v = (z * k : F32)
   +fu = F32.floor(u)
@@ -73,9 +81,20 @@ def lattice(+x: F32, +z: F32, +k: F32, +n: U32, +seed: U32) -> F32:
   +i1 = ((i + 1) % n + seed : U32)
   +j0 = (j % n : U32)
   +j1 = ((j + 1) % n : U32)
-  +su = Util.smooth((u - fu : F32))
-  +sv = Util.smooth((v - fv : F32))
-  ((at(i0, j0) * (1.0 - su) + at(i1, j0) * su) * (1.0 - sv) + (at(i0, j1) * (1.0 - su) + at(i1, j1) * su) * sv : F32)
+  +ru = (u - fu : F32)
+  +rv = (v - fv : F32)
+  +su = Util.smooth(ru)
+  +sv = Util.smooth(rv)
+  +a = at(i0, j0)
+  +b = at(i1, j0)
+  +c = at(i0, j1)
+  +d = at(i1, j1)
+  Slope{((a * (1.0 - su) + b * su) * (1.0 - sv) + (c * (1.0 - su) + d * su) * sv : F32),
+    (((b - a) * (1.0 - sv) + (d - c) * sv) * 6.0 * ru * (1.0 - ru) * k : F32),
+    (((c - a) * (1.0 - su) + (d - b) * su) * 6.0 * rv * (1.0 - rv) * k : F32)}
+
+def lattice(+x: F32, +z: F32, +k: F32, +n: U32, +seed: U32) -> F32:
+  value(slope(x, z, k, n, seed))
 
 # the coverage's two broad octaves, and its two fine ones, whose mean is
 # 0.115

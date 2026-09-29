@@ -556,10 +556,14 @@ columns, in cells of two columns and of one, passes a level the wetness
 lowers: darker still, they mirror the sky with its sun, moon and stars
 (`Clouds.mirrored`) and the world, walked as the lake's mirror walks it
 (`Render.behind`, with the world in the mirror, bit 27), almost whole at
-a glance, and shiver with the rain's rings. The wetness is the
-rain's amount, or 0.7 of what fell a quarter day before, or 0.4 of what
-fell half a day before, so the ground stays wet after the rain and
-dries, its puddles shrinking first.
+a glance, and shiver with the rain's rings. In the meadow a puddle thins
+the blades at their roots, and the shade at their feet, as it covers the
+ground there (`Grass.thin`, from the puddle's depth and its slope,
+`Wet.pool`), so it shows among them; a walk of the grass has a copy of
+its own for a wet world (`~rain`), and a dry one runs the other. The
+wetness is the rain's amount, or 0.7 of what fell a quarter day before,
+or 0.4 of what fell half a day before, so the ground stays wet after the
+rain and dries, its puddles shrinking first.
 A dry world reads nothing; a far face is taken as open, and a face seen
 through water shows none of it.
 
@@ -698,7 +702,7 @@ test/profile.bend  what costs what: each look off in turn, the rays' hits and st
 test/trace.py      the frame's dispatch kernel by kernel, from the emitted C
 test/terrain.bend  noise rows, lake floor materials, dry roots, canopies, saved columns, the far map and its look
 test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea and its trace, the look, its shadow and mirror
-test/meadow.bend   the meadow's map, and rays through the grass, over it, over stone and down onto it
+test/meadow.bend   the meadow's map, and rays through the grass, over it, over stone and down onto it, and onto a puddle in it
 test/leaves.bend   the leaf plane, and walks through a leaf block's open texels and stopped by the rest
 test/torch.bend    a torch stands, is taken, put out and saved; walks meet its stick and pass beside it
 test/light.bend    the torches' light: 14 at a torch, one less a step, around a block, gone with the torch, the break under it and water, back with the window, loaded, faded by day
@@ -874,7 +878,14 @@ rain takes about 5 where it rains (the second morning: all on 35.0, rain
 off 30.2), its 11 columns and 33 drops a ray, and nothing where it does
 not. The wet it leaves takes about 3.5 more, a column's read, a glimpse
 of the clouds a face and the mirror's walk a puddle (1.4 of it, in the
-second morning's rain on the hill), and nothing on a dry day. Water
+second morning's rain on the hill), and nothing on a dry day. The
+puddles in the meadow add 5 to 15 more where it grows in the rain (the
+lake's shore 122.0 against 136.0, their view 118.8 against 130.4, six
+rounds alternated on a machine a virtual machine kept busy), the rays
+seeing through them as far as the grass's walks go, and about 3 on a dry
+day (59.6 against 64.0 in the bench's view), which the walk's copy for
+the rain did not take away: the rain's code in the frame's program costs
+it unrun, most likely in registers, not yet confirmed. Water
 comes next, 3 to 5 ms, because it tracks the wet intervals along every
 ray's 60 steps. Two lessons of the first profile hold: a ray that stopped
 at its hit walked a third of the steps and made the frame slower, the

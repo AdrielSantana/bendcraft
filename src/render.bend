@@ -939,7 +939,8 @@ def rimmed(on: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F
       r
     case True{}:
       (w, +c) = r
-      rim_met(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, t1, sh, Grass.march(w, base, fw, ck, ox, oy, oz, dx, dy, dz, rim, t1))
+      +wet = Wet.wetness(Util.on(fl, 1024), ck)
+      rim_met(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, t1, sh, Grass.march((wet > 0.0 : F32), w, base, fw, ck, wet, ox, oy, oz, dx, dy, dz, rim, t1))
 
 # the block the mirror's ray met: its type's colour, the texture (a grass
 # top the meadow seen from afar), the face's tone, darker when the face
