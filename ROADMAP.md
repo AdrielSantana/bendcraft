@@ -62,7 +62,18 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    the rest of its 60 with its state frozen. The view from above, where
    the mirror is 2% of the colour, has its false caustic (2026-09-21): the
    ripples' noise read at the bed, two octaves, thin threads, bit 28. The
-   shader is done; what is left of the water is its physics.
+   shader is done; what is left of the water is its physics. The surface
+   from under the water — done (2026-09-29, asked for on diving: "hoje
+   ela fica totalmente transparente"): Snell's window, the world through
+   the bent ray and the rain in it, and past it the underside's mirror of
+   the world under the water, bit 15 (README). The meadow in the lake's
+   mirror waits on Bend (2026-09-28): the mirror walked by the eye's DDA
+   from a virtual origin, p less the mirrored ray times the distance
+   already travelled, so the blades' levels, the fog and the pixel's
+   footprint are the eye's, showed the blades upside down in the lake;
+   but the grass walk inside the mirror makes the frame die at a random
+   frame, "frontier drained without a result", on the compiler with
+   #1140, 4 runs of 4 (see "Bend: waiting on a decision").
 3. **The far horizon.** Levels over the world as Distant Horizons keeps
    them. The first is in (2026-09-22): above the ring's 2^18 words, a far
    map of 256² columns around the window, a word a column (its ground,
@@ -782,7 +793,7 @@ once both are released it goes back to the stock `bend`.
 | | what it is | state | if yes | if no |
 |---|---|---|---|---|
 | [PR #1132](https://github.com/bendlang/bend/pull/1132) | Metal: the work pass after a grow runs each lane's own ring, #925's answer; 1.7-2.8 times faster frames | open | the stock `bend` | our branch, rebased at every release |
-| [PR #1140](https://github.com/bendlang/bend/pull/1140) | a device reads a shared array's redirect with one plain load, as before 2.0.32 ([#1139](https://github.com/bendlang/bend/issues/1139)); 3.6-4 times faster frames | open | the stock `bend` | our branch, rebased at every release |
+| [PR #1140](https://github.com/bendlang/bend/pull/1140) | a device reads a shared array's redirect with one plain load, as before 2.0.32 ([#1139](https://github.com/bendlang/bend/issues/1139)); 3.6-4 times faster frames. It races (2026-09-28): with the meadow's walk in the lake's mirror a frame dies at random; a fence where the plain read finds count 1 fixes it and costs about 20% of every frame, and 2.0.31's plain array read alone dies too; the mechanism is not found | open; an issue drafted, not posted | the stock `bend` | our branch, rebased at every release |
 | [#1143](https://github.com/bendlang/bend/issues/1143) | Metal: `heap_free`'s error check, 7-12% of the allocating benches; numbers and risks, no PR | open | nothing here: the frame does not allocate | — |
 | [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | `make full` sizes the window to the screen |
 

@@ -228,20 +228,52 @@ def rings(+base: U32, +ck: U32, +rain: F32, +x: F32, +z: F32) -> Slope:
   +k = Bool.pick(F32, falls, (12.0 * (1.0 - age) * s * (1.0 - s * s) / d : F32), 0.0)
   Slope{(k * ex : F32), (k * ez : F32)}
 
-# The ripples, and the rain's rings as hard as it rains, fade with
-# distance, against a far shimmer, and in the last degrees before the
-# horizon, where `lifted` keeps a grazing ray's mirror over the water.
+# the surface's slope at (x, z): the ripples, drifting with their clock,
+# and the rain's rings as hard as it rains
+def waves(+base: U32, +ck: U32, +rain: F32, +x: F32, +z: F32) -> Slope:
+  +angle = (U32.to_f32(phase(ck)) * (6.2831853 / 8192.0) : F32)
+  plus(slope(base, (x + 256.0 + 0.8 * F32.sin(angle) : F32), (z + 256.0 + 0.8 * F32.cos(angle) : F32)),
+    rings(base, ck, rain, x, z))
+
+def calm(distance: F32) -> F32:
+  (1.0 - F32.clamp((distance / 32.0 : F32), 0.0, 1.0) : F32)
+
+# The waves fade with distance, against a far shimmer, and in the last
+# degrees before the horizon, where `lifted` keeps a grazing ray's mirror
+# over the water.
 def reflected(on: Bool, +base: U32, +ck: U32, +rain: F32, +x: F32, +z: F32, distance: F32,
               +dx: F32, +dy: F32, +dz: F32) -> Reflection:
   match on:
     case False{}: flat(dx, dy, dz)
     case True{}:
-      +angle = (U32.to_f32(phase(ck)) * (6.2831853 / 8192.0) : F32)
-      +fade = (F32.clamp((0.0 - dy * 16.0 : F32), 0.0, 1.0)
-        * (1.0 - F32.clamp((distance / 32.0 : F32), 0.0, 1.0)) : F32)
-      tilted(dx, dy, dz, (0.15 * fade : F32),
-        plus(slope(base, (x + 256.0 + 0.8 * F32.sin(angle) : F32), (z + 256.0 + 0.8 * F32.cos(angle) : F32)),
-          rings(base, ck, rain, x, z)))
+      tilted(dx, dy, dz, (0.15 * (F32.clamp((0.0 - dy * 16.0 : F32), 0.0, 1.0) * calm(distance)) : F32),
+        waves(base, ck, rain, x, z))
+
+# What a submerged eye sees of the surface where its ray leaves it: the
+# ray bent into the air by Snell's law, 1.33 to 1, through the normal the
+# slope tilts, the cosine of its angle out, 0 past the critical angle (49
+# degrees about the normal), where the surface is a mirror, and the ray
+# that mirror sends down.
+type Underside is Data:
+  Underside{tx: F32, ty: F32, tz: F32, out: F32, rx: F32, ry: F32, rz: F32}
+
+def bent(+dx: F32, +dy: F32, +dz: F32, +strength: F32, s: Slope) -> Underside:
+  Slope{gx, gz} = s
+  +nx = (0.0 - strength * gx : F32)
+  +nz = (0.0 - strength * gz : F32)
+  +inv = (1.0 / F32.sqrt((nx * nx + 1.0 + nz * nz : F32)) : F32)
+  +ci = ((dx * nx + dy + dz * nz) * inv : F32)
+  +ct = F32.sqrt(F32.max((1.0 - 1.7689 * (1.0 - ci * ci) : F32), 0.0))
+  +m = ((ct - 1.33 * ci) * inv : F32)
+  +k = (2.0 * ci * inv : F32)
+  Underside{(1.33 * dx + m * nx : F32), (1.33 * dy + m : F32), (1.33 * dz + m * nz : F32), ct,
+    (dx - k * nx : F32), (dy - k : F32), (dz - k * nz : F32)}
+
+def refracted(on: Bool, +base: U32, +ck: U32, +rain: F32, +x: F32, +z: F32, distance: F32,
+              +dx: F32, +dy: F32, +dz: F32) -> Underside:
+  match on:
+    case False{}: bent(dx, dy, dz, 0.0, Slope{0.0, 0.0})
+    case True{}: bent(dx, dy, dz, (0.08 * calm(distance) : F32), waves(base, ck, rain, x, z))
 
 # About 2% reflection head-on, a mirror at grazing angles, as Schlick's
 # approximation has it, but by a cube and not his fifth power: the mirror

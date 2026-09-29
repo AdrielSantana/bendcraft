@@ -298,6 +298,30 @@ the walk ends. A ray that meets nothing leaves the mirrored sky's byte as
 it was. The look has a bit of its own, bit 27 of the camera's base word
 (the flags word is full).
 
+From under the water the surface is Snell's window (`Cam.fl` bit 15). A
+ray from a submerged eye that leaves the water up shows the surface where
+it leaves (`Render.surfaced`), not what its straight walk met behind it.
+Snell's law, 1.33 to 1, bends it into the air through the normal the
+ripples and the rain's rings tilt (`Water.bent`), at about half the tilt
+the lake shows from above: near the critical angle a small tilt swings a
+ray between the window and the mirror, and at the full tilt the rings
+over the eye read as rings of glass. Inside the window the bent ray sees
+the sky, the clouds and the world as the lake's mirror walks them
+(`Render.behind`), and the rain falling in it: the whole sky in a cone of
+97 degrees, the banks crowding its rim, as a diver sees them. Past 49
+degrees from the normal the surface is a mirror, total internal
+reflection, and a glance of 24 steps down from it shows the world under
+the water, what it meets lit as deep as it lies and fogged by the water
+it crossed, the deep water's colour where it meets nothing. Fresnel weighs
+the two, a mirror at the window's edge, and the water between the eye and
+the surface tints the whole as before. A ray that leaves the water stays
+in the window's walk, so no far walk runs for it. The meadow's blades are
+in neither mirror: both walk the mirror's glance (ROADMAP, the water's
+shader). In the profile's view under the lake, along its surface at
+1470×796, the look makes the frame cheaper, 32.2 → 24.0 ms (the least of
+three rounds): a ray that leaves the water walks 24 or 32 steps in place
+of the straight hit's shading and the far walk's 128.
+
 Seen from above, where the mirror is 2% of the colour, the water shows its
 bed, and the bed shows a caustic: the light that came down through the
 rippled surface, gathered into bright threads here and taken from there.
@@ -535,7 +559,7 @@ test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
 test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain, the wet, its puddles and their mirror
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
-test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity, the rain's rings
+test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity, the rain's rings, Snell's window
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
 test/mirror.bend   the mirror's walk over a placed brick, its reach and fade, the byte a miss keeps
 test/mirror_view.bend four views with the world in the mirror and without, for test/mirror.py

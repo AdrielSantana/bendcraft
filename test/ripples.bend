@@ -12,6 +12,15 @@ def same(a: Water.Reflection, b: Water.Reflection, +epsilon: F32) -> Bool:
 def sample(base: U32, clock: U32, x: F32, z: F32) -> Water.Reflection:
   Water.reflected(True{}, base, clock, 0.0, x, z, 6.0, 0.8, (0.0 - 0.6 : F32), 0.0)
 
+# a ray leaving the still surface up, from under it: the bent ray's x,
+# the cosine of its angle out and the mirrored ray's y
+def left(u: Water.Underside, +tx: F32, +out: F32, +ry: F32) -> Bool:
+  Water.Underside{x, y, z, o, rx, rry, rz} = u
+  Lib.near(x, tx, 0.0001) && Lib.near(o, out, 0.0001) && Lib.near(rry, ry, 0.0001)
+
+def leaves(+dx: F32, +dy: F32, +tx: F32, +out: F32, +ry: F32) -> Bool:
+  left(Water.refracted(False{}, 0, 0, 0.0, 64.375, 63.625, 0.0, dx, dy, 0.0), tx, out, ry)
+
 # Every ring address survives the looks' bits, including a column offset
 # which wraps through the end of the array.
 def addresses(n: Nat, +i: U32) -> Bool:
@@ -94,3 +103,6 @@ def main() -> IO(Unit):
       Water.Reflection{0.8, 0.6, 0.0, 0.6}, 0.00001), "distant ripples fade before the fog horizon")
     Lib.expect(rings_ok(ringing(512n, 0, 1.0, 0, True{}, True{})) && U32.is_eq(fst_of(ringing(512n, 0, 0.0, 0, True{}, True{})), 0),
       "in the rain drops ring still water here and there, each ring inside its half of a block and fixed in the world, and none when dry")
+    Lib.expect(leaves(0.0, 1.0, 0.0, 1.0, (0.0 - 1.0 : F32)) && leaves(0.5, 0.8660254, 0.665, 0.7468434, (0.0 - 0.8660254 : F32))
+      && leaves(0.8, 0.6, 1.064, 0.0, (0.0 - 0.6 : F32)),
+      "from under the water a ray straight up leaves straight, one 30 degrees off the normal leaves at 1.33 times its sine, and one 53 degrees off, past the critical angle, is mirrored down")

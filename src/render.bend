@@ -962,6 +962,83 @@ def bed(on: Bool, +base: U32, +ck: U32, +x: F32, +z: F32, +drop: F32, +dy: F32, 
       (w, c) = r
       (w, Util.dim(c, Water.caustic(base, ck, x, z, drop, dy, ly, thick)))
 
+# ---------- the surface seen from under the water ----------
+# A ray from a submerged eye that leaves the water up, with the look on
+# (Cam.fl bit 15), shows the surface where it leaves, not what its straight
+# walk met: Snell's window, the world out of the water along the bent ray
+# as the lake's mirror walks it (`behind`), the rain falling in it, and
+# past the window the underside's mirror, the world under the water seen
+# in it. Fresnel weighs the two, a mirror at the window's edge. A ray
+# that met a block under the water has a wet path its hit's distance long,
+# less a rounding of its sum: it left the water only 0.01 short of the hit.
+def rises(+fl: U32, +dy: F32, +t: F32, +entry: F32, +depth: F32) -> Bool:
+  Util.on(fl, 32768) && (depth > 0.0 : F32) && (entry <= 0.0 : F32) && (dy > 0.0 : F32) && ((depth + 0.01 : F32) < t : F32)
+
+def shown(r: Array<U32> & Water.Mirror) -> Array<U32> & U32:
+  (w, m) = r
+  Water.Mirror{bottom, x, colour} = m
+  (w, colour)
+
+def weighed(+f: F32, +ink: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, c) = r
+  (w, Util.mix(c, ink, f))
+
+# the underside's mirror: a glance down from the surface, what it met
+# lit as deep as it lies and fogged by the water it went through, the
+# deep water's colour where it met nothing
+def under_lit(+light: F32, +fog: F32, +ink: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, c) = r
+  (w, Util.mix(Util.dim(c, light), ink, fog))
+
+def underside(+fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32, +rx: F32, +ry: F32, +rz: F32,
+              +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Glance) -> Array<U32> & U32:
+  (w, g) = r
+  Glance{+c, +t} = g
+  +down = Water.drop((py + ry * t : F32))
+  +ink = Water.colour(ly)
+  under_lit(Water.light(down), Water.opacity(False{}, t), Water.ink_at(ink, ly, down),
+    glance_look((c > 0 : U32), False{}, 0, ink, (fl .&. 2147483639 : U32), base, px, py, pz, rx, ry, rz, 0.0, py, lx, ly, lz, c, t, w))
+
+def window(inside: Bool, +fm: U32, +ck: U32, +rain: F32, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32,
+           +lx: F32, +ly: F32, +lz: F32, +tx: F32, +ty: F32, +tz: F32, +ct: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  match inside:
+    case False{}:
+      r
+    case True{}:
+      (w, +mirror) = r
+      weighed(Water.fresnel(Water.fresnel_on(fl), ct), mirror,
+        Rain.fall((rain > 0.0 : F32), rain, ck, fm, base, px, py, pz, tx, ty, tz, 12.0, ly,
+          shown(behind(Water.mirror_on(base), False{}, fm, ck, fl, base, px, py, pz, 0.0, py, lx, ly, lz,
+            Water.Reflection{tx, ty, tz, ct}, (w, 0)))))
+
+def looked_out(+fm: U32, +ck: U32, +rain: F32, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32,
+               +lx: F32, +ly: F32, +lz: F32, u: Water.Underside, w: Array<U32>) -> Array<U32> & U32:
+  Water.Underside{+tx, +ty, +tz, +ct, +rx, +ry, +rz} = u
+  window((ct > 0.0 : F32), fm, ck, rain, fl, base, px, py, pz, lx, ly, lz, tx, ty, tz, ct,
+    underside(fl, base, px, py, pz, rx, ry, rz, lx, ly, lz, run_glance(24n, w, base, px, (py - 0.01 : F32), pz, rx, ry, rz, 0, 0)))
+
+# the rain's rings reach the surface where no block of its column (mask)
+# is over it, as over the lake
+def surfaced(+fm: U32, +ck: U32, +rain: F32, +fl: U32, +base: U32, +px: F32, +py: F32, +pz: F32,
+             +dx: F32, +dy: F32, +dz: F32, +depth: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, mask) = r
+  looked_out(fm, ck, rain, fl, base, px, py, pz, lx, ly, lz,
+    Water.refracted(Water.ripples_on(fl), base, ck, Wet.reached(False{}, rain, F32.floor((py - 0.01 : F32)), mask), px, pz, depth, dx, dy, dz), w)
+
+# what the ray showed past its water: the surface over a submerged eye,
+# or what its walk met
+def beyond(out: Bool, +rain: F32, +fl: U32, +depth: F32, steps: Bool, hits: Bool, sky: Bool, +distant: Bool, +word: U32, w: Array<U32>,
+           +base: U32, +fw: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
+           +c: U32, +t: F32, +n: U32, +gl: U32, +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
+  match out:
+    case False{}:
+      shade_mode(steps, hits, sky, distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, c, t, n, gl, lx, ly, lz)
+    case True{}:
+      +px = (ox + dx * depth : F32)
+      +pz = (oz + dz * depth : F32)
+      surfaced(fw, ck, rain, fl, base, px, (oy + dy * depth : F32), pz, dx, dy, dz, depth, lx, ly, lz,
+        Array.get(U32, w, World.col_at(base, Util.f2u(px), Util.f2u(pz))))
+
 # What the ray met, under the water it went through: the window's hit or
 # the far walk's (distant), the water's surface met by either, and its
 # mirror walked where the surface was met.
@@ -969,13 +1046,14 @@ def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +to
          +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, tr: Water.Trace, w: Array<U32>) -> Array<U32> & U32:
   Water.Trace{+entry, +depth} = tr
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
+  +out = wet && rises(fl, dy, t, entry, depth)
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147482615 : U32), fl)
   +rain = Rain.falling(Util.on(fl, 512), ck)
   Rain.fall((rain > 0.0 : F32), rain, ck, fw, base, ox, oy, oz, dx, dy, dz, Bool.pick(F32, wet, entry, t), ly,
-  Water.shade(wet, fl, v, oy, dy, ly, top, t, (hitw > 0 : U32), Water.Trace{entry, depth},
+  Water.shade(wet, fl, v, oy, dy, ly, top, t, (hitw > 0 : U32) && Bool.not(out), Water.Trace{entry, depth},
     mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, ck, rain, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
       bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, ck, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
-        shade_mode(Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz)))))
+        beyond(out, rain, fl, depth, Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz)))))
 
 # the far walk's hit, under the water the window's walk and its own
 # crossed; the surface is the far walk's where the window's walk stayed
@@ -988,8 +1066,8 @@ def from_far(+c: U32, +near_wet: Bool, +t0: F32, +v: U32, +fl: U32, +lx: F32, +l
   seen(True{}, Bool.not(near_wet), word, hit, Water.steps(c), Water.top(c) || Bool.not(near_wet), v, fl, lx, ly, lz,
     base, fw, ck, ox, oy, oz, dx, dy, dz, Bool.pick(F32, (hit > 0 : U32), t, t0), tr, w)
 
-# the profile's renders stay in the window; a ray the window's walk let
-# go on walks the far map
+# the profile's renders stay in the window, and so does the surface over
+# a submerged eye; a ray the window's walk let go on walks the far map
 def after_walk(near: Bool, +c: U32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32, +ck: U32,
                +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, +entry: F32, +depth: F32, w: Array<U32>) -> Array<U32> & U32:
   match near:
@@ -1042,7 +1120,7 @@ def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: 
   Water.Trace{+entry, +depth} = tr
   rimmed(Util.on(fl, 2048) && (rim >= 0.0 : F32),
     base, fw, ck, fl, ox, oy, oz, dx, dy, dz, rim, F32.min(F32.min(t, rim_end), Bool.pick(F32, (depth > 0.0 : F32), entry, t)), v, lx, ly, lz,
-    after_walk(((c % 4 : U32) > 0 : U32) || Util.on(fl, 96), c, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, t, entry, depth, w))
+    after_walk(((c % 4 : U32) > 0 : U32) || Util.on(fl, 96) || rises(fl, dy, t, entry, depth), c, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, t, entry, depth, w))
 
 def shade(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           ct: Ray) -> Array<U32> & U32:
@@ -1143,7 +1221,7 @@ type Cam is Data:
   Cam{px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, sel: U32, items: U32, stat: U32, fl: U32, rw: U32, rh: U32, lx: F32, ly: F32, lz: F32, clock: U32}
 
 # Bit 25 selects the clock's sun; disabled, the profile uses the old sun.
-def looks() -> U32: 4293951391
+def looks() -> U32: 4293984159
 
 # the looks that ride in the camera's base, bits 27..30: 27 the world in
 # the water's mirror, 28 the caustic on its bed; 29 says the window holds
