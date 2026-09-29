@@ -12,7 +12,10 @@ to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
 bucket: a click takes a cell of water, a right click pours one · `0` the
 torch: in the hand it lights what is near as you walk, and a right click
 stands one on the ground, which lights what is around it · `P`
-saves · `F` shows the frame's time · `Esc` quits and saves.
+saves · `F` shows the frame's time · `Esc` quits and saves. For a demo:
+`H` held runs the day 64 times as fast and `G` back, and `C` turns the
+weather at the same hour, to the next day of rain or, from rain or wet
+ground, of dry.
 
 You start with an empty inventory. Break a block to collect its type;
 placing spends one of the selected type. The hotbar shows each count
@@ -989,10 +992,12 @@ its solid leaves alone. Four torch laws: a torch is in neither mask, it
 rides the leaf plane, the break of the block under it takes it, and water
 puts it out. Four light laws: the light's words follow the leaf plane, a
 torch's cell holds 14 at its height in the word, a word of torches is all
-14, and a column with none holds no light of its own. There are 142
-laws: eight universal claims and 134 concrete
-checks. Integration tests exercise the actual ring edits, all eight types,
-both actions in one tick, and save/load through `P` and `Esc`.
+14, and a column with none holds no light of its own. Three clock
+laws for the demo's keys: with none held the clock runs as ever, H runs
+it 64 times as fast, and G runs it back no further than the first dawn.
+There are 145 laws: nine universal claims and 136 concrete checks.
+Integration tests exercise the actual ring edits, all eight types, both
+actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;
 its output hash stays unchanged, while the inventory tests check an empty
 new game.

@@ -177,6 +177,19 @@ law day_returns_after_a_full_turn:
   for t: U32
   {Day.phase(Day.advance(t, Day.length())) == Day.phase(t) : U32}
 
+# H and G, held, run the clock 64 times as fast, G back and no further
+# than the first dawn; with neither held it is the clock.
+law the_clock_runs_as_ever_with_no_key:
+  for t: U32
+  for ms: U32
+  {Day.run(t, ms, False{}, False{}) == Day.advance(t, ms) : U32}
+
+law h_runs_the_clock_64_times_as_fast:
+  {Day.run(1000, 16, True{}, False{}) == 2024 : U32}
+
+law g_runs_it_back_no_further_than_dawn:
+  {(Day.run(5000, 16, False{}, True{}), Day.run(1000, 16, False{}, True{})) == (3976, 0) : U32 & U32}
+
 # A cell and its inventory count keep the same total after every action,
 # and after any list of actions, including attempts to spend from zero.
 law inventory_transfer_conserves:

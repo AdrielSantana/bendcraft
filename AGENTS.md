@@ -245,7 +245,9 @@ counts load with an empty bag.
 18..24 the bucket's full cells (`Render.with_pail`, the hotbar's ninth
 count).
 - The key mask in `Player` (`kmask`): 1 2 4 8 WASD, 16..128 arrows, 256 P,
-512 F, 1024 2048 J L, 4096 Esc, 8192 space.
+512 F, 1024 2048 J L, 4096 Esc, 8192 space, 16384 32768 G H (the day run
+back and fast, `Day.run`); C turns the weather on its press
+(`Wet.turn_key`).
 - The world: a ring of 128x128 columns in the low 2^18 words of one
 `Array<U32>` of 2^20, sixteen words a column (solid mask, four type words, water mask, eight
 words of water amounts 0..255 in bytes, the flow's marks at slot 14,

@@ -115,6 +115,12 @@ def Laws.day_returns_after_a_full_turn(t):
       %period_mask(32n, 20n, w) : {U32{Word.and(32n, Word.add(32n, w, period(32n, 20n)), mask(32n, 20n))} == U32{_} : U32}
       {==}
 
+def Laws.the_clock_runs_as_ever_with_no_key(t, ms): {==}
+
+def Laws.h_runs_the_clock_64_times_as_fast(): {==}
+
+def Laws.g_runs_it_back_no_further_than_dawn(): {==}
+
 def Laws.inventory_transfer_conserves(put, solid, n):
   match put solid:
     case False{} False{}: {==}

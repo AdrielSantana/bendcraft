@@ -9,6 +9,11 @@ def phase(t: U32) -> U32: (t .&. 1048575 : U32)
 
 def advance(t: U32, ms: U32) -> U32: (t + ms : U32)
 
+# the clock ms on, 64 times as fast forward (fast) or back (back), and
+# back no further than the first dawn: the keys H and G held, for a demo
+def run(+t: U32, +ms: U32, +fast: Bool, +back: Bool) -> U32:
+  Bool.pick(U32, back, (t - U32.min(t, (ms * 64 : U32)) : U32), advance(t, Bool.pick(U32, fast, (ms * 64 : U32), ms)))
+
 def morning() -> U32: 154747
 
 def angle(t: U32) -> F32:

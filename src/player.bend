@@ -6,6 +6,7 @@ import ./render.bend as Render
 import ./day.bend as Day
 import ./inventory.bend as Inventory
 import ./torch.bend as Torch
+import ./wet.bend as Wet
 
 # THE PLAYER: the game state, the events, the tick, the edits.
 #
@@ -26,14 +27,15 @@ def res512() -> U32:
   res_of(512, 512)
 
 # Time advances at the IO edge; a physics step has no wall-clock dependency.
-# The water flows on the same clock (Flow.advance).
+# The water flows on the same clock (Flow.advance), at its own pace when
+# H or G runs the day (Day.run).
 def advance(g: Game, +ms: U32) -> Game:
-  G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, +clock, bag} = g
-  G{Flow.advance(w, clock, ms), px, py, pz, yaw, pit, vy, held, edge, sel, res, Day.advance(clock, ms), bag}
+  G{w, px, py, pz, yaw, pit, vy, +held, edge, sel, res, +clock, bag} = g
+  G{Flow.advance(w, clock, ms), px, py, pz, yaw, pit, vy, held, edge, sel, res, Day.run(clock, ms, Util.on(held, 32768), Util.on(held, 16384)), bag}
 
 # ---------- input ----------
 # Keys are a bitmask in `held` (w a s d 1..8, arrows 16..128, p 256, f 512, j l
-# 1024 2048, Esc 4096, space 8192) and the edge of a press in `edge`. The
+# 1024 2048, Esc 4096, space 8192, g h 16384 32768) and the edge of a press in `edge`. The
 # window holds the mouse (main.bend), so its motion comes as looks; a left
 # press breaks, a right press places.
 
@@ -45,7 +47,7 @@ def kmask(+c: U32) -> U32:
     .|. kbit(c, 63232, 16) .|. kbit(c, 63233, 32)
     .|. kbit(c, 63234, 64) .|. kbit(c, 63235, 128)
     .|. kbit(c, 106, 1024) .|. kbit(c, 108, 2048) .|. kbit(c, 112, 256) .|. kbit(c, 102, 512)
-    .|. kbit(c, 27, 4096) .|. kbit(c, 32, 8192) : U32)
+    .|. kbit(c, 27, 4096) .|. kbit(c, 32, 8192) .|. kbit(c, 103, 16384) .|. kbit(c, 104, 32768) : U32)
 
 def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32,
               +held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, +m: U32) -> Game:
@@ -56,13 +58,14 @@ def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, p
     case False{}:
       G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, sel, res, clock, bag}
 
-# the digits 1..8 choose the block to place, 9 the bucket, 0 the torch
+# the digits 1..8 choose the block to place, 9 the bucket, 0 the torch;
+# C turns the weather (Wet.turn_key)
 def on_key(g: Game, +code: U32, +down: Bool) -> Game:
   G{w, px, py, pz, yaw, pit, vy, held, edge, +sel, res, clock, bag} = g
   +lower = Bool.pick(U32, ((code >= 65) && (code <= 90) : U32), (code + 32 : U32), code)
   +digit = down && (code >= 48 : U32) && (code <= 57 : U32)
   key_apply(down, w, px, py, pz, yaw, pit, vy, held, edge,
-            Bool.pick(U32, digit, ((code - 39) % 10 : U32), sel), res, clock, bag, kmask(lower))
+            Bool.pick(U32, digit, ((code - 39) % 10 : U32), sel), res, Wet.turn_key(down && U32.is_eq(lower, 99), clock), bag, kmask(lower))
 
 # button 0 is the left one, 1 the right one, on both windows
 def on_button(g: Game, +b: U32, +down: Bool) -> Game:

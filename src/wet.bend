@@ -3,6 +3,7 @@ import ./util.bend as Util
 import ./clouds.bend as Clouds
 import ./rain.bend as Rain
 import ./water.bend as Water
+import ./day.bend as Day
 
 # WET: the rain wets what it falls on. A face with no block over the air
 # before it darkens and takes a sheen of the sky it mirrors, the more the
@@ -27,6 +28,34 @@ def pool_fin(+wet: F32, p: Clouds.Slope, q: Clouds.Slope) -> Clouds.Slope:
   Clouds.Slope{+v, +gx, +gz} = p
   Clouds.Slope{+v2, +gx2, +gz2} = q
   Clouds.Slope{((0.65 * v + 0.35 * v2 - 1.0 + 0.45 * wet) * 8.0 : F32), ((0.65 * gx + 0.35 * gx2) * 8.0 : F32), ((0.65 * gz + 0.35 * gz2) * 8.0 : F32)}
+
+# whether the weather at t has turned from a wet world (was) to a dry
+# one, the rain gone with what it left, or from a dry one to rain of at
+# least half of all there is
+def turned(+was: Bool, +t: U32) -> Bool:
+  (was && F32.is_eq(wetness(True{}, t), 0.0)) || (Bool.not(was) && (Rain.amount(Clouds.weather(t)) >= 0.5 : F32))
+
+# the clock whole days on from t0 at which the weather has turned (found),
+# at the same time of day; t0 if it does not within n days
+def turn(n: Nat, found: Bool, +was: Bool, +t0: U32, +t: U32) -> U32:
+  match n:
+    case 0n:
+      t0
+    case 1n+k:
+      match found:
+        case True{}:
+          t
+        case False{}:
+          +d = Day.advance(t, Day.length())
+          turn(k, turned(was, d), was, t0, d)
+
+# the weather's key, C: the clock at the next day the weather turns
+def turn_key(on: Bool, +t: U32) -> U32:
+  match on:
+    case False{}:
+      t
+    case True{}:
+      turn(64n, False{}, (wetness(True{}, t) > 0.0 : F32), t, t)
 
 # how deep into a puddle a top of the ground at (x, z), in the window's
 # columns, lies, 0 at its edge and 1 where it covers the top whole, with

@@ -352,5 +352,13 @@ def main() -> IO(Unit):
       && U32.is_eq(clock(Player.advance(fixture(1048575), 2)), 1048577), "the sun wraps to dawn and the clock counts the day")
     Lib.expect(U32.is_eq(clock(Player.advance(Player.advance(fixture(1234), 16), 17)),
                      clock(Player.advance(fixture(1234), 33))), "frame rate independent clock")
+    Lib.expect(U32.is_eq(clock(Player.advance(Player.on_key(fixture(1000), 104, True{}), 16)), 2024)
+      && U32.is_eq(clock(Player.advance(Player.on_key(fixture(5000), 71, True{}), 16)), 3976)
+      && U32.is_eq(clock(Player.advance(Player.on_key(Player.on_key(fixture(1000), 104, True{}), 104, False{}), 16)), 1016),
+      "H held runs the day 64 times as fast, G as fast back, and let go the clock runs as ever")
+    Lib.expect(U32.is_eq(clock(Player.on_key(fixture(Day.morning()), 99, True{})), 1203323)
+      && U32.is_eq(clock(Player.on_key(fixture(1203323), 67, True{})), 2251899)
+      && U32.is_eq(clock(Player.on_key(fixture(1203323), 99, False{})), 1203323),
+      "C turns the weather at the same time of day: the fair first morning to the second's rain, that rain to a dry morning")
     Lib.expect(U32.is_eq(restored(Save.text(fixture(786432))), 786432), "save restores night")
     Lib.expect(U32.is_eq(restored(Save.text(fixture(3932160))), 3932160), "save keeps the days, the weather's")
