@@ -141,7 +141,7 @@ def game_of(fs: List<&2, String>, ls: List<&2, String>, +res: U32) -> Player.Gam
       +cx = num(ox)
       +cz = num(oz)
       Player.G{World.load_world(World.W{[0 : U32^20n], World.Meta{cols_of(ls, Map.new(&2, World.Col)), cx, cz, Nil{}, 0, 0}}, cx, cz),
-               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, (num(sel) % 9 : U32), res, num(clock), counts_of(9n, counts)}
+               dec(num(px)), dec(num(py)), dec(num(pz)), dec(num(yaw)), dec(num(pit)), 0.0, 0, 0, (num(sel) % 10 : U32), res, num(clock), counts_of(9n, counts)}
     case Con{tag, rest}:
       Player.start_at(res)
     case Nil{}:

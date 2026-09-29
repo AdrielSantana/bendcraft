@@ -145,10 +145,10 @@ law trees_reject_snow_heights:
 law unknown_key_is_no_bit:
   {Player.kmask(65) == 0 : U32}
 
-# --- the wheel: the choice goes around the nine slots ---------------------
+# --- the wheel: the choice goes around the ten slots ----------------------
 
 law wheel_goes_around:
-  {(Player.roll(8, 1), Player.roll(0, 8)) == (0, 8) : U32 & U32}
+  {(Player.roll(9, 1), Player.roll(0, 9)) == (0, 9) : U32 & U32}
 
 # --- the readout: a word of its own --------------------------------------
 # the numbers read back; past their room they stop at 99.9 and 255; zeros

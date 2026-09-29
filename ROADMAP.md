@@ -228,8 +228,30 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    the moon lights the world once the sun has set, its shadows, its haze
    and a moonlit sky, under the moon's bit (README); the night costs what
    the day does, 54 → 67 ms at midnight at 1470×796 and 16 → 18 at scale
-   2. Then a mist in the low ground, lit as the haze is; then the blocks':
-   torches.
+   2. A mist in the low ground, lit as the haze is — tried and dropped
+   (2026-09-29, "prefiro sem do que desse jeito"): a density whole at
+   the lake's plane and thinning upward, a closed form along a ray, in
+   drifting patches, thickest from the evening to the morning, lit by
+   the shafts' profile, in the height fog's place, 1 to 6 ms at 1470×796
+   and under 1 at scale 2. Thinning by e every 3 blocks it lay over a
+   lake as an opaque white band ("chapado"); every 12 blocks in the sky's
+   colour it read as a thicker haze, and it moved in steps as the player
+   walked. The height fog stays.
+9. **The blocks' light** (asked for on 2026-09-29: "tochas, segurar
+   tocha ilumina ao caminhar"), in three steps, the torches infinite for
+   now and placed on the ground alone, at their word. The torch in the
+   hand — done (2026-09-29): the hotbar's tenth slot, key `0`; a warm
+   light that flickers, at the eye, so it walks no shadow, near the day's
+   within a few blocks and gone at 14, taken as the brighter of a colour's
+   own light and its own, so the day hides it (README, "The torch");
+   within the noise of the frame. Its light first fell as the square of
+   what was left of the 14 blocks and showed within six under the full
+   moon, which lights the night at 0.48 of the day. The torch as a block,
+   type 9: a stick and a flame the DDA meets, neither solid nor casting a
+   shadow, on a block's top, and gone with it. Then the light grid: a
+   level a cell, 0 to 14, spread from each torch by a flood fill on the
+   host as Minecraft's is, read smoothly at a face's corners, and its
+   laws.
 
 **The budget.** At 1470×796 a frame is 47 ms with a ray for every pixel
 and 13 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
@@ -540,8 +562,9 @@ finished world.
 6. the weather over the days, the wind, rain from heavy clouds and the
    wet it leaves — done, 2026-09-27
 7. vegetation: the meadow, the leaves' holes and the wind in them — done, 2026-09-28
-8. light: the sun's colour and the sun in the camera — done, 2026-09-29;
-   its rays; then the blocks'
+8. light: the sun's colour, the sun in the camera, its light in the haze
+   and the moonlit night — done, 2026-09-29; then the blocks': the torch
+   in the hand — done, 2026-09-29; the torch as a block; the light grid
 9. survival and crafting
 10. mobs and entities
 

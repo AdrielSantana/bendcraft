@@ -88,7 +88,7 @@ def far_pixel(+base: U32, +fl: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy:
 # the window's water over a bed seen at the given depth, as the far sea
 # should show it
 def water_over(+bed: U32, +fl: U32, +oy: F32, +dy: F32, +t: F32, +entry: F32) -> U32:
-  shown(Water.shade(True{}, fl, 123456, oy, dy, 0.8, True{}, t, True{}, Water.Trace{entry, (t - entry : F32)},
+  shown(Water.shade(True{}, fl, 123456, Water.colour(0.8), oy, dy, 0.8, True{}, t, True{}, Water.Trace{entry, (t - entry : F32)},
     ([0 : U32^1n], Water.Mirror{bed, Water.flat(0.0, dy, 0.0), 0})))
 
 def look_at(+fl: U32, +word: U32, +axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32) -> U32:

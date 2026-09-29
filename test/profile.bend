@@ -3,6 +3,7 @@ import ../src/world.bend as World
 import ../src/render.bend as Render
 import ../src/player.bend as Player
 import ../src/frame.bend as Frame
+import ../src/torch.bend as Torch
 
 # The profile: what costs what in a frame. For each size, one view (the
 # start of the untouched world) is rendered five times with every look on,
@@ -108,6 +109,7 @@ def plan() -> List<Run>:
    off("world mirror off ", 0, 134217728),
    off("caustic off      ", 0, 268435456),
    off("shafts off       ", 0, 1073741824),
+   off("torch light off  ", 0, 2147483648),
    Run{"rays alone       ", 1, 0, 0},
    Run{"hits             ", 2, 64, Render.looks_base()},
    Run{"steps           ", 3, 32, Render.looks_base()}]
@@ -216,6 +218,12 @@ def meadow(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   Player.G{w, px, 21.6, pz, 2.4, (0.0 - 0.3 : F32), vy, held, edge, sel, res, clock, bag}
 
+# The meadow at night from the hill with the torch in hand: its light on
+# the slope's blocks and blades.
+def torch(g: Player.Game) -> Player.Game:
+  Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
+  Player.G{w, px, 21.6, pz, 2.4, (0.0 - 0.3 : F32), vy, held, edge, Torch.slot(), res, 786432, bag}
+
 def main() -> IO(Unit):
   do IO<Unit>:
     profile_size("512 x 512", 512, 512)
@@ -224,6 +232,7 @@ def main() -> IO(Unit):
     profile_size("1470 x 796 (a 14-inch MacBook, every pixel a ray)", 1470, 796)
     profile_view("Meadow at 1470 x 796, standing on the hill", 1470, 796, meadow(wide()))
     profile_view("Night at 1470 x 796, looking at the moon", 1470, 796, night(wide()))
+    profile_view("Night over the meadow at 1470 x 796, a torch in hand", 1470, 796, torch(wide()))
     profile_view("Rain at 1470 x 796, the second morning", 1470, 796, rain(wide()))
     profile_view("Lake in the rain at 1470 x 796", 1470, 796, rain_lake(wide()))
     profile_view("Lake at 1470 x 796, looking west", 1470, 796, lake(wide()))

@@ -55,13 +55,13 @@ def key_apply(down: Bool, w: World.World, px: F32, py: F32, pz: F32, yaw: F32, p
     case False{}:
       G{w, px, py, pz, yaw, pit, vy, (held .&. U32.not(m) : U32), edge, sel, res, clock, bag}
 
-# the digits 1..8 choose the block to place, 9 the bucket
+# the digits 1..8 choose the block to place, 9 the bucket, 0 the torch
 def on_key(g: Game, +code: U32, +down: Bool) -> Game:
   G{w, px, py, pz, yaw, pit, vy, held, edge, +sel, res, clock, bag} = g
   +lower = Bool.pick(U32, ((code >= 65) && (code <= 90) : U32), (code + 32 : U32), code)
-  +digit = down && (code >= 49 : U32) && (code <= 57 : U32)
+  +digit = down && (code >= 48 : U32) && (code <= 57 : U32)
   key_apply(down, w, px, py, pz, yaw, pit, vy, held, edge,
-            Bool.pick(U32, digit, (code - 49 : U32), sel), res, clock, bag, kmask(lower))
+            Bool.pick(U32, digit, ((code - 39) % 10 : U32), sel), res, clock, bag, kmask(lower))
 
 # button 0 is the left one, 1 the right one, on both windows
 def on_button(g: Game, +b: U32, +down: Bool) -> Game:
@@ -70,16 +70,16 @@ def on_button(g: Game, +b: U32, +down: Bool) -> Game:
     (edge .|. Bool.pick(U32, U32.is_eq(b, 0) && down, 1024, 0) .|. Bool.pick(U32, U32.is_eq(b, 1) && down, 2048, 0) : U32),
     sel, res, clock, bag}
 
-# the wheel moves the choice d slots on, around the nine
+# the wheel moves the choice d slots on, around the ten
 def roll(+sel: U32, +d: U32) -> U32:
-  ((sel + d) % 9 : U32)
+  ((sel + d) % 10 : U32)
 
 # a scroll up chooses the slot before, down the slot after, one an event
 # whatever its size, as a trackpad's points would spin the hotbar
 def on_scroll(g: Game, +dy: F32) -> Game:
   G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   G{w, px, py, pz, yaw, pit, vy, held, edge,
-    roll(sel, Bool.pick(U32, (dy > 0.0 : F32), 8, Bool.pick(U32, (dy < 0.0 : F32), 1, 0))), res, clock, bag}
+    roll(sel, Bool.pick(U32, (dy > 0.0 : F32), 9, Bool.pick(U32, (dy < 0.0 : F32), 1, 0))), res, clock, bag}
 
 # the mouse turns the camera, 0.0045 rad a point; y grows downwards
 def on_look(g: Game, dx: F32, dy: F32) -> Game:
@@ -273,7 +273,7 @@ def step_edit(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
   +brk = got && Util.on(edge, 1024)
   +put = got && (prev > 0 : U32) && Util.on(edge, 2048) && Bool.not(onme)
   step_done(npx, npy, npz, nvy, nyaw, npit, held, edge, sel, res, clock,
-    edit_world(put && Bool.not(pail_on), tgt, True{}, sel,
+    edit_world(put && (sel < 8 : U32), tgt, True{}, sel,
       edit_world(brk && Bool.not(pail_on), (hit - 1 : U32), False{}, 0,
         pail(pail_on && (brk || put), put, tgt, (w, bag)))))
 

@@ -224,18 +224,18 @@ plus 64, plus those remainders, plus 256 (`Render.run_far`).
 weather (`Clouds.weather`), the wind (`Clouds.blown`) and the
 ripples' 8192-ms loop (`Water.phase`) read it.
 - `Cam.base`: low 14 bits address the ring, and the camera keeps only
-those of the corner's word (`Water.with_looks`). Bits 27..30 are the
+those of the corner's word (`Water.with_looks`). Bits 27..31 are the
 looks `Cam.fl` has no room for: `Render.looks_base()` holds the ones on
 by default and `Water.with_looks` puts them in; 27 is the world in the
 water's mirror, 28 the caustic on its bed, 29 says the window holds
 partial water (`Render.with_partial`, from `World.partials`; the DDA is
-specialized on it, `~partial`), 30 the shafts, the sun's light in the haze (`src/shafts.bend`); none is spare.
+specialized on it, `~partial`), 30 the shafts, the sun's light in the haze (`src/shafts.bend`), 31 the torch's light; bit 26 says the eye holds the torch (`Torch.in_hand`, from `Cam.sel` with bit 31 on). Bits 14..25 are spare.
 - A walk is the unit of cost: a DDA step is about 0.1 ms a frame at
 1470×796 (0.16 on 2.0.25) wherever it happens (primary 60, shadow 24, mirror 32, the shafts'
 six glances of 16 at a tile's four corners), because
 the frame is its slowest lane. Count the steps a new look adds before
 writing it.
-- `Cam.sel`: selection in bits 0..3 (eight types and the bucket, 8), four
+- `Cam.sel`: selection in bits 0..3 (eight types, the bucket 8, the torch 9, key `0`, no count), four
 seven-bit display counts in bits 4..31; `Cam.items` holds the other four in bits 0..27. A display count of 100
 means `99+`. `Game.bag` keeps nine full `Nat` counts on the host, the
 bucket's units the ninth; labels share HUD flag 16. Old saves without

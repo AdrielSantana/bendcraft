@@ -9,7 +9,8 @@ on the GPU through Metal, or on every core of your machine as WebAssembly.
 `W A S D` walk · `space` jumps, and swims up in water · the mouse looks, dragged in the browser (or the arrows) ·
 click breaks · right click places (or `J` / `L`) · `1`–`8` or the wheel choose the block
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
-bucket: a click takes a cell of water, a right click pours one · `P`
+bucket: a click takes a cell of water, a right click pours one · `0` a
+torch in the hand, which lights what is near as you walk · `P`
 saves · `F` shows the frame's time · `Esc` quits and saves.
 
 You start with an empty inventory. Break a block to collect its type;
@@ -437,6 +438,22 @@ the sun's; the mirror sees none of it. Beams through
 the leaves it cannot draw: eight points on a ray miss a beam a texel
 wide, and the sky near the sun is too bright to take more light.
 
+**The torch** (bit 31 of the base word, `src/torch.bend`) is the hotbar's
+tenth slot, key `0`, with no count: infinite for now, and it places
+nothing yet. Chosen, it stands in the hand in the screen's bottom right
+corner, its flame flickering, and lights what lies within 14 blocks of
+the eye in a warm light (bit 26 of the base says the eye holds it,
+`Torch.in_hand`). The light stands at the eye, so every point the eye
+sees it reaches: it casts no shadow and walks nothing. It is near the
+day's within a few blocks and gone smoothly at 14, less on a face the ray
+grazes, and it flickers with the flame. A lit colour takes the brighter
+of its own light and the torch's, channel by channel, as Minecraft takes
+the brighter of the sky's light and a block's, so the day hides it and
+the shade and the night show it. The blocks, the meadow's blades and the
+water's own colour take it (`Torch.lit`, `Torch.lamp`, `Torch.ink`).
+With no torch in hand every pixel takes the path it took before, byte for
+byte.
+
 **The clouds** are cumulus in a slab from y=62 to 78, over the world's
 columns, not the window's (`src/clouds.bend`). A coverage over the
 ground's plane, value noise of four octaves that repeats every 256
@@ -592,9 +609,9 @@ the lake, and the walk back crosses it and climbs the far shore). Out of
 water nothing changed: the old fixture's lines are the same, and eight
 swim lines follow them.
 A block is never placed on
-the player. The hotbar along the bottom shows the eight block types and
-the bucket and frames the chosen one, with the available count below
-each block's swatch and the full cells it holds below the bucket's.
+the player. The hotbar along the bottom shows the eight block types, the
+bucket and the torch, and frames the chosen one, with the available count
+below each block's swatch and the full cells it holds below the bucket's.
 
 ## Layout
 
@@ -605,6 +622,7 @@ src/inventory.bend natural counts, conserved cell/item transfers, packed HUD cou
 src/sky.bend       sky gradient, sun, glow and halo, stars, moon, distance/height fog, the light's colour, the body that lights the world
 src/lens.bend      the sun in the camera: the glare and the flare over a pixel
 src/shafts.bend    the sun's light in the haze a pixel looks through, from its tile's shafts
+src/torch.bend     the torch in the hand: its light on what the eye sees, its flame, its swatch
 src/clouds.bend    the clouds' coverage and its map, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
 src/wet.bend       how wet the world is, where puddles lie, their rings, the sheen; the render reads the air and walks the mirror
@@ -626,7 +644,7 @@ test/lib.bend      what every windowless test needs: expect, ticks, one event, s
 test/physics.bend  the game without a window: events through feed and step
 test/save.bend     place, walk, save, load: the brick and the position come back
 test/inventory.bend transfers, rejected edits, simultaneous input, counts, saves and HUD packing
-test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain, the wet, its puddles and their mirror
+test/day.bend      signed shadows, sky/fog, the clock's days and save, frame rate, the clouds' place, shadow, wind and weather, the rain, the wet, its puddles and their mirror, the light, the lens, the shafts, the torch
 test/water.bend    signed wet rays, emerged silhouettes, underwater fog, edits and saves
 test/ripples.bend  ring addresses under the looks' bits, stable world noise, normals and wrap continuity, the rain's rings, Snell's window
 test/water_view.bend sixteen water views and a fixed-sun ripple cycle for test/water.py
@@ -710,12 +728,13 @@ fullscreen link scales whatever is rendered to the screen.
 
 `make profile` renders a view five times with every look on, then with
 each look off in turn (the camera's `fl` flags, and the world in the
-mirror, the caustic and the shafts, bits 27, 28 and 30 of the base word), then the rays
+mirror, the caustic, the shafts and the torch's light, bits 27, 28, 30 and 31 of the base word), then the rays
 alone, and prints the `!` a frame; then it renders the view twice more
 with numbers for pixels, how many rays reach a block and how many DDA
 steps a ray walks to its hit, each pixel weighed by the square it stands
 for. Its views are the bench's at four sizes, then at 1470×796 the
-meadow from the start's hill, night looking at the moon, the rain of the
+meadow from the start's hill, night looking at the moon, the meadow at
+night with a torch in hand, the rain of the
 second morning, the lake in that rain, a lake looking west, under its
 water, the night lake with the moon in it, and the lake with partial
 water in the window. The least of four rounds on a busy machine
@@ -760,7 +779,10 @@ and 48.4 off, the sunset towards the sun 66.6 and 58.0) and 2 at scale 2
 (14.6 and 12.8). The moon's light costs the night what the sun's costs
 the day, its shadows and its haze: at midnight over the meadow 67.4 ms at
 1470×796 with it and 54.0 without (six rounds; the build before, 54.6),
-and 18.2 and 16.0 at scale 2. In the bench's view 49% of the rays
+and 18.2 and 16.0 at scale 2. The torch in hand, arithmetic on a
+pixel with no walk, reads within the noise: eight rounds read the meadow
+at night at 1470×796 64.0 with its light and 63.0 without (the build
+before it, 64.2), and at the lake's shore 70.0 and 69.2 (68.0). In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 
@@ -838,7 +860,7 @@ and reads back without touching its neighbours, and the device's read (a
 select, since the GPU never shifts by a variable) agrees with the host's;
 the terrain's layers are what they should be, a trunk packs as wood with
 leaves over it and grass under it, and the packed word the loader writes
-reads back the same; a key the game does not know sets no bit, and the wheel goes around the nine slots;
+reads back the same; a key the game does not know sets no bit, and the wheel goes around the ten slots;
 the readout's numbers read back from their word and stop at their room.
 The day phase
 returns after a whole turn for every `U32` clock value, including overflow,

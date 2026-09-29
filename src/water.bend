@@ -11,7 +11,7 @@ def phase(t: U32) -> U32: (t .&. 8191 : U32)
 def mirror_on(base: U32) -> Bool: Util.on(base, 134217728)
 def caustic_on(base: U32) -> Bool: Util.on(base, 268435456)
 def with_looks(base: U32, more: U32) -> U32:
-  ((base .&. 16383) .|. (more .&. 2013265920) : U32)
+  ((base .&. 16383) .|. (more .&. 4160749568) : U32)
 def lattice(base: U32, x: U32, z: U32) -> U32:
   ((base + x * 128 + z) .&. 16383 : U32)
 
@@ -336,7 +336,7 @@ def dry(r: Array<U32> & Mirror) -> Array<U32> & U32:
 # before the tint, since a hidden block and the sky behind it pass through
 # the same water, and the haze in front reduces the tint, so a lake past
 # the air's reach stays hidden and fades to the sky.
-def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32, +sun_y: F32, water_top: Bool,
+def shade(on: Bool, +fl: U32, +sky: U32, +ink: U32, +oy: F32, +dy: F32, +sun_y: F32, water_top: Bool,
           +distance: F32, +hit: Bool, tr: Trace, r: Array<U32> & Mirror) -> Array<U32> & U32:
   match on:
     case False{}: dry(r)
@@ -344,7 +344,6 @@ def shade(on: Bool, +fl: U32, +sky: U32, +oy: F32, +dy: F32, +sun_y: F32, water_
       Trace{+entry, +depth} = tr
       (w, +m) = r
       Mirror{bottom, mr, mcolour} = m
-      +ink = colour(sun_y)
       +front = Sky.fog(fl, entry, oy, (oy + dy * entry : F32))
       +air = Bool.pick(F32, hit, Sky.fog(fl, distance, oy, (oy + dy * distance : F32)), front)
       +down = drop((oy + dy * distance : F32))

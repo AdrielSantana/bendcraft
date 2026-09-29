@@ -137,6 +137,7 @@ def main() -> IO(Unit):
     Lib.expect(cell(press(106, fixture(Inventory.empty(), 0)), sand(), Player.pk_u(64, 10, 66), False{}, 0), "break credits actual sand, not selected grass")
     Lib.expect(cell(press(108, fixture(Inventory.empty(), 3)), Inventory.empty(), Player.pk_u(64, 10, 65), False{}, 0), "empty inventory cannot create a block")
     Lib.expect(cell(press(108, fixture(sand(), 3)), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "placement spends one sand and writes sand")
+    Lib.expect(cell(press(108, fixture(sand(), 9)), sand(), Player.pk_u(64, 10, 65), False{}, 0), "the torch in hand places nothing yet and spends nothing")
     Lib.expect(cell(Player.step(press(106, fixture(Inventory.empty(), 0))), sand(), Player.pk_u(64, 10, 67), True{}, 6), "held break does not collect the next block")
     Lib.expect(cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), False{}, 0,
       world_of(press(106, fixture(Inventory.empty(), 0))))), sand(), Player.pk_u(64, 10, 66), False{}, 0), "breaking the same air twice gives one item")
@@ -169,11 +170,12 @@ def main() -> IO(Unit):
       "the HUD shows the bucket's full cells, 99+ at a hundred, above the readout's numbers")
     # the bucket, the ninth slot
     Lib.expect(U32.is_eq(selected(press(57, fixture(Inventory.empty(), 0))), 8), "9 chooses the bucket")
-    Lib.expect(U32.is_eq(selected(wheel(0.0, 0.1, fixture(Inventory.empty(), 0))), 8)
-      && U32.is_eq(selected(wheel(0.0, (0.0 - 40.0 : F32), fixture(Inventory.empty(), 8))), 0)
+    Lib.expect(U32.is_eq(selected(press(48, fixture(Inventory.empty(), 0))), 9), "0 chooses the torch")
+    Lib.expect(U32.is_eq(selected(wheel(0.0, 0.1, fixture(Inventory.empty(), 0))), 9)
+      && U32.is_eq(selected(wheel(0.0, (0.0 - 40.0 : F32), fixture(Inventory.empty(), 9))), 0)
       && U32.is_eq(selected(wheel(0.0, (0.0 - 1.0 : F32), fixture(Inventory.empty(), 3))), 4)
       && U32.is_eq(selected(wheel(3.0, 0.0, fixture(Inventory.empty(), 3))), 3),
-      "the wheel chooses a slot on an event, up the one before, around the nine, and sideways none")
+      "the wheel chooses a slot on an event, up the one before, around the ten, and sideways none")
     Lib.expect(U32.is_eq(amount(press(106, wet(255, 0n)), 64, 10, 65), 0) && Nat.is_eq(pail_of(press(106, wet(255, 0n))), 255n)
       && cell(press(106, wet(255, 0n)), List.set(&2, Nat, Inventory.empty(), 8n, 255n), Player.pk_u(64, 10, 66), True{}, 3),
       "a click with the bucket takes the water cell before the sand whole, 255 units, and breaks no sand")
@@ -189,7 +191,7 @@ def main() -> IO(Unit):
     Lib.expect(cell(press(106, fixture(sand(), 8)), sand(), Player.pk_u(64, 10, 66), True{}, 3)
       && cell(press(108, fixture(sand(), 8)), sand(), Player.pk_u(64, 10, 65), False{}, 0),
       "the bucket over dry ground breaks nothing and places nothing, and the sand count stays")
-    Lib.expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
+    Lib.expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
     saved : Player.Game <- Save.save_to("build/inventory-test.save", fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], 6))
     loaded : Player.Game <- Save.load_from("build/inventory-test.save", Player.res512())
     Lib.expect(cell(loaded, [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], Player.pk_u(64, 10, 66), True{}, 3), "file roundtrip keeps counts and cell type")

@@ -14,6 +14,7 @@ import ../src/util.bend as Util
 import ../src/water.bend as Water
 import ../src/lens.bend as Lens
 import ../src/shafts.bend as Shafts
+import ../src/torch.bend as Torch
 
 def blocked(r: Array<U32> & Bool) -> Bool:
   (w, got) = r
@@ -293,6 +294,19 @@ def main() -> IO(Unit):
       && U32.is_eq(Sky.moonsky(False{}, 1315860, 0.0, 1.0, 0.0, 0.0, (0.0 - 1.0 : F32), 0.0), 1315860)
       && U32.is_eq(Sky.moonsky(True{}, 1315860, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0), 1315860),
       "the full moon lifts the night's sky, most around it, and leaves the day's, and the sky with its look off")
+    Lib.expect(Torch.held(Torch.in_hand(Water.with_looks(0, Render.looks_base()), Torch.slot()))
+      && Bool.not(Torch.held(Torch.in_hand(Water.with_looks(0, Render.looks_base()), 8)))
+      && Bool.not(Torch.held(Torch.in_hand(0, Torch.slot()))),
+      "the torch is in hand when its slot is chosen with its look on, and not otherwise")
+    Lib.expect((Torch.over(True{}, 0, 2.0, 1.0, 0.5) > Torch.over(True{}, 0, 8.0, 1.0, 0.5) : F32)
+      && (Torch.over(True{}, 0, 8.0, 1.0, 0.5) > Torch.over(True{}, 0, 8.0, 0.0, 0.5) : F32)
+      && F32.is_eq(Torch.over(True{}, 0, Torch.reach(), 1.0, 0.5), 0.0) && F32.is_eq(Torch.over(False{}, 0, 2.0, 1.0, 0.5), 0.0),
+      "the torch's light fades with the distance and the angle, and ends at its reach")
+    Lib.expect(U32.is_eq(Torch.lit(True{}, 8421504, 1.0, Sky.light(True{}, 1.0, 0.8), Torch.over(True{}, 0, 6.0, 1.0, Sky.level(True{}, 0.8))),
+        Torch.lit(False{}, 8421504, 1.0, Sky.light(True{}, 1.0, 0.8), 0.0))
+      && (Torch.lit(True{}, 8421504, 0.6, Sky.light(True{}, 0.6, (0.0 - 0.8 : F32)), Torch.over(True{}, 0, 3.0, 1.0, Sky.level(True{}, (0.0 - 0.8 : F32))))
+        > Torch.lit(False{}, 8421504, 0.6, Sky.light(True{}, 0.6, (0.0 - 0.8 : F32)), 0.0) : U32),
+      "a torch in hand leaves a face in the day's sun as it was and lights one near it at night")
     Lib.expect(U32.is_ne(Sky.halo(True{}, 123456, 0.6, 0.8, 0.0, 0.6, 0.8, 0.0), 123456)
       && U32.is_eq(Sky.halo(True{}, 123456, (0.0 - 0.6 : F32), (0.0 - 0.8 : F32), 0.0, 0.6, 0.8, 0.0), 123456)
       && U32.is_eq(Sky.halo(False{}, 123456, 0.6, 0.8, 0.0, 0.6, 0.8, 0.0), 123456), "the sun's halo brightens the sky at the sun and leaves it opposite as it was")
