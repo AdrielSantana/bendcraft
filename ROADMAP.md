@@ -223,9 +223,13 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    the host in a ring around the sun gave a glow, not rays; shaded air
    that darkens as lit air brightens greyed the whole sky under the
    clouds. Light laid on a bright sky has no room left: rays need
-   something dark close to the sun's line. Then the night (asked for on
-   2026-09-29): brighter under the full moon, its light in the haze, and
-   a mist; then the blocks': torches.
+   something dark close to the sun's line. The night — done (2026-09-29,
+   asked for with the haze: "devia ser bem mais clara" under a full moon):
+   the moon lights the world once the sun has set, its shadows, its haze
+   and a moonlit sky, under the moon's bit (README); the night costs what
+   the day does, 54 → 67 ms at midnight at 1470×796 and 16 → 18 at scale
+   2. Then a mist in the low ground, lit as the haze is; then the blocks':
+   torches.
 
 **The budget.** At 1470×796 a frame is 47 ms with a ray for every pixel
 and 13 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32

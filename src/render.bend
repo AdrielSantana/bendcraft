@@ -609,8 +609,8 @@ def face(+axis: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
        cx, cy, cz, Bool.pick(F32, ax, dx, Bool.pick(F32, ay, dy, dz)),
        Bool.pick(F32, ax, pz, px), Bool.pick(F32, ay, pz, py), Bool.pick(F32, ax, 0.8, Bool.pick(F32, ay, 1.0, 0.7))}
 
-# the cosine of the sun's angle to the face's normal, 0 for a face turned
-# from it or with the sun under the horizon
+# the cosine of the body's angle to the face's normal (l, the sun or the
+# moon, Sky.side), 0 for a face turned from it or with it under the horizon
 def facing(+da: F32, +ax: Bool, +ay: Bool, +lx: F32, +ly: F32, +lz: F32) -> F32:
   +l = Bool.pick(F32, ax, lx, Bool.pick(F32, ay, ly, lz))
   Bool.pick(F32, (ly > 0.0 : F32) && ((da * l : F32) < 0.0 : F32), Util.absf(l), 0.0)
@@ -779,9 +779,10 @@ def meadow_top(meadow: Bool, +fm: U32, +x: F32, +z: F32, +t: F32, +c: U32, +tone
 def rim_lit(+fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
             +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, lw: Grass.Meadow, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, +dark) = r
-  +sun = Bool.pick(F32, dark, 0.6, Clouds.shade(Util.on(fl, 256), fw, ck, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz))
-  (w, Grass.over(c, v, Sky.fog(fl, at, eye, (oy + dy * at : F32)), sun, Sky.light(Util.on(fl, 131072), sun, ly),
-    Wet.wetness(Util.on(fl, 1024), ck), Grass.dryness(fw, (ox + dx * at : F32), (oz + dz * at : F32)), dx, dy, dz, lx, ly, lz, lw))
+  +sg = Sky.side(Sky.moon_on(fl), ly)
+  +sun = Bool.pick(F32, dark, 0.6, Clouds.shade(Util.on(fl, 256), fw, ck, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), (sg * lx : F32), (sg * ly : F32), (sg * lz : F32)))
+  (w, Grass.over(c, v, Sky.fog(fl, at, eye, (oy + dy * at : F32)), sun, Sky.light(Util.on(fl, 131072), sun, ly), Sky.level(Sky.moon_on(fl), ly),
+    Wet.wetness(Util.on(fl, 1024), ck), Grass.dryness(fw, (ox + dx * at : F32), (oz + dz * at : F32)), dx, dy, dz, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32), lw))
 
 def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
              +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, lw: Grass.Meadow, w: Array<U32>) -> Array<U32> & U32:
@@ -789,8 +790,9 @@ def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +o
     case False{}:
       (w, c)
     case True{}:
+      +sg = Sky.side(Sky.moon_on(fl), ly)
       rim_lit(fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at, lw,
-        shadow_if(Util.on(fl, 1), (ly > 0.0 : F32), False{}, w, base, fw, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), lx, ly, lz, sun_gaps(fl), wind_of(fl, ck)))
+        shadow_if(Util.on(fl, 1), ((sg * ly : F32) > 0.0 : F32), False{}, w, base, fw, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), (sg * lx : F32), (sg * ly : F32), (sg * lz : F32), sun_gaps(fl), wind_of(fl, ck)))
 
 # the blades take the sun's shafts in the air before them (sh, Shafts)
 def rim_met(+base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
@@ -825,10 +827,11 @@ def glance_fin(+distant: Bool, +sky: U32, +fl: U32, +fm: U32, +hy: U32, +side: B
 def glance_face(+distant: Bool, +word: U32, +sky: U32, +fl: U32, +base: U32, +fm: U32, +dx: F32, +dy: F32, +dz: F32,
                 +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +t: F32, w: Array<U32>, fc: Face) -> Array<U32> & U32:
   Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, cx, cy, cz, +da, u, wf, +tone} = fc
-  +ndl = facing(da, ax, ay, lx, ly, lz)
+  +sg = Sky.side(Sky.moon_on(fl), ly)
+  +ndl = facing(da, ax, ay, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32))
   +sun = Sky.sunned(Util.on(fl, 131072), (ndl <= 0.0 : F32), 1.0, ndl)
   glance_fin(distant, sky, fl, fm, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, px, pz, t,
-    (tone * (0.18 + 0.82 * Sky.daylight(ly)) * sun : F32), Sky.light(Util.on(fl, 131072), sun, ly),
+    (tone * Sky.level(Sky.moon_on(fl), ly) * sun : F32), Sky.light(Util.on(fl, 131072), sun, ly),
     F32.max(Sky.fog(fl, t, eye, py), Water.reach((t - far : F32), dx, dy, dz)),
     type_of(distant, w, base, word, hx, hy, hz))
 
@@ -986,14 +989,15 @@ def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy
           +lx: F32, +ly: F32, +lz: F32, +ndl: F32, +sx: F32, +sy: F32, +sz: F32, +t: F32, +oy: F32, +m: Water.Reflection,
           r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
+  +sg = Sky.side(Sky.moon_on(fl), ly)
   +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
   +col = meadow_top(Util.on(fl, 2048) && U32.is_eq(what, 0) && Bool.not(side), fm, sx, sz, t, blockcol(what, side, yf), tone, tex_if(Util.on(fl, 4), u, wf))
   +wet = Wet.wetness(Util.on(fl, 1024), ck)
   soak((wet > 0.0 : F32), distant, wet, base, fm, ck, cx, cy, cz,
     Bool.not(side) && ((what < 4 : U32) || U32.is_eq(what, 6)) && facing_up(m), u, wf, t, oy, m, v, f, fl, lx, ly, lz,
     after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
-              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, lx, ly, lz), Util.on(fl, 131072), ndl, ly, Util.on(fl, 2),
-              shadow_if(Util.on(fl, 1), (ndl > 0.0 : F32), distant, w, base, fm, sx, sy, sz, lx, ly, lz, sun_gaps(fl), wind_of(fl, ck))))
+              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32)), Util.on(fl, 131072), ndl, ly, Util.on(fl, 2),
+              shadow_if(Util.on(fl, 1), (ndl > 0.0 : F32), distant, w, base, fm, sx, sy, sz, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32), sun_gaps(fl), wind_of(fl, ck))))
 
 # the look of the block behind the face: its unit steps of u and w in
 # space, where on the face for the blend of the four vertices, the
@@ -1003,9 +1007,10 @@ def shade_face(+distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +w
                +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, fc: Face) -> Array<U32> & U32:
   Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, +cx, +cy, +cz, +da, +u, +wf, +tone} = fc
   +nudge = Bool.pick(F32, (da > 0.0 : F32), (0.0 - 0.01 : F32), 0.01)
-  typed(distant, v, fl, base, fm, ck, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, (tone * (0.18 + 0.82 * Sky.daylight(ly)) : F32), Sky.fog(fl, t, oy, py),
+  +sg = Sky.side(Sky.moon_on(fl), ly)
+  typed(distant, v, fl, base, fm, ck, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, (tone * Sky.level(Sky.moon_on(fl), ly) : F32), Sky.fog(fl, t, oy, py),
         cx, cy, cz, Bool.pick(F32, ax, 0.0, 1.0), Bool.pick(F32, ax, 1.0, 0.0), Bool.pick(F32, ay, 0.0, 1.0), Bool.pick(F32, ay, 1.0, 0.0),
-        Util.fracf(u), Util.fracf(wf), lx, ly, lz, facing(da, ax, ay, lx, ly, lz),
+        Util.fracf(u), Util.fracf(wf), lx, ly, lz, facing(da, ax, ay, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32)),
         Bool.pick(F32, ax, (px + nudge : F32), px),
         Bool.pick(F32, ay, (py + nudge : F32), py),
         Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (pz + nudge : F32), pz),
@@ -1280,7 +1285,7 @@ def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, m
       Bool.pick(F32, cycle, Day.sun_z(clock), 0.36), clock, 0.0}
 
 # ---------- the sun as the eye sees it ----------
-# How much of the sun, or of the moon once it has set (Lens.side), the eye
+# How much of the sun, or of the moon once it has set (Sky.side), the eye
 # sees, for the lens (src/lens.bend), found on the host once a frame:
 # thirteen rays from the eye, to the body's middle and to two rings of six
 # points within its disc, each walked as a pixel's ray is, through the
@@ -1288,7 +1293,7 @@ def camera(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, base: U32, far: U32, m
 # that meets a block or water hides its share, so the body fades in steps
 # of a thirteenth as it goes behind an edge. The clouds the sky shows on
 # its line dim what is left (Clouds.unveiled), and it sets and rises
-# (Lens.strength).
+# (Sky.strength).
 def wet_path(tr: Water.Trace) -> Bool:
   Water.Trace{entry, +depth} = tr
   (depth > 0.0 : F32)
@@ -1361,8 +1366,8 @@ def seen_into(+cam: Cam, r: Array<U32> & F32) -> Array<U32> & Cam:
 # the camera with the sun or the moon it sees, the lens on (Cam.fl bit 19)
 def sighted(w: Array<U32>, +cam: Cam) -> Array<U32> & Cam:
   Cam{+px, +py, +pz, yaw, pit, +base, +far, sel, items, stat, +fl, rw, rh, +lx, +ly, +lz, +clock, seen} = cam
-  +s = Lens.side(ly)
-  seen_into(cam, sight(Util.on(fl, 524288), w, base, far, fl, clock, px, py, pz, (s * lx : F32), (s * ly : F32), (s * lz : F32), Lens.strength(ly)))
+  +s = Sky.side(Sky.moon_on(fl), ly)
+  seen_into(cam, sight(Util.on(fl, 524288), w, base, far, fl, clock, px, py, pz, (s * lx : F32), (s * ly : F32), (s * lz : F32), Sky.strength(Sky.moon_on(fl), ly)))
 
 def look_x(+yaw: F32, +pit: F32) -> F32: (F32.cos(pit) * F32.sin(yaw) : F32)
 def look_y(+pit: F32) -> F32: F32.sin(pit)
@@ -1617,7 +1622,8 @@ def beam(n: Nat, +base: U32, +fm: U32, +ck: U32, +clouds: Bool, +open: U32, +win
 def beam_aim(+base: U32, +fm: U32, +ck: U32, +clouds: Bool, +open: U32, +wind: U32, +ox: F32, +oy: F32, +oz: F32,
              +lx: F32, +ly: F32, +lz: F32, w: Array<U32>, a: Aim) -> Array<U32> & U32:
   Aim{+dx, +dy, +dz, fx, fy, fz, rx, rz, ex, ey, ez} = a
-  beam(8n, base, fm, ck, clouds, open, wind, ox, oy, oz, dx, dy, dz, lx, ly, lz, 0, 1, (w, 0))
+  +sg = Sky.side(True{}, ly)
+  beam(8n, base, fm, ck, clouds, open, wind, ox, oy, oz, dx, dy, dz, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32), 0, 1, (w, 0))
 
 def corner(+cam: Cam, w: Array<U32>, +cx: U32, +cy: U32) -> Array<U32> & U32:
   Cam{ox, oy, oz, yaw, pit, base, far, sel, items, stat, +fl, +rw, +rh, lx, ly, lz, +ck, seen} = cam

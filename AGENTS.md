@@ -189,6 +189,11 @@ through U32 (the far look west and north of the window, 2026-09-25).
 four `t2`, straight-line). A long walk is never unrolled into a row of
 non-recursive defs: the emitted program explodes. The DDA's 60 steps are
 one recursive def with fuel.
+- A `Bool.pick` of a Data record, or any generic def at a record type,
+builds the record on the device heap and inlines the heap's drop at every
+site: a pick of two `Sky.Tint`s kept Metal's compiler past 11 minutes
+([#1195](https://github.com/bendlang/bend/issues/1195)). Pick scalars, or
+match in a def of its own.
 - The shaders guide's "Do not" list applies, with one note measured here:
 its typed picks in place of the generic `Bool.pick` changed nothing in
 this game (PERF.md).
@@ -210,7 +215,7 @@ noise.
 - `Cam.fl`: 1 shadow, 2 occlusion, 4 texture, 8 fog, 16 HUD; 32 and 64 are the profile's debug renders; 128 the clouds, 256 their shadows, 512 the rain, 1024 the wet, 2048 the meadow, 4096 the leaves' holes, 8192 the sun through them, 16384 the leaves in the wind, 32768 the surface seen from under the water, 65536 the meadow in the water's mirrors, 131072 the light's colour, 262144 the sun's halo, 524288 the lens; none is spare.
 Bit 20 is ripples, bit 21 water, bit 22 water fog,
 bit 23 Fresnel and bit 24 sky reflection. Bits 25..31 enable day cycle, sky gradient, sun disc,
-horizon glow, stars, moon and height fog (`Render.looks()`). Test flags by mask (`Util.on`), never by `<`.
+horizon glow, stars, moon and height fog (`Render.looks()`); the moon's bit is its disc, its sky and its light on the world once the sun has set (`Sky.side`). Test flags by mask (`Util.on`), never by `<`.
 - `Cam.far`: the far map's corner mod 256, x's over z's
 (`World.far_cam`); the device walks the map in the window's coordinates
 plus 64, plus those remainders, plus 256 (`Render.run_far`).

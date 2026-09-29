@@ -438,17 +438,16 @@ def afar(+fm: U32, +x: F32, +z: F32, +t: F32) -> U32:
     (0.3 + 0.4 * F32.clamp((0.35 + 0.3 * Meadow.wild(xw, zw) + (Clouds.lattice(xw, zw, 4.0, 1024, 977) - 0.5) * 0.4 * F32.clamp((1.0 - t * 0.03 : F32), 0.0, 1.0) : F32), 0.0, 1.0) : F32))
 
 # The grass's colour: its green by how dry, yellower up the blades, darker down in the grass; in
-# the sun's light where the ray met it (sun: 0.6 in the shade), its colour tint, more of
-# it on the side the ray sees when the sun is behind it, and through the
+# the light of the body l, the sun or the moon, where the ray met it (sun: 0.6 in the shade),
+# as bright as tone, its colour tint, more of it on the side the ray sees when the body is behind it, and through the
 # blades against it; darker when wet, the flowers' heads among them;
 # fogged as the ray (v, f) and over what it met behind them (c), whose
 # floor under the grass is the shade at the blades' feet.
-def over(+c: U32, +v: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +wet: F32, +dry: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32,
+def over(+c: U32, +v: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +tone: F32, +wet: F32, +dry: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32,
          lw: Meadow) -> U32:
   Meadow{+tr, +n, +lit, +s, +head, +heart, +t, +hue, +low} = lw
   +m = (1.0 / F32.max(n, 0.0001) : F32)
   +tip = (s * m : F32)
-  +tone = (0.18 + 0.82 * Sky.daylight(ly) : F32)
   +dl = (dx * lx + dy * ly + dz * lz : F32)
   +toward = F32.clamp(dl, 0.0, 1.0)
   +glow = (toward * toward * toward * toward * F32.clamp((ly * 5.0 : F32), 0.0, 1.0) * F32.clamp(((sun - 0.6) * 2.5 : F32), 0.0, 1.0) : F32)

@@ -386,11 +386,18 @@ the same light. With the bit off every factor is 1 and the frame is the
 one before, byte for byte. Around the sun (bit 18, `Sky.halo`) the
 atmosphere takes a tight white glare and a wide warm glow, fading as it
 sets; the fog takes its colour from the atmosphere, so what stands against
-the sun melts into a bright haze.
+the sun melts into a bright haze. Once the sun has set the moon lights the
+world in its place (with the moon's look, `Cam.fl` bit 30; `Sky.side`),
+from opposite the sun, in a silver light: the faces turned to it, its
+shadows and the clouds' shade, as the sun's by day. The night's light
+rises from 0.18 of the day's to 0.48 (`Sky.level`), the sky takes the full
+moon's blue and a wide glow around it (`Sky.moonsky`), which the fog takes
+too, and the clouds turn silver where it lights them. With the look off
+the night is as it was, lit by nothing.
 
 **The lens** (bit 19, `src/lens.bend`) puts the sun in the camera, and
 the moon once the sun has set, a third as bright in a cool white
-(`Lens.side`, `Lens.strength`). How much of it the eye sees, 0 to 1, is
+(`Sky.side`, `Sky.strength`). How much of it the eye sees, 0 to 1, is
 found on the host once a frame (`Render.sighted`, into the camera's
 `seen`): thirteen rays from the eye, to the body's middle and to two rings
 of six points within its disc, each walked as a pixel's ray is, through
@@ -425,7 +432,8 @@ laid on in the sun's colour as a screen does, most towards the sun,
 thicker as it sets, veiled by a heavy sky, and over the meadow's blades
 where they stand before it: at sunset the far trees stand in a golden
 haze, and the shade of a canopy, a hill or a cloud cuts darker air out of
-it. It needs the sun up, and the mirror sees none of it. Beams through
+it. It needs the sun up, or the moon, whose haze glows silver at 0.7 of
+the sun's; the mirror sees none of it. Beams through
 the leaves it cannot draw: eight points on a ray miss a beam a texel
 wide, and the sky near the sun is too bright to take more light.
 
@@ -594,7 +602,7 @@ each block's swatch and the full cells it holds below the bucket's.
 main.bend          the window loop, elapsed time, the view, the tick
 src/day.bend       integer day phase and the sun direction
 src/inventory.bend natural counts, conserved cell/item transfers, packed HUD counts
-src/sky.bend       sky gradient, sun, glow and halo, stars, moon, distance/height fog, the light's colour
+src/sky.bend       sky gradient, sun, glow and halo, stars, moon, distance/height fog, the light's colour, the body that lights the world
 src/lens.bend      the sun in the camera: the glare and the flare over a pixel
 src/shafts.bend    the sun's light in the haze a pixel looks through, from its tile's shafts
 src/clouds.bend    the clouds' coverage and its map, their march along a sky ray, their shadow, the weather
@@ -749,7 +757,10 @@ moon's, from above the trees, 26.4 on and 24.0 off. The shafts, whose
 glances and clouds' reads every tile makes at its four corners while the
 sun is up, read 8 ms at 1470×796 (six rounds: the bench's view 56.2 on
 and 48.4 off, the sunset towards the sun 66.6 and 58.0) and 2 at scale 2
-(14.6 and 12.8). In the bench's view 49% of the rays
+(14.6 and 12.8). The moon's light costs the night what the sun's costs
+the day, its shadows and its haze: at midnight over the meadow 67.4 ms at
+1470×796 with it and 54.0 without (six rounds; the build before, 54.6),
+and 18.2 and 16.0 at scale 2. In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 

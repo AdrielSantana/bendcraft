@@ -20,6 +20,30 @@ def gradient(on: Bool, +dy: F32, +sy: F32) -> U32:
 def sun_colour(+sy: F32) -> U32:
   Util.mix(Util.rgb(255, 164, 83), Util.rgb(255, 247, 216), F32.clamp((sy * 2.0 : F32), 0.0, 1.0))
 
+# THE BODY that lights the world: the sun, or once it has set the moon
+# (with the moon's look on, Cam.fl bit 30), from opposite it
+def moon_on(+fl: U32) -> Bool: Util.on(fl, 1073741824)
+
+def moonlit(+sy: F32) -> Bool: (sy < (0.0 - 0.02) : F32)
+
+# the body's direction is the sun's times this
+def side(moon: Bool, +sy: F32) -> F32: Bool.pick(F32, moon && moonlit(sy), (0.0 - 1.0 : F32), 1.0)
+
+# the body's height over the horizon
+def up(moon: Bool, +sy: F32) -> F32: (side(moon, sy) * sy : F32)
+
+# how bright the body is as it sets or rises, the moon a third of the sun
+def strength(moon: Bool, +sy: F32) -> F32:
+  (F32.clamp(((sy + 0.02) * 25.0 : F32), 0.0, 1.0) + Bool.pick(F32, moon, 0.35, 0.0) * F32.clamp(((0.0 - sy - 0.02) * 5.0 : F32), 0.0, 1.0) : F32)
+
+# its light's colour, the moon's a cool white
+def body_colour(+sy: F32) -> U32: Bool.pick(U32, moonlit(sy), Util.rgb(196, 212, 240), sun_colour(sy))
+
+# how brightly the world is lit, of the day's: the moon lifts the night
+def level(moon: Bool, +sy: F32) -> F32:
+  +day = daylight(sy)
+  (0.18 + 0.82 * day + Bool.pick(F32, moon, 0.3, 0.0) * (1.0 - day) : F32)
+
 def glow(on: Bool, +c: U32, +dx: F32, +dy: F32, +dz: F32,
          +sx: F32, +sy: F32, +sz: F32) -> U32:
   match on:
@@ -47,13 +71,26 @@ def halo(on: Bool, +c: U32, +dx: F32, +dy: F32, +dz: F32,
       Util.mix(Util.mix(c, sun_colour(sy), F32.clamp((0.35 * F32.exp((d * 14.0 : F32)) * up : F32), 0.0, 1.0)),
         Util.rgb(255, 246, 226), F32.clamp((0.75 * F32.exp((d * 900.0 : F32)) * up : F32), 0.0, 1.0))
 
+# The full moon's sky (with the moon on): the night's blue lifted and a
+# wide glow around the moon, which the fog takes too.
+def moonsky(on: Bool, +c: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, +sz: F32) -> U32:
+  match on:
+    case False{}:
+      c
+    case True{}:
+      +k = F32.clamp(((0.0 - sy - 0.02) * 5.0 : F32), 0.0, 1.0)
+      +d = (F32.clamp((0.0 - (dx * sx + dy * sy + dz * sz) : F32), 0.0, 1.0) - 1.0 : F32)
+      Util.mix(Util.mix(c, Util.rgb(48, 68, 116), (0.5 * k : F32)), Util.rgb(160, 176, 206), F32.clamp((0.35 * F32.exp((d * 10.0 : F32)) * k : F32), 0.0, 1.0))
+
 # The fog samples this atmosphere alone, never a sun, moon or star disc.
 def atmosphere(+fl: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, +sz: F32) -> U32:
-  halo(Util.on(fl, 262144), glow(Util.on(fl, 268435456), gradient(Util.on(fl, 67108864), dy, sy), dx, dy, dz, sx, sy, sz), dx, dy, dz, sx, sy, sz)
+  moonsky(moon_on(fl), halo(Util.on(fl, 262144), glow(Util.on(fl, 268435456), gradient(Util.on(fl, 67108864), dy, sy), dx, dy, dz, sx, sy, sz), dx, dy, dz, sx, sy, sz),
+    dx, dy, dz, sx, sy, sz)
 
 # The light's colour (bit 17), a factor a channel of a lit colour: the
-# sun's, warm white overhead and gold to orange as it sets, and the
-# sky's in the shade, blue by day, violet at dusk, deeper under the moon,
+# body's, the sun's warm white overhead and gold to orange as it sets or
+# the moon's silver, and the sky's in the shade, blue by day, violet at
+# dusk, deeper under the moon,
 # weighed by the sun a face takes (0.6, the shade, to 1, full sun). Each
 # keeps about the brightness the light had: it changes colour, not
 # strength.
@@ -65,8 +102,8 @@ def blend(a: Tint, b: Tint, +f: F32) -> Tint:
   Tint{+br, +bg, +bb} = b
   Tint{(ar + (br - ar) * f : F32), (ag + (bg - ag) * f : F32), (ab + (bb - ab) * f : F32)}
 
-def sunlight(+sy: F32) -> Tint:
-  blend(Tint{1.3, 1.06, 0.72}, Tint{1.05, 1.0, 0.93}, Util.smooth(F32.clamp((sy * 2.5 : F32), 0.0, 1.0)))
+def direct(+sy: F32) -> Tint:
+  blend(blend(Tint{1.3, 1.06, 0.72}, Tint{1.05, 1.0, 0.93}, Util.smooth(F32.clamp((sy * 2.5 : F32), 0.0, 1.0))), Tint{0.84, 0.95, 1.2}, Bool.pick(F32, moonlit(sy), 1.0, 0.0))
 
 def skylight(+sy: F32) -> Tint:
   blend(blend(Tint{0.78, 0.88, 1.26}, Tint{0.9, 0.97, 1.14}, daylight(sy)), Tint{0.95, 0.9, 1.1},
@@ -77,7 +114,7 @@ def light(on: Bool, +sun: F32, +sy: F32) -> Tint:
     case False{}:
       Tint{1.0, 1.0, 1.0}
     case True{}:
-      blend(skylight(sy), sunlight(sy), F32.clamp(((sun - 0.6) * 2.5 : F32), 0.0, 1.0))
+      blend(skylight(sy), direct(sy), F32.clamp(((sun - 0.6) * 2.5 : F32), 0.0, 1.0))
 
 def tinted(+c: U32, t: Tint) -> U32:
   Tint{+r, +g, +b} = t
@@ -132,14 +169,11 @@ def moon(on: Bool, +c: U32, +dot: F32, +dx: F32, +dy: F32, +dz: F32, +sy: F32) -
       +colour = Util.mix(Util.rgb(153, 173, 196), Util.rgb(224, 231, 240), (U32.to_f32((mark % 256 : U32)) / 255.0 : F32))
       Util.mix(c, colour, (disc * above * night : F32))
 
-# the moon's light in the lens (Lens.through), a cool white
-def moonlight() -> U32: Util.rgb(196, 212, 240)
-
 def bodies(+fl: U32, +c: U32, +dx: F32, +dy: F32, +dz: F32, +sx: F32, +sy: F32, +sz: F32) -> U32:
   +dot = (dx * sx + dy * sy + dz * sz : F32)
   +field = stars(Util.on(fl, 536870912) && (sy < (0.0 - 0.08) : F32), c, dx, dy, dz, sy)
   +sunlit = sun(Util.on(fl, 134217728), field, dot, dy, sy)
-  moon(Util.on(fl, 1073741824) && (sy < 0.0 : F32), sunlit, dot, dx, dy, dz, sy)
+  moon(moon_on(fl) && (sy < 0.0 : F32), sunlit, dot, dx, dy, dz, sy)
 
 # The average endpoint density approximates a low mist layer. Its amount
 # and distance haze compose as transmittances, staying in [0,1]. A 120-block

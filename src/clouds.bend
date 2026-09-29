@@ -209,29 +209,31 @@ def march(fuel: Nat, +x: F32, +h: F32, +z: F32, +sx: F32, +sz: F32, +ax: F32, +a
         coverage(w, (x + sx : F32), (z + sz : F32), ax, az))
 
 # the clouds' colour over the sky: white to the sun by day, rose and gold
-# at its rising and setting, grey-blue under the moon, greyer as the
-# weather turns; far clouds fade into the horizon's haze
-def puffed(+v: U32, +sky: U32, +t0: F32, +wx: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, p: Puff) -> U32:
+# at its rising and setting, grey-blue at night, silver where the moon
+# (sg, Sky.side) lights them, greyer as the weather turns; far clouds fade
+# into the horizon's haze
+def puffed(+v: U32, +sky: U32, +t0: F32, +wx: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, +sg: F32, p: Puff) -> U32:
   Puff{+tr, +w, +wl} = p
   +day = Sky.daylight(ly)
+  +moon = ((1.0 - sg) * 0.5 : F32)
   +warm = F32.clamp((1.0 - Util.absf(ly) * 3.0 : F32), 0.0, 1.0)
-  +toward = F32.clamp((dx * lx + dy * ly + dz * lz : F32), 0.0, 1.0)
-  +bright = Util.mix(Util.mix(Util.mix(Util.rgb(58, 66, 92), Util.rgb(255, 253, 248), day),
+  +toward = F32.clamp((sg * (dx * lx + dy * ly + dz * lz) : F32), 0.0, 1.0)
+  +bright = Util.mix(Util.mix(Util.mix(Util.mix(Util.rgb(58, 66, 92), Util.rgb(150, 162, 190), moon), Util.rgb(255, 253, 248), day),
     Util.mix(Util.rgb(120, 62, 96), Util.rgb(255, 176, 118), day), (warm * 0.8 : F32)), Util.rgb(150, 156, 166), (wx * 0.45 : F32))
-  +dark = Util.mix(Util.mix(Util.rgb(20, 24, 38), Util.rgb(104, 114, 138), day), Util.rgb(40, 44, 54), (wx * 0.6 : F32))
+  +dark = Util.mix(Util.mix(Util.mix(Util.rgb(20, 24, 38), Util.rgb(40, 48, 72), moon), Util.rgb(104, 114, 138), day), Util.rgb(40, 44, 54), (wx * 0.6 : F32))
   +light = F32.clamp((wl / F32.max(w, 0.0001) + 0.3 * toward * toward : F32), 0.0, 1.0)
   +fade = (1.0 - Util.smooth(F32.clamp(((t0 - 180.0) * 0.004 : F32), 0.0, 1.0)) : F32)
   Util.mix(sky, Util.mix(Util.mix(dark, bright, light), v, F32.clamp((t0 * 0.0018 : F32), 0.0, 0.6)), ((1.0 - tr) * fade : F32))
 
-def marched(+v: U32, +sky: U32, +t0: F32, +wx: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, r: Array<U32> & Puff) -> Array<U32> & U32:
+def marched(+v: U32, +sky: U32, +t0: F32, +wx: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, +sg: F32, r: Array<U32> & Puff) -> Array<U32> & U32:
   (w, p) = r
-  (w, puffed(v, sky, t0, wx, dx, dy, dz, lx, ly, lz, p))
+  (w, puffed(v, sky, t0, wx, dx, dy, dz, lx, ly, lz, sg, p))
 
 # a sky pixel's clouds, over the sky it shows with its heavens, marched
 # from the slab's bottom, whose first read ends no step (e0 far under the
 # ramp); a ray too flat to reach the slab near enough has faded before it
 def over(on: Bool, w: Array<U32>, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-         +lx: F32, +ly: F32, +lz: F32, +sky: U32) -> Array<U32> & U32:
+         +lx: F32, +ly: F32, +lz: F32, +sg: F32, +sky: U32) -> Array<U32> & U32:
   match on:
     case False{}:
       (w, sky)
@@ -242,9 +244,9 @@ def over(on: Bool, w: Array<U32>, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F3
       +dt = (1.0 / up : F32)
       +x = (ox + blown(fm, ck) + dx * t0 : F32)
       +z = (oz + corner_z(fm) + dz * t0 : F32)
-      +ax = (lx * 5.0 : F32)
-      +az = (lz * 5.0 : F32)
-      marched(v, sky, t0, wx, dx, dy, dz, lx, ly, lz,
+      +ax = (sg * lx * 5.0 : F32)
+      +az = (sg * lz * 5.0 : F32)
+      marched(v, sky, t0, wx, dx, dy, dz, lx, ly, lz, sg,
         march(17n, x, 0.0, z, (dx * dt : F32), (dz * dt : F32), ax, az, (dt * sigma(wx) : F32),
           F32.clamp((1.6 - dt * 0.15 : F32), 0.0, 1.0), bias(wx), 1.0, 0.0, 0.0, (0.0 - 1000000.0 : F32), coverage(w, x, z, ax, az)))
 
@@ -304,14 +306,14 @@ def heavens(on: Bool, +fl: U32, +ck: U32, +s: U32, +dx: F32, +dy: F32, +dz: F32,
 # what a sky pixel shows: v, the sky that way, with its heavens and clouds
 def above(w: Array<U32>, +fl: U32, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
           +lx: F32, +ly: F32, +lz: F32) -> Array<U32> & U32:
-  over(Util.on(fl, 128), w, fm, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, heavens(Util.on(fl, 128), fl, ck, v, dx, dy, dz, lx, ly, lz))
+  over(Util.on(fl, 128), w, fm, ck, v, ox, oy, oz, dx, dy, dz, lx, ly, lz, Sky.side(Sky.moon_on(fl), ly), heavens(Util.on(fl, 128), fl, ck, v, dx, dy, dz, lx, ly, lz))
 
 # the clouds a mirror at (ox, oy, oz) shows along (dx, dy, dz), over the
 # sky it shows: one read of their broad coverage where the ray crosses
 # the slab's middle, through the cloud's height along the ray and lit
 # halfway, in place of the sixteen steps a sky pixel marches
 def glimpsed(on: Bool, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-             +lx: F32, +ly: F32, +lz: F32, +sky: U32) -> U32:
+             +lx: F32, +ly: F32, +lz: F32, +sg: F32, +sky: U32) -> U32:
   match on:
     case False{}:
       sky
@@ -320,10 +322,10 @@ def glimpsed(on: Bool, +fm: U32, +ck: U32, +v: U32, +ox: F32, +oy: F32, +oz: F32
       +up = F32.max(dy, 0.02)
       +t0 = ((middle() - oy) / up : F32)
       +tr = F32.exp((0.0 - sigma(wx) * cover(fm, ck, ox, oz, (dx * t0 : F32), (dz * t0 : F32)) * (top() - bottom()) / up : F32))
-      puffed(v, sky, t0, wx, dx, dy, dz, lx, ly, lz, Puff{tr, (1.0 - tr : F32), (0.6 * (1.0 - tr) : F32)})
+      puffed(v, sky, t0, wx, dx, dy, dz, lx, ly, lz, sg, Puff{tr, (1.0 - tr : F32), (0.6 * (1.0 - tr) : F32)})
 
 # what a mirror at (ox, oy, oz) shows of the sky along (dx, dy, dz): the
 # sky, its heavens and a glimpse of the clouds
 def mirrored(+fl: U32, +fm: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32) -> U32:
   +s = sky(fl, ck, dx, dy, dz, lx, ly, lz)
-  glimpsed(Util.on(fl, 128), fm, ck, s, ox, oy, oz, dx, dy, dz, lx, ly, lz, heavens(Util.on(fl, 128), fl, ck, s, dx, dy, dz, lx, ly, lz))
+  glimpsed(Util.on(fl, 128), fm, ck, s, ox, oy, oz, dx, dy, dz, lx, ly, lz, Sky.side(Sky.moon_on(fl), ly), heavens(Util.on(fl, 128), fl, ck, s, dx, dy, dz, lx, ly, lz))

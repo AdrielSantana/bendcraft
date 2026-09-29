@@ -40,11 +40,11 @@ def seen_in(r: Array<U32> & Render.Cam) -> F32:
   seen
 
 # how much of the fixed sun (0.48, 0.8, 0.36) an eye at (64.5, 10.5, 64.5)
-# of the world w sees, the lens on; with the day's cycle at night, of the
-# moon, at the same place in the sky
-def eye_sun(w: Array<U32>, +night: Bool) -> F32:
+# of the world w sees, the lens on with the flags more; with the day's
+# cycle (33554432) at night, of the moon, at the same place in the sky
+def eye_sun(w: Array<U32>, +more: U32) -> F32:
   seen_in(Render.sighted(w, Render.camera(64.5, 10.5, 64.5, 0.0, 0.0, 0, 0, 0, 0, 0, 0,
-    Bool.pick(U32, night, (524288 + 33554432 : U32), 524288), 64, 64, (524288 + Day.morning() : U32))))
+    (524288 + more : U32), 64, 64, (524288 + Day.morning() : U32))))
 
 def near_corner(r: Array<U32> & Shafts.Beams) -> U32:
   (w, b) = r
@@ -78,7 +78,7 @@ def clouds_map() -> Array<U32>:
 # a ray from the eye at (64.5, 30, 64.5) of a window whose corner is 0
 # mod 256, and the same ray from a window 10 columns further along x
 def cloud_at(+fm: U32, +ox: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
-  shown(Clouds.over(True{}, clouds_map(), fm, 154747, 12345, ox, 30.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 6789))
+  shown(Clouds.over(True{}, clouds_map(), fm, 154747, 12345, ox, 30.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 1.0, 6789))
 
 # the march's reads along a line of the clouds' columns against the
 # octaves they hold: the broad within a byte's step, the fine within
@@ -97,7 +97,7 @@ def agrees(n: Nat, +x: F32, +ok: Bool, r: Array<U32> & Clouds.Cover) -> Bool:
 
 # the clouds the same eye's mirror, on the water at 12, shows
 def glimpse_at(+fm: U32, +ox: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
-  Clouds.glimpsed(True{}, fm, 154747, 12345, ox, 12.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 6789)
+  Clouds.glimpsed(True{}, fm, 154747, 12345, ox, 12.0, 64.5, dx, dy, dz, 0.48, 0.8, 0.36, 1.0, 6789)
 
 def fixed(+dx: F32, +dy: F32, +dz: F32) -> Bool:
   U32.is_eq(cloud_at(0, 64.5, dx, dy, dz), cloud_at(2560, 54.5, dx, dy, dz))
@@ -231,8 +231,8 @@ def main() -> IO(Unit):
       "a cloud, and its glimpse in a mirror, stays over its column when the window moves under it")
     Lib.expect(agrees(186n, 0.5, True{}, Clouds.coverage(clouds_map(), 0.5, 0.305, 2.0, (0.0 - 1.5 : F32))),
       "the clouds' map holds their coverage: the march reads it as the octaves give it")
-    Lib.expect(U32.is_eq(shown(Clouds.over(False{}, clouds_map(), 0, 154747, 12345, 64.5, 30.0, 64.5, 0.3, 0.6, 0.2, 0.48, 0.8, 0.36, 6789)), 6789)
-      && U32.is_eq(shown(Clouds.over(True{}, clouds_map(), 0, 3145728, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 6789)), 6789),
+    Lib.expect(U32.is_eq(shown(Clouds.over(False{}, clouds_map(), 0, 154747, 12345, 64.5, 30.0, 64.5, 0.3, 0.6, 0.2, 0.48, 0.8, 0.36, 1.0, 6789)), 6789)
+      && U32.is_eq(shown(Clouds.over(True{}, clouds_map(), 0, 3145728, 12345, 64.5, 30.0, 64.5, 0.3, (0.0 - 0.4 : F32), 0.2, 0.48, 0.8, 0.36, 1.0, 6789)), 6789),
       "with the clouds off, or under the horizon on a fair day, the sky shows as it was")
     Lib.expect(row(shaded(86n, 0.0, 1.0, True{})) && F32.is_eq(Clouds.shade(False{}, 0, 154747, 10.0, 20.0, 10.0, 0.0, 1.0, 0.0), 1.0),
       "a cloud dims the sun on the ground under it, never below a heavy cloud's 0.55, and none with its look off")
@@ -284,15 +284,25 @@ def main() -> IO(Unit):
       && (warmth(Sky.light(True{}, 1.0, 0.9)) > 0.0 : F32), "sunlight is warm and warmer as it sets, the shade's light blue")
     Lib.expect((Sky.sunned(True{}, False{}, 1.0, 0.05) < Sky.sunned(True{}, False{}, 1.0, 0.9) : F32) && F32.is_eq(Sky.sunned(True{}, False{}, 1.0, 0.9), 1.0)
       && F32.is_eq(Sky.sunned(True{}, True{}, 1.0, 0.9), 0.6), "a face the sun grazes takes less of it, one it meets square all, one in a shadow none")
+    Lib.expect(F32.is_eq(Sky.side(True{}, 0.5), 1.0) && F32.is_eq(Sky.side(True{}, (0.0 - 0.5 : F32)), (0.0 - 1.0 : F32))
+      && F32.is_eq(Sky.side(False{}, (0.0 - 0.5 : F32)), 1.0)
+      && F32.is_eq(Sky.level(True{}, 0.8), Sky.level(False{}, 0.8)) && (Sky.level(True{}, (0.0 - 0.8 : F32)) > Sky.level(False{}, (0.0 - 0.8 : F32)) : F32),
+      "once the sun has set the moon lights the world, from opposite it, and lifts the night's light; none by day, none with its look off")
+    Lib.expect((Sky.moonsky(True{}, 1315860, 0.0, 1.0, 0.0, 0.0, (0.0 - 1.0 : F32), 0.0) > Sky.moonsky(True{}, 1315860, 1.0, 0.0, 0.0, 0.0, (0.0 - 1.0 : F32), 0.0) : U32)
+      && (Sky.moonsky(True{}, 1315860, 1.0, 0.0, 0.0, 0.0, (0.0 - 1.0 : F32), 0.0) > 1315860 : U32)
+      && U32.is_eq(Sky.moonsky(False{}, 1315860, 0.0, 1.0, 0.0, 0.0, (0.0 - 1.0 : F32), 0.0), 1315860)
+      && U32.is_eq(Sky.moonsky(True{}, 1315860, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0), 1315860),
+      "the full moon lifts the night's sky, most around it, and leaves the day's, and the sky with its look off")
     Lib.expect(U32.is_ne(Sky.halo(True{}, 123456, 0.6, 0.8, 0.0, 0.6, 0.8, 0.0), 123456)
       && U32.is_eq(Sky.halo(True{}, 123456, (0.0 - 0.6 : F32), (0.0 - 0.8 : F32), 0.0, 0.6, 0.8, 0.0), 123456)
       && U32.is_eq(Sky.halo(False{}, 123456, 0.6, 0.8, 0.0, 0.6, 0.8, 0.0), 123456), "the sun's halo brightens the sky at the sun and leaves it opposite as it was")
-    Lib.expect(Lib.near(eye_sun([0 : U32^20n], False{}), 1.0, 0.001)
-      && F32.is_eq(eye_sun(Array.set(U32, [0 : U32^20n], World.col_at(0, 67, 66), U32.shln(1, 15n)), False{}), 0.0),
+    Lib.expect(Lib.near(eye_sun([0 : U32^20n], 0), 1.0, 0.001)
+      && F32.is_eq(eye_sun(Array.set(U32, [0 : U32^20n], World.col_at(0, 67, 66), U32.shln(1, 15n)), 0), 0.0),
       "the eye sees the whole sun in an open sky, and none of it behind a block on its line")
-    Lib.expect(Lib.near(eye_sun([0 : U32^20n], True{}), 0.35, 0.001)
-      && F32.is_eq(eye_sun(Array.set(U32, [0 : U32^20n], World.col_at(0, 67, 66), U32.shln(1, 15n)), True{}), 0.0),
-      "at night the lens sees the moon, a third as bright as the sun, and none of it behind a block on its line")
+    Lib.expect(Lib.near(eye_sun([0 : U32^20n], (33554432 + 1073741824 : U32)), 0.35, 0.001)
+      && F32.is_eq(eye_sun(Array.set(U32, [0 : U32^20n], World.col_at(0, 67, 66), U32.shln(1, 15n)), (33554432 + 1073741824 : U32)), 0.0)
+      && F32.is_eq(eye_sun([0 : U32^20n], 33554432), 0.0),
+      "at night the lens sees the moon, a third as bright as the sun, none of it behind a block on its line, and none with the moon off")
     Lib.expect(U32.is_eq(Lens.through(False{}, 123456, 1.0, 0.0, 0.0, 0.48, 0.8, 0.36, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.48, 0.8, 0.36), 123456)
       && U32.is_eq(Lens.through(True{}, 123456, 0.0, 0.0, 0.0, 0.48, 0.8, 0.36, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.48, 0.8, 0.36), 123456)
       && (Lens.through(True{}, 123456, 1.0, 0.0, 0.0, 0.48, 0.8, 0.36, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.48, 0.8, 0.36) > 123456 : U32),
@@ -304,6 +314,9 @@ def main() -> IO(Unit):
       && U32.is_eq(Shafts.glowed(True{}, 123456, 0, 50.0, 1.0, Day.morning(), 0.48, 0.8, 0.36, 0.48, 0.8, 0.36), 123456)
       && (Shafts.glowed(True{}, 123456, 4294967295, 50.0, 1.0, Day.morning(), 0.48, 0.8, 0.36, 0.48, 0.8, 0.36) > 123456 : U32),
       "the shafts leave a pixel as it was when off or when the haze before it is in the shade, and brighten it towards the sun")
+    Lib.expect((Shafts.glowed(True{}, 123456, 4294967295, 50.0, 1.0, Day.morning(), (0.0 - 0.48 : F32), 0.8, (0.0 - 0.36 : F32), 0.48, (0.0 - 0.8 : F32), 0.36) > 123456 : U32)
+      && Shafts.on(1073741824, 1073741824, (0.0 - 0.8 : F32)) && Bool.not(Shafts.on(0, 1073741824, (0.0 - 0.8 : F32))),
+      "under the moon the haze glows towards it, and with the moon's look off the shafts are off at night")
     Lib.expect(U32.is_eq(shafts_in([0 : U32^20n]), 4294967295) && U32.is_eq(shafts_in([33554432 : U32^20n]), 4278190080),
       "the sun reaches every point of a ray's shafts in an open world, and none of the six within the window under a roof")
     Lib.expect(U32.is_ne(Sky.moon(True{}, 0, (0.0 - 1.0 : F32), 0.0, 1.0, 0.0, (0.0 - 1.0 : F32)), 0), "moon disc")
