@@ -40,7 +40,7 @@ def probe_w(~wet: Bool, +axis: U32, +pos: Bool, +under: Bool, +blocked: Bool, w:
       Bool.pick(F32, U32.is_eq(axis, 1), 1.0, 100000.0),
       Bool.pick(F32, U32.is_eq(axis, 2), 1.0, 100000.0), 1.0, 1.0, 1.0, False{}, 0,
       1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, U32.shln(1, F32.to_nat(y)), Water.Trace{0.0, 0.0},
-      Render.column_words(~wet, ~wet, False{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(y)), Util.f2u(y), sign,
+      Render.column_words(~wet, ~wet, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(y)), Util.f2u(y), sign,
         Bool.pick(F32, U32.is_eq(axis, 1), 0.5, 50000.0), Bool.pick(F32, U32.is_eq(axis, 1), 1.0, 100000.0))))
 
 def probe(~wet: Bool, +axis: U32, +pos: Bool, under: Bool, +blocked: Bool) -> Bool:
@@ -160,7 +160,7 @@ def partial_trace_w(+level: Bool, +x: F32, +y: F32, +z: F32, +axis: U32, w: Worl
     Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0),
     Bool.pick(F32, move_z, 1.0, 100000.0), 1.0, ay, 1.0, False{}, 0,
     1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, U32.shln(1, F32.to_nat(vy)), Water.Trace{0.0, 0.0},
-    Render.column_words(~True{}, ~True{}, False{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(vy)), Util.f2u(vy), (0.0 - 1.0 : F32),
+    Render.column_words(~True{}, ~True{}, ring, World.col_at(0, Util.f2u(x), Util.f2u(z)), U32.shln(1, F32.to_nat(vy)), Util.f2u(vy), (0.0 - 1.0 : F32),
       Bool.pick(F32, move_y, ((y - vy) / ay : F32), ((y - vy) / 0.00001 : F32)), Bool.pick(F32, move_y, (1.0 / ay : F32), 100000.0))))
 
 def partial_trace(+level: Bool, +a: U32, +x: F32, +y: F32, +z: F32, +axis: U32) -> Render.Ray:

@@ -246,9 +246,15 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    own light and its own, so the day hides it (README, "The torch");
    within the noise of the frame. Its light first fell as the square of
    what was left of the 14 blocks and showed within six under the full
-   moon, which lights the night at 0.48 of the day. The torch as a block,
-   type 9: a stick and a flame the DDA meets, neither solid nor casting a
-   shadow, on a block's top, and gone with it. Then the light grid: a
+   moon, which lights the night at 0.48 of the day. The torch as a block
+   — done (2026-09-29): type 9, a stick and a flame the eye's walk meets
+   in its cell, on the leaf plane, neither solid nor casting a shadow,
+   stood on the ground for nothing and gone with the block under it or in
+   water; seen near and in the water's mirror (README, "The torch");
+   within the noise with none in the view. Its test in the walk's step
+   first stood apart from the leaves' pierce, a second match, and cost 1
+   to 5 ms at 1470×796 with no torch anywhere; in one match with the
+   leaves, but computed for every leaf cell, 1 to 2. Then the light grid: a
    level a cell, 0 to 14, spread from each torch by a flood fill on the
    host as Minecraft's is, read smoothly at a face's corners, and its
    laws.
@@ -564,7 +570,7 @@ finished world.
 7. vegetation: the meadow, the leaves' holes and the wind in them — done, 2026-09-28
 8. light: the sun's colour, the sun in the camera, its light in the haze
    and the moonlit night — done, 2026-09-29; then the blocks': the torch
-   in the hand — done, 2026-09-29; the torch as a block; the light grid
+   in the hand and as a block — done, 2026-09-29; the light grid
 9. survival and crafting
 10. mobs and entities
 

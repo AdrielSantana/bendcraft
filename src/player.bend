@@ -5,11 +5,12 @@ import ./flow.bend as Flow
 import ./render.bend as Render
 import ./day.bend as Day
 import ./inventory.bend as Inventory
+import ./torch.bend as Torch
 
 # THE PLAYER: the game state, the events, the tick, the edits.
 #
 #   W A S D  move   space  jump   arrows  look   1-8  choose a block   9  the bucket
-#   P  save   Esc  quit (and save)
+#   0  the torch   P  save   Esc  quit (and save)
 #   mouse: look (the window holds it), left click breaks, right click places (or J / L),
 #   the wheel chooses
 
@@ -115,10 +116,11 @@ def feed(evs: List<Event>, g: Game) -> Game:
       feed(rest, g)
 
 # ---------- picking the block under the crosshair ----------
-# The glance's walk from the eye, 40 steps (Render.run_glance): the block
-# hit and the air cell before it (Render.face), as words 1 + (lx * 32 +
-# y) * 128 + lz, 0 for none; a cell past the window is none, so nothing
-# is placed there.
+# The eye's walk, 40 steps (Render.walk_from), which meets a torch's stick
+# and no leaf's hole: the block hit and the air cell before it
+# (Render.face), as words 1 + (lx * 32 + y) * 128 + lz, 0 for none; a
+# cell past the window is none, so nothing is placed there, and neither
+# is anything against a torch, met inside its cell.
 
 def pk_u(+x: U32, +y: U32, +z: U32) -> U32:
   ((x * 32 + y) * 128 + z : U32)
@@ -137,13 +139,20 @@ def aim_face(got: Bool, w: Array<U32>, fc: Render.Face) -> Array<U32> & (U32 & U
       Render.Face{px, py, pz, ax, ay, hx, hy, hz, cx, cy, cz, da, u, wf, tone} = fc
       (w, (cell(cx, cy, cz), cell(hx, hy, hz)))
 
-def aim_fin(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, r: Array<U32> & Render.Glance) -> Array<U32> & (U32 & U32):
-  (w, g) = r
-  Render.Glance{+c, t} = g
-  aim_face((c > 0 : U32), w, Render.face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
+def aim_hit(torch: Bool, +c: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, w: Array<U32>) -> Array<U32> & (U32 & U32):
+  match torch:
+    case True{}:
+      (w, (0, cell((ox + dx * t : F32), (oy + dy * t : F32), (oz + dz * t : F32))))
+    case False{}:
+      aim_face((c > 0 : U32), w, Render.face((c - 1 : U32), ox, oy, oz, dx, dy, dz, t))
+
+def aim_fin(+ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, r: Array<U32> & Render.Ray) -> Array<U32> & (U32 & U32):
+  (w, ray) = r
+  Render.Ray{+code, t, rim, rim_end, tr} = ray
+  aim_hit(Util.on(code, 1024), (code % 4 : U32), ox, oy, oz, dx, dy, dz, t, w)
 
 def aim(w: Array<U32>, +base: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32) -> Array<U32> & (U32 & U32):
-  aim_fin(ox, oy, oz, dx, dy, dz, Render.run_glance(40n, w, base, ox, oy, oz, dx, dy, dz, 0, 0))
+  aim_fin(ox, oy, oz, dx, dy, dz, Render.walk_from(~False{}, ~False{}, 40n, w, base, 0, 0, ox, oy, oz, dx, dy, dz, 0.0))
 
 def waim_fin(meta: World.Meta, r: Array<U32> & (U32 & U32)) -> World.World & (U32 & U32):
   (ring, ph) = r
@@ -167,13 +176,15 @@ def write_block(act: Bool, w: World.World, +idx: U32, set: Bool, +what: U32) -> 
 
 # The receipt changes the ring and the count together. A break credits the
 # actual voxel type, and a place can only debit an empty cell's chosen type.
-def edit_commit(w: World.World, idx: U32, set: Bool, what: U32, e: Inventory.Edit) -> World.World & List<&2, Nat>:
+# A torch is no item: a break takes it and credits nothing.
+def edit_commit(w: World.World, idx: U32, set: Bool, what: U32, gone: Bool, e: Inventory.Edit) -> World.World & List<&2, Nat>:
   Inventory.Edit{bag, changed} = e
-  (write_block(changed, w, idx, set, what), bag)
+  (write_block(changed || gone, w, idx, set, what), bag)
 
 def edit_type(+set: Bool, +what: U32, idx: U32, bag: List<&2, Nat>, solid: Bool, r: World.World & U32) -> World.World & List<&2, Nat>:
-  (w, actual) = r
-  edit_commit(w, idx, set, Bool.pick(U32, set, what, 0), Inventory.edit(bag, U32.to_nat(Bool.pick(U32, set, what, actual)), set, solid))
+  (w, +actual) = r
+  edit_commit(w, idx, set, Bool.pick(U32, set, what, 0), Bool.not(set) && U32.is_eq(actual, Torch.slot()),
+    Inventory.edit(bag, U32.to_nat(Bool.pick(U32, set, what, actual)), set, solid))
 
 def edit_solid(set: Bool, what: U32, +idx: U32, bag: List<&2, Nat>, r: World.World & Bool) -> World.World & List<&2, Nat>:
   (w, solid) = r
@@ -189,6 +200,26 @@ def edit_if(act: Bool, +idx: U32, set: Bool, what: U32, r: World.World & List<&2
 
 def edit_world(act: Bool, +idx: U32, set: Bool, what: U32, r: World.World & List<&2, Nat>) -> World.World & List<&2, Nat>:
   edit_if(act && (idx < 524288 : U32), idx, set, what, r)
+
+# ---------- the torch ----------
+# The tenth slot's torch costs nothing: a right click stands one in the
+# cell before the face aimed at, if that cell is open and dry and a solid
+# block is under it; the player may stand in it, since it is not solid.
+def torch_fin(+idx: U32, bag: List<&2, Nat>, +open: U32, r: World.World & Bool) -> World.World & List<&2, Nat>:
+  (w, under) = r
+  (write_block(under && U32.is_eq(open, 0), w, idx, True{}, Torch.slot()), bag)
+
+def torch_open(+idx: U32, bag: List<&2, Nat>, r: World.World & U32) -> World.World & List<&2, Nat>:
+  (w, open) = r
+  torch_fin(idx, bag, open, World.wsolid(w, Util.u2f(ix_x(idx)), (Util.u2f(ix_y(idx)) - 1.0 : F32), Util.u2f(ix_z(idx))))
+
+def torch_put(act: Bool, +idx: U32, r: World.World & List<&2, Nat>) -> World.World & List<&2, Nat>:
+  match act:
+    case False{}:
+      r
+    case True{}:
+      (w, bag) = r
+      torch_open(idx, bag, World.probe(w, ix_x(idx), ix_y(idx), ix_z(idx)))
 
 # ---------- the bucket ----------
 # The ninth slot moves water instead of a block. A left click takes all
@@ -271,11 +302,13 @@ def step_edit(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
     && (ix_y(tgt) >= Util.f2u((npy - eye() : F32)) : U32) && (ix_y(tgt) <= Util.f2u((npy + 0.2 : F32)) : U32)
   +pail_on = U32.is_eq(sel, 8)
   +brk = got && Util.on(edge, 1024)
-  +put = got && (prev > 0 : U32) && Util.on(edge, 2048) && Bool.not(onme)
+  +use = got && (prev > 0 : U32) && Util.on(edge, 2048)
+  +put = use && Bool.not(onme)
   step_done(npx, npy, npz, nvy, nyaw, npit, held, edge, sel, res, clock,
     edit_world(put && (sel < 8 : U32), tgt, True{}, sel,
-      edit_world(brk && Bool.not(pail_on), (hit - 1 : U32), False{}, 0,
-        pail(pail_on && (brk || put), put, tgt, (w, bag)))))
+      torch_put(use && U32.is_eq(sel, Torch.slot()), tgt,
+        edit_world(brk && Bool.not(pail_on), (hit - 1 : U32), False{}, 0,
+          pail(pail_on && (brk || put), put, tgt, (w, bag))))))
 
 def step_aim(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
              held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>, r: World.World & (U32 & U32)) -> Game:

@@ -137,7 +137,6 @@ def main() -> IO(Unit):
     Lib.expect(cell(press(106, fixture(Inventory.empty(), 0)), sand(), Player.pk_u(64, 10, 66), False{}, 0), "break credits actual sand, not selected grass")
     Lib.expect(cell(press(108, fixture(Inventory.empty(), 3)), Inventory.empty(), Player.pk_u(64, 10, 65), False{}, 0), "empty inventory cannot create a block")
     Lib.expect(cell(press(108, fixture(sand(), 3)), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "placement spends one sand and writes sand")
-    Lib.expect(cell(press(108, fixture(sand(), 9)), sand(), Player.pk_u(64, 10, 65), False{}, 0), "the torch in hand places nothing yet and spends nothing")
     Lib.expect(cell(Player.step(press(106, fixture(Inventory.empty(), 0))), sand(), Player.pk_u(64, 10, 67), True{}, 6), "held break does not collect the next block")
     Lib.expect(cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), False{}, 0,
       world_of(press(106, fixture(Inventory.empty(), 0))))), sand(), Player.pk_u(64, 10, 66), False{}, 0), "breaking the same air twice gives one item")

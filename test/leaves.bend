@@ -36,7 +36,7 @@ def up_ray(+u: F32, +v: F32, +leafy: Bool, +wind: U32) -> F32:
   rayed(Render.dda(~False{}, ~False{}, 60n, 0, 64.0, 8.0, 64.0, 1.0, 1.0, 1.0,
     ((1.0 - u) * 100000.0 : F32), 0.5, ((1.0 - v) * 100000.0 : F32), 100000.0, 1.0, 100000.0, 0.00001, 1.0, 0.00001, leafy, wind,
     1.0, 0, 0.0, (0.0 - 1.0 : F32), 0.0, 0, 256, Water.Trace{0.0, 0.0},
-    Render.column_words(~False{}, ~False{}, leafy, ring(), World.col_at(0, 64, 64), 256, 8, 1.0, 0.5, 1.0)))
+    Render.column_words(~False{}, ~False{}, ring(), World.col_at(0, 64, 64), 256, 8, 1.0, 0.5, 1.0)))
 
 # Through each texel k = i + 8 j of the leaf's lower face, the eye's walk
 # and a glance that sees the eye's gaps pass where the face's pattern is

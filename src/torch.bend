@@ -11,6 +11,7 @@ import ./sky.bend as Sky
 # channel, as Minecraft takes the brighter of the sky's light and a
 # block's: the day hides it.
 
+# the hotbar's tenth slot, and the torch block's type
 def slot() -> U32: 9
 
 def reach() -> F32: 14.0
@@ -76,6 +77,60 @@ def ink(held: Bool, +ink: U32, +day: U32, +k: F32) -> U32:
     case True{}:
       +lit = Sky.tinted(day, brighter(0.0, 0.0, 0.0, k))
       Util.rgb(U32.max((ink / 65536 : U32), (lit / 65536 : U32)), U32.max((ink / 256 % 256 : U32), (lit / 256 % 256 : U32)), U32.max((ink % 256 : U32), (lit % 256 : U32)))
+
+# THE TORCH BLOCK, type 9: a stick of 2 by 10 texels of 16 standing in the
+# middle of its cell, its top three the flame. It is not solid and casts
+# no shadow; it rides the leaf plane (World.plane), and a walk that comes
+# into its cell meets it where it crosses the stick's box.
+def lo() -> F32: 0.4375
+def hi() -> F32: 0.5625
+def top() -> F32: 0.625
+
+# how far on a ray of sign s and inverse rate e, at p on an axis of the
+# cell (0 to 1), enters and leaves the slab from a to b
+def enter(+s: F32, +p: F32, +a: F32, +b: F32, +e: F32) -> F32:
+  (Bool.pick(F32, (s > 0.0 : F32), (a - p : F32), (p - b : F32)) * e : F32)
+
+def leave(+s: F32, +p: F32, +a: F32, +b: F32, +e: F32) -> F32:
+  (Bool.pick(F32, (s > 0.0 : F32), (b - p : F32), (p - a : F32)) * e : F32)
+
+# how far on the ray from p in the cell meets the stick, under 0 for a miss
+def stick(+sx: F32, +sy: F32, +sz: F32, +px: F32, +py: F32, +pz: F32, +ex: F32, +ey: F32, +ez: F32) -> F32:
+  +a = F32.max(F32.max(enter(sx, px, lo(), hi(), ex), enter(sy, py, 0.0, top(), ey)), enter(sz, pz, lo(), hi(), ez))
+  +b = F32.min(F32.min(leave(sx, px, lo(), hi(), ex), leave(sy, py, 0.0, top(), ey)), leave(sz, pz, lo(), hi(), ez))
+  Bool.pick(F32, (a <= b : F32) && (b >= 0.0 : F32), F32.max(a, 0.0), (0.0 - 1.0 : F32))
+
+def sign(+d: F32) -> F32: Bool.pick(F32, (d > 0.0 : F32), 1.0, (0.0 - 1.0 : F32))
+
+def inverse(+d: F32) -> F32: (1.0 / F32.max(Util.absf(d), 0.00001) : F32)
+
+# a texel of the flame's three rows, orange at its foot to white at its
+# top, or of the stick, its second column darker
+def texel(+row: U32, +column: U32) -> U32:
+  Bool.pick(U32, (row >= 9 : U32), Util.rgb(255, 238, 160),
+    Bool.pick(U32, U32.is_eq(row, 8), Util.rgb(255, 196, 80),
+      Bool.pick(U32, U32.is_eq(row, 7), Util.rgb(240, 136, 36),
+        Bool.pick(U32, U32.is_eq(column, 1), Util.rgb(84, 58, 30), Util.rgb(112, 80, 42)))))
+
+# the torch seen along d where the ray meets its stick at p, at the clock
+# ck: the stick brighter up to the flame, which flickers, a side shaded
+# as a block's
+def look(+ck: U32, +px: F32, +py: F32, +pz: F32, +dx: F32, +dy: F32, +dz: F32) -> U32:
+  +qx = Util.fracf(px)
+  +qy = Util.fracf(py)
+  +qz = Util.fracf(pz)
+  +ix = enter(sign(dx), qx, lo(), hi(), inverse(dx))
+  +iy = enter(sign(dy), qy, 0.0, top(), inverse(dy))
+  +iz = enter(sign(dz), qz, lo(), hi(), inverse(dz))
+  +t = F32.max(F32.max(ix, iy), iz)
+  +side = F32.is_eq(t, ix)
+  +up = Bool.not(side) && F32.is_eq(t, iy)
+  +row = Util.f2u(F32.clamp(((qy + dy * t) * 16.0 : F32), 0.0, 9.0))
+  +across = Bool.pick(F32, side, (qz + dz * t : F32), (qx + dx * t : F32))
+  +flame = (row >= 7 : U32)
+  Util.dim(texel(row, Util.f2u(F32.clamp(((across - lo()) * 16.0 : F32), 0.0, 1.0))),
+    Bool.pick(F32, flame, F32.min((flicker(ck) * 1.08 : F32), 1.0),
+      (Bool.pick(F32, side, 0.8, Bool.pick(F32, up, 1.0, 0.7)) * (0.55 + 0.45 * Util.u2f(row) / 6.0) : F32)))
 
 # the torch in the tenth slot's swatch, 16 px a side from its corner
 def icon(+lx: U32, +ly: U32) -> U32:

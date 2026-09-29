@@ -254,3 +254,7 @@ def Laws.the_meadows_map_wraps_in_its_words(): {==}
 def Laws.a_meadow_word_reads_back(): {==}
 def Laws.the_leaf_plane_follows_the_meadows_map(): {==}
 def Laws.a_leaf_mask_marks_the_solid_leaves(): {==}
+def Laws.a_torch_is_not_solid(): {==}
+def Laws.a_torch_rides_the_leaf_plane(): {==}
+def Laws.the_break_under_a_torch_takes_it(): {==}
+def Laws.water_puts_a_torch_out(): {==}

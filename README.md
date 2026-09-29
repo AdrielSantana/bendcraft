@@ -9,8 +9,9 @@ on the GPU through Metal, or on every core of your machine as WebAssembly.
 `W A S D` walk · `space` jumps, and swims up in water · the mouse looks, dragged in the browser (or the arrows) ·
 click breaks · right click places (or `J` / `L`) · `1`–`8` or the wheel choose the block
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
-bucket: a click takes a cell of water, a right click pours one · `0` a
-torch in the hand, which lights what is near as you walk · `P`
+bucket: a click takes a cell of water, a right click pours one · `0` the
+torch: in the hand it lights what is near as you walk, and a right click
+stands one on the ground · `P`
 saves · `F` shows the frame's time · `Esc` quits and saves.
 
 You start with an empty inventory. Break a block to collect its type;
@@ -74,7 +75,7 @@ six is a separate water mask; words seven to fourteen hold the amount of
 water in each cell, 0 to 255 units in a byte, the mask's bit set exactly
 when the amount is over zero; word fifteen marks the cells the flow steps
 next, word sixteen the cells holding less than 255 units; no word remains
-spare, so a column's leaf mask lies apart, in the leaf plane. A primary ray with water on reads both masks once per column it
+spare, so a column's leaves and torches lie apart, in the leaf plane. A primary ray with water on reads both masks once per column it
 crosses and the solid type once, at the hit; only while the window holds
 partial water does it read the partial mask with them, and a partial
 cell's amount as it enters one. An edit is a few `Array.set` on the host;
@@ -439,8 +440,7 @@ the leaves it cannot draw: eight points on a ray miss a beam a texel
 wide, and the sky near the sun is too bright to take more light.
 
 **The torch** (bit 31 of the base word, `src/torch.bend`) is the hotbar's
-tenth slot, key `0`, with no count: infinite for now, and it places
-nothing yet. Chosen, it stands in the hand in the screen's bottom right
+tenth slot, key `0`, with no count: infinite for now. Chosen, it stands in the hand in the screen's bottom right
 corner, its flame flickering, and lights what lies within 14 blocks of
 the eye in a warm light (bit 26 of the base says the eye holds it,
 `Torch.in_hand`). The light stands at the eye, so every point the eye
@@ -453,6 +453,26 @@ the shade and the night show it. The blocks, the meadow's blades and the
 water's own colour take it (`Torch.lit`, `Torch.lamp`, `Torch.ink`).
 With no torch in hand every pixel takes the path it took before, byte for
 byte.
+
+A right click stands a torch, block type 9, in the cell before the face
+aimed at, if that cell is open and dry and a solid block is under it,
+where the player stands too; a click takes it and gives nothing. It is a
+stick of 2 by 10 texels of 16 in the middle of its cell, its top three
+the flame, white at the top, gold, then orange, flickering at a phase of
+its column's own, the stick darker at its foot. It is in neither mask:
+it walks through, it casts no shadow and darkens no corner, and the flow
+pours into its cell and puts it out, as the break of the block under it
+takes it. Its bit rides the leaf plane where the cell is not solid
+(`World.plane`), which the eye's walk reads with each column: a walk that
+comes into a torch's cell crosses the stick's box or goes on
+(`Render.through`, `Torch.stick`), and a hit on the stick says so in bit 10
+of the hit word, with its distance where the ray meets the stick, inside
+the cell, so the meadow's blades before it stand over it, and its look
+comes from the stick there (`Torch.look`), in the fog, near and in the
+water's mirror. The picking is the eye's walk, 40 steps, so the
+crosshair finds a torch and a click on the ground behind it passes it
+by; nothing is placed against a torch. It lights nothing yet: the light of
+the blocks is the next step.
 
 **The clouds** are cumulus in a slab from y=62 to 78, over the world's
 columns, not the window's (`src/clouds.bend`). A coverage over the
@@ -622,7 +642,7 @@ src/inventory.bend natural counts, conserved cell/item transfers, packed HUD cou
 src/sky.bend       sky gradient, sun, glow and halo, stars, moon, distance/height fog, the light's colour, the body that lights the world
 src/lens.bend      the sun in the camera: the glare and the flare over a pixel
 src/shafts.bend    the sun's light in the haze a pixel looks through, from its tile's shafts
-src/torch.bend     the torch in the hand: its light on what the eye sees, its flame, its swatch
+src/torch.bend     the torch: in the hand, its light on what the eye sees; as a block, its stick and flame
 src/clouds.bend    the clouds' coverage and its map, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
 src/wet.bend       how wet the world is, where puddles lie, their rings, the sheen; the render reads the air and walks the mirror
@@ -659,6 +679,7 @@ test/terrain.bend  noise rows, lake floor materials, dry roots, canopies, saved 
 test/far.bend      the far walk over a map written by hand: sides, tops, canopies, the sea and its trace, the look, its shadow and mirror
 test/meadow.bend   the meadow's map, and rays through the grass, over it, over stone and down onto it
 test/leaves.bend   the leaf plane, and walks through a leaf block's open texels and stopped by the rest
+test/torch.bend    a torch stands, is taken, put out and saved; walks meet its stick and pass beside it
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -782,7 +803,14 @@ the day, its shadows and its haze: at midnight over the meadow 67.4 ms at
 and 18.2 and 16.0 at scale 2. The torch in hand, arithmetic on a
 pixel with no walk, reads within the noise: eight rounds read the meadow
 at night at 1470×796 64.0 with its light and 63.0 without (the build
-before it, 64.2), and at the lake's shore 70.0 and 69.2 (68.0). In the bench's view 49% of the rays
+before it, 64.2), and at the lake's shore 70.0 and 69.2 (68.0). The torch
+as a block, whose stick the eye's walk tests in a torch's cell alone,
+reads within the noise with none in the view: six rounds alternated with
+the build before it read the bench's view 58.6 against 57.6, the meadow
+66.2 against 65.0, the lake 71.2 against 72.8, and 15.4 both at 735×398;
+tested beside the leaves' pierce, a second match in the step, it read 1
+to 5 ms more at 1470×796, and in the leaves' branch, where every leaf
+cell paid for the stick's test, 1 to 2. In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 
@@ -913,8 +941,10 @@ over a lower ground, and it is not solid. Two meadow laws: its map
 wraps in 2^16 words past the clouds', and a column's word reads back how
 wild the meadow grows, its flower and the wind's phase. Two leaf laws:
 the leaf plane follows the meadow's map, and a column's leaf mask marks
-its solid leaves alone. There are 134 laws: eight universal claims and
-126 concrete
+its solid leaves alone. Four torch laws: a torch is in neither mask, it
+rides the leaf plane, the break of the block under it takes it, and water
+puts it out. There are 138 laws: eight universal claims and
+130 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

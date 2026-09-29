@@ -64,14 +64,15 @@ def tnoise(+u: F32, +v: F32) -> F32:
 def col_at(+base: U32, +x: U32, +z: U32) -> U32:
   (((base + x * 128 + z) * 16) .&. 262143 : U32)
 
-# the leaf mask of the column at a slot, apart since its sixteen words are
-# taken: bit y where its block is leaves, a word a column from 2^19 on,
-# past the meadow's map
+# the leaf plane of the column at a slot, apart since its sixteen words
+# are taken: bit y where its block is leaves, or a torch where it is not
+# solid, a word a column from 2^19 on, past the meadow's map
 def leaf_at(+slot: U32) -> U32:
   (524288 + slot / 16 : U32)
 
 # the block types: 0 grass, 1 dirt, 2 stone, 3 sand, 4 wood, 5 leaves,
-# 6 brick, 7 snow; 8 is water, held in a separate non-solid mask
+# 6 brick, 7 snow; 8 is water, held in a separate non-solid mask; 9 a
+# torch, in neither mask: its nibble in a cell that is not solid
 def nib_set(+word: U32, +y: U32, +what: U32) -> U32:
   +sh = U32.shln(1, U32.to_nat((y % 8 * 4 : U32)))
   ((word .&. U32.not((sh * 15 : U32))) .|. (sh * what : U32) : U32)
@@ -269,17 +270,22 @@ def pop(+x: U32) -> U32:
   +c = ((b + (b / 16 : U32)) .&. 252645135 : U32)
   ((c * 16843009) / 16777216 : U32)
 
-# the bits of a type word's eight blocks that are leaves
-def leaf_byte(n: Nat, +word: U32, +i: U32, +acc: U32) -> U32:
+# the bits of a type word's eight blocks that are of the kind what
+def kind_byte(n: Nat, +word: U32, +what: U32, +i: U32, +acc: U32) -> U32:
   match n:
     case 0n:
       acc
     case 1n+k:
-      leaf_byte(k, word, (i + 1 : U32), (acc + Bool.pick(U32, U32.is_eq(nib_get(word, i), 5), U32.shln(1, U32.to_nat(i)), 0) : U32))
+      kind_byte(k, word, what, (i + 1 : U32), (acc + Bool.pick(U32, U32.is_eq(nib_get(word, i), what), U32.shln(1, U32.to_nat(i)), 0) : U32))
 
-def leaves(c: Col) -> U32:
-  Col{m, a, b, cc, d, water, lv} = c
-  (m .&. (leaf_byte(8n, a, 0, 0) + leaf_byte(8n, b, 0, 0) * 256 + leaf_byte(8n, cc, 0, 0) * 65536 + leaf_byte(8n, d, 0, 0) * 16777216) : U32)
+def kind(+what: U32, +a: U32, +b: U32, +c: U32, +d: U32) -> U32:
+  (kind_byte(8n, a, what, 0, 0) + kind_byte(8n, b, what, 0, 0) * 256 + kind_byte(8n, c, what, 0, 0) * 65536 + kind_byte(8n, d, what, 0, 0) * 16777216 : U32)
+
+# the leaf plane: the solid leaves and the torches, in cells neither
+# solid nor wet
+def plane(c: Col) -> U32:
+  Col{+m, +a, +b, +cc, +d, +water, lv} = c
+  ((m .&. kind(5, a, b, cc, d)) .|. (U32.not((m .|. water : U32)) .&. kind(9, a, b, cc, d)) : U32)
 
 # A column's fourteen words in the ring's order are the record's fields
 # in order, so a read or a write walks them by turning the record: the
@@ -320,7 +326,7 @@ def put_go(n: Nat, ring: Array<U32>, +slot: U32, +i: U32, +c: Col) -> Array<U32>
 # a column written at a slot: the ring, and the count of partial cells
 def put_col(ring: Array<U32>, +slot: U32, +c: Col, +np: U32) -> Array<U32> & U32:
   put_partial(np, slot, partial_mask(levels(c)),
-    Array.get(U32, put_go(14n, Array.set(U32, ring, leaf_at(slot), leaves(c)), slot, 0, c), (slot + 15 : U32)))
+    Array.get(U32, put_go(14n, Array.set(U32, ring, leaf_at(slot), plane(c)), slot, 0, c), (slot + 15 : U32)))
 
 # The world is its ring and the rest beside it: the edited columns, the
 # corner, the flow's queue of marked slots, the window's count of partial
@@ -616,9 +622,26 @@ def follow(n: Nat, +along_x: Bool, +pos: Bool, w: World) -> World:
 def setbit(+b: U32, +ybit: U32, set: Bool) -> U32:
   Bool.pick(U32, set, (b .|. ybit : U32), (b .&. U32.not(ybit) : U32))
 
-# an edit: the height's bit in the mask, its type in the nibble, and the
-# column is remembered; water placed is a full cell, and a cell that
-# stops being water holds no amount
+# A torch goes where its cell is taken from it: from the block under it
+# broken, or by the water that comes in. Its nibble at y cleared, the
+# rest of the column kept.
+def unlit(+word: U32, +y: U32) -> U32:
+  Bool.pick(U32, U32.is_eq(nib_get(word, y), 9), nib_set(word, y, 0), word)
+
+def unlit_col(go: Bool, c: Col, +y: U32) -> Col:
+  match go:
+    case False{}:
+      c
+    case True{}:
+      Col{m, +a, +b, +cc, +d, water, lv} = c
+      +k = (y / 8 : U32)
+      Col{m, Bool.pick(U32, U32.is_eq(k, 0), unlit(a, y), a), Bool.pick(U32, U32.is_eq(k, 1), unlit(b, y), b),
+        Bool.pick(U32, U32.is_eq(k, 2), unlit(cc, y), cc), Bool.pick(U32, U32.is_eq(k, 3), unlit(d, y), d), water, lv}
+
+# an edit: the height's bit in the mask for a solid, its type in the
+# nibble, and the column is remembered; water placed is a full cell, a
+# cell that stops being water holds no amount, and a break takes the
+# torch standing on the block
 def edit_levels(+lv: Levels, +y: U32, +k: U32, +amt: U32) -> Levels:
   Levels{+l0, +l1, +l2, +l3, +l4, +l5, +l6, +l7} = lv
   Levels{Bool.pick(U32, U32.is_eq(k, 0), byte_set(l0, y, amt), l0),
@@ -638,23 +661,23 @@ def edit_col(c: Col, +y: U32, +set: Bool, +what: U32) -> Col:
   +blocked = set && wet && Util.on(m, bit)
   +poured = set && wet && Bool.not(blocked)
   # Water cannot erase a bank; a solid placement can displace water.
-  Col{Bool.pick(U32, blocked, m, setbit(m, bit, set && Bool.not(wet))),
+  unlit_col(Bool.not(set), Col{Bool.pick(U32, blocked, m, setbit(m, bit, set && (what < 8 : U32))),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 0), nib_set(a, y, what), a),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 1), nib_set(b, y, what), b),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 2), nib_set(cc, y, what), cc),
       Bool.pick(U32, Bool.not(blocked) && U32.is_eq(k, 3), nib_set(d, y, what), d),
       setbit(water, bit, poured),
-      Bool.pick(Levels, blocked, lv, edit_levels(lv, y, (y / 4 : U32), Bool.pick(U32, poured, full(), 0)))}
+      Bool.pick(Levels, blocked, lv, edit_levels(lv, y, (y / 4 : U32), Bool.pick(U32, poured, full(), 0)))}, (y + 1 : U32))
 
 
 # The amount at a cell, set, the mask's bit following it (set exactly
-# when the amount is over zero); a solid cell holds none, and 255 is the
-# most a cell holds. The flow's one write.
+# when the amount is over zero); a solid cell holds none, 255 is the most
+# a cell holds, and water puts out a torch. The flow's one write.
 def pour_col(c: Col, +y: U32, +a: U32) -> Col:
   Col{+m, ta, tb, tc, td, +water, +lv} = c
   +bit = U32.shln(1, U32.to_nat(y))
   +amt = Bool.pick(U32, Util.on(m, bit), 0, U32.min(a, full()))
-  Col{m, ta, tb, tc, td, setbit(water, bit, (amt > 0 : U32)), edit_levels(lv, y, (y / 4 : U32), amt)}
+  unlit_col((amt > 0 : U32), Col{m, ta, tb, tc, td, setbit(water, bit, (amt > 0 : U32)), edit_levels(lv, y, (y / 4 : U32), amt)}, y)
 
 def pour_fin(meta: Meta, +x: U32, +z: U32, +y: U32, +a: U32, r: Array<U32> & Col) -> World:
   Meta{m, ox, oz, q, +np, gone} = meta
@@ -697,14 +720,14 @@ def wsolid(w: World, +x: F32, +y: F32, +z: F32) -> World & Bool:
   W{ring, +meta} = w
   wsolid_fin(meta, solid(ring, base(meta), x, y, z))
 
-# the type of the block at a local cell (for the tests and the tools):
-# 8 where the water mask has the bit, the type's nibble where the solid
-# mask has it, 0 (air) where neither, whatever the nibble holds from
-# before
+# the type of the block at a local cell: 8 where the water mask has the
+# bit, the type's nibble where the solid mask has it or it is a torch's,
+# 0 (air) where neither, whatever the nibble holds from before
 def voxel_fin(meta: Meta, +y: U32, +solid: U32, water: U32, r: Array<U32> & U32) -> World & U32:
   (ring, word) = r
   +bit = U32.shln(1, U32.to_nat(y))
-  (W{ring, meta}, Bool.pick(U32, Util.on(water, bit), 8, Bool.pick(U32, Util.on(solid, bit), nib_get(word, y), 0)))
+  +nib = nib_get(word, y)
+  (W{ring, meta}, Bool.pick(U32, Util.on(water, bit), 8, Bool.pick(U32, Util.on(solid, bit) || U32.is_eq(nib, 9), nib, 0)))
 
 def voxel_water(meta: Meta, +y: U32, +slot: U32, +solid: U32, r: Array<U32> & U32) -> World & U32:
   (ring, water) = r

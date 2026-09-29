@@ -541,12 +541,29 @@ law the_meadows_map_wraps_in_its_words:
 law a_meadow_word_reads_back:
   {((Meadow.pack(255, 4, 255) % 256 : U32), Meadow.flower(Meadow.pack(255, 4, 255)), Meadow.phase(Meadow.pack(255, 4, 255))) == (255, 4, 255) : U32 & (U32 & U32)}
 
-# --- the leaf plane: a column's leaf mask, past the meadow's map ---------
-# The leaves' holes read a word a column of the ring beside its sixteen:
-# bit y where the column's block y is leaves and solid.
+# --- the leaf plane: a column's leaves and torches, past the meadow's map --
+# The walks read a word a column of the ring beside its sixteen: bit y
+# where the column's block y is leaves and solid, or a torch in a cell
+# neither solid nor wet.
 
 law the_leaf_plane_follows_the_meadows_map:
   {(World.leaf_at(0), World.leaf_at(262128)) == ((Meadow.map_at(255, 255) + 1 : U32), 540671) : U32 & U32}
 
 law a_leaf_mask_marks_the_solid_leaves:
-  {World.leaves(World.col6(270, 349264, 5, 0, 0, 0)) == 266 : U32}
+  {World.plane(World.col6(270, 349264, 5, 0, 0, 0)) == 266 : U32}
+
+# --- the torch: type 9, standing in a cell it leaves open ------------------
+# It is in neither mask and rides the leaf plane; the break of the block
+# under it takes it, and water that comes into its cell puts it out.
+
+law a_torch_is_not_solid:
+  {World.masks(World.edit_col(World.col6(1, 0, 0, 0, 0, 0), 1, True{}, 9)) == (1, 0) : U32 & U32}
+
+law a_torch_rides_the_leaf_plane:
+  {World.plane(World.edit_col(World.col6(1, 0, 0, 0, 0, 0), 1, True{}, 9)) == 2 : U32}
+
+law the_break_under_a_torch_takes_it:
+  {World.edit_col(World.edit_col(World.col6(1, 0, 0, 0, 0, 0), 1, True{}, 9), 0, False{}, 0) == World.col6(0, 0, 0, 0, 0, 0) : World.Col}
+
+law water_puts_a_torch_out:
+  {World.plane(World.pour_col(World.edit_col(World.col6(1, 0, 0, 0, 0, 0), 1, True{}, 9), 1, 255)) == 0 : U32}

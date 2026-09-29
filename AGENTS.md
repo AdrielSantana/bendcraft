@@ -324,8 +324,10 @@ Bool; both take the clock as `wind` (0 for still leaves), and
 `Render.swayed` slides the texels by the grass's gust and quiver
 (`Grass.gusting`, `Grass.quiver`) over the column's slot, which a world
 column keeps whatever the window. The leaf plane (`World.leaf_at`): a
-word a column past the meadow's map, bit y a leaf block, written by
-`put_col`; the array's words from 540672 are spare.
+word a column past the meadow's map, bit y a leaf block or, where the
+cell is not solid, a torch (`World.plane`), written by `put_col`; the eye's
+walk reads it with every column, the glance only when it pierces; the
+array's words from 540672 are spare.
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
 queued columns' marked cells, bottom up; `Flow.advance` runs it from
 `Player.advance` every 256 ms of the day's clock (4096 a turn, so the
@@ -335,6 +337,11 @@ edits and ask them a list of questions in one pass (`test/flow.bend`'s
 `query`), since a World is linear. Solid types 0..7: grass dirt stone
 sand wood leaves brick snow. Water is type 8, outside the eight inventory
 slots; it is absent from solid collision, picking and shadow masks. The
+torch is type 9, in neither mask: its nibble in a cell that is not solid,
+on the leaf plane; the eye's walks meet its stick (`Render.through`, one match with the leaves' holes), and a hit on
+it sets bit 10 of the hit word; the picking is the eye's walk
+(`Player.aim`); a break under it and water in its cell take it
+(`World.unlit_col`). The
 bucket (key `9`, sel 8, `Player.pail`): a click takes the water of the
 cell before the face aimed at into the bag's ninth count, a right click
 fills that cell from it if the bucket holds what the cell lacks, and
