@@ -538,7 +538,9 @@ world lattice, falling 12 blocks a second. A ray walks the 11 columns it
 crosses first, as the render's walk does, and shows the drops it passes
 within 0.02 of a block, in front of what it met or of the water's
 surface, and only where no block stands over them, which the column's
-solid mask, read once a step, tells. A drop near the eye is wide and a
+solid mask, read once a step, tells. It falls over the meadow's blades,
+and past them it shows as much as the ray sees through them
+(`Render.rim_met`). A drop near the eye is wide and a
 far one thin, and walking passes them by. On still water, the lake's
 and the puddles', with no block over it (`Wet.reached`, the column's
 mask read once, as for a wet face), the drops ring (`Water.rings`): in

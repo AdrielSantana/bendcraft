@@ -146,9 +146,10 @@ def spans(r: F32 & F32) -> Bool:
   (lo >= 0.0 : F32) && (lo < 0.1 : F32) && (hi > 0.8 : F32) && (hi <= 1.0 : F32)
 
 # level rays all around an eye at (ox, 20.5, 64.5) of the window (fm,
-# base) at the clock t, over a colour, each met reach blocks out: their
-# colours summed, 128 times the colour where the rain touched none
-def rays(n: Nat, +i: U32, +fm: U32, +base: U32, +ox: F32, +t: U32, +reach: F32, +sum: U32, r: Array<U32> & U32) -> U32:
+# base) at the clock t, over a colour, each met reach blocks out and
+# seeing seen through what stands past front: their colours summed, 128
+# times the colour where the rain touched none
+def rays(n: Nat, +i: U32, +fm: U32, +base: U32, +ox: F32, +t: U32, +reach: F32, +front: F32, +seen: F32, +sum: U32, r: Array<U32> & U32) -> U32:
   match n:
     case 0n:
       (w, c) = r
@@ -156,8 +157,8 @@ def rays(n: Nat, +i: U32, +fm: U32, +base: U32, +ox: F32, +t: U32, +reach: F32, 
     case 1n+k:
       (w, c) = r
       +a = (U32.to_f32(i) * 0.049087385 : F32)
-      rays(k, (i + 1 : U32), fm, base, ox, t, reach, (sum + c : U32),
-        Rain.fall(True{}, Rain.falling(True{}, t), t, fm, base, ox, 20.5, 64.5, F32.sin(a), 0.0, F32.cos(a), reach, 0.8, (w, 6789)))
+      rays(k, (i + 1 : U32), fm, base, ox, t, reach, front, seen, (sum + c : U32),
+        Rain.fall(True{}, Rain.falling(True{}, t), t, fm, base, ox, 20.5, 64.5, F32.sin(a), 0.0, F32.cos(a), reach, front, seen, 0.8, (w, 6789)))
 
 def dry(+sum: U32) -> Bool:
   U32.is_eq(sum, 868992)
@@ -248,12 +249,16 @@ def main() -> IO(Unit):
     Lib.expect((Rain.falling(True{}, 1203323) > 0.0 : F32) && F32.is_eq(Rain.falling(True{}, 3145728), 0.0) && F32.is_eq(Rain.falling(True{}, Day.morning()), 0.0)
       && F32.is_eq(Rain.falling(False{}, 1203323), 0.0),
       "it rains on the second morning, overcast, and not on a fair day nor on the first morning")
-    Lib.expect(Bool.not(dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^20n], 0))))
-      && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([33554432 : U32^20n], 0)))
-      && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 0.75, 0, ([0 : U32^20n], 0))),
+    Lib.expect(Bool.not(dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 100.0, 1.0, 0, ([0 : U32^20n], 0))))
+      && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 100.0, 1.0, 0, ([33554432 : U32^20n], 0)))
+      && dry(rays(128n, 0, 0, 0, 64.5, 1203323, 0.75, 0.75, 1.0, 0, ([0 : U32^20n], 0))),
       "rain falls around an eye under a cloud and the open sky, none under a roof over every column, none before a wall at arm's length")
-    Lib.expect(U32.is_eq(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^20n], 0)), rays(128n, 0, 256, 128, 63.5, 1203323, 100.0, 0, ([0 : U32^20n], 0)))
-      && U32.is_ne(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0, ([0 : U32^20n], 0)), rays(128n, 0, 0, 0, 64.87, 1203323, 100.0, 0, ([0 : U32^20n], 0))),
+    Lib.expect(dry(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0.0, 0.0, 0, ([0 : U32^20n], 0)))
+      && U32.is_eq(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0.0, 1.0, 0, ([0 : U32^20n], 0)), rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 100.0, 1.0, 0, ([0 : U32^20n], 0)))
+      && U32.is_ne(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 3.0, 0.0, 0, ([0 : U32^20n], 0)), rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 0.0, 0.0, 0, ([0 : U32^20n], 0))),
+      "the drops past the meadow's blades show as much as the ray sees through them, and those before the blades all of them")
+    Lib.expect(U32.is_eq(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 100.0, 1.0, 0, ([0 : U32^20n], 0)), rays(128n, 0, 256, 128, 63.5, 1203323, 100.0, 100.0, 1.0, 0, ([0 : U32^20n], 0)))
+      && U32.is_ne(rays(128n, 0, 0, 0, 64.5, 1203323, 100.0, 100.0, 1.0, 0, ([0 : U32^20n], 0)), rays(128n, 0, 0, 0, 64.87, 1203323, 100.0, 100.0, 1.0, 0, ([0 : U32^20n], 0))),
       "the drops are the world's: the same when the window moves a column under the eye, others when the eye moves through them")
     Lib.expect((Wet.wetness(True{}, 1203323) > 0.5 : F32) && F32.is_eq(Rain.amount(Clouds.weather(1769472)), 0.0) && (Wet.wetness(True{}, 1769472) > 0.0 : F32)
       && F32.is_eq(Wet.wetness(True{}, 2293760), 0.0) && F32.is_eq(Wet.wetness(True{}, 3145728), 0.0) && F32.is_eq(Wet.wetness(True{}, Day.morning()), 0.0)
@@ -271,7 +276,7 @@ def main() -> IO(Unit):
     Lib.expect((ringed(64n, 64.0, 0, 0) > 0 : U32) && U32.is_eq(ringed(64n, 64.0, 33554432, 0), 0),
       "the rain rings water under the open sky, and none under a roof")
     Lib.expect(F32.is_eq(Clouds.cover(0, 1203323, gap(120n, 1203323, 0.5), 64.5, 0.0, 0.0), 0.0)
-      && dry(rays(128n, 0, 0, 0, gap(120n, 1203323, 0.5), 1203323, 100.0, 0, ([0 : U32^20n], 0))),
+      && dry(rays(128n, 0, 0, 0, gap(120n, 1203323, 0.5), 1203323, 100.0, 100.0, 1.0, 0, ([0 : U32^20n], 0))),
       "on the same morning, an eye under a gap in the clouds stays dry")
     Lib.expect((Sky.gradient(True{}, 0.5, (0.0 - 1.0 : F32)) < Sky.gradient(True{}, 0.5, 1.0) : U32), "night sky is darker")
     Lib.expect(F32.is_eq(Sky.fog(0, 40.0, 5.0, 5.0), 0.0), "fog flags disable both terms")

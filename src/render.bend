@@ -922,25 +922,30 @@ def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +o
       rim_shade(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at, lw,
         glow_at(Torch.lights(base), w, base, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32)))
 
-# the blades take the sun's shafts in the air before them (sh, Shafts)
+# the blades take the sun's shafts in the air before them (sh, Shafts),
+# and the rain (rain) falls before them to the ray's end (reach), behind
+# them where the ray sees through them
 def rim_met(+base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
-            +lx: F32, +ly: F32, +lz: F32, +c: U32, +t1: F32, +sh: U32, r: Array<U32> & Grass.Meadow) -> Array<U32> & U32:
+            +lx: F32, +ly: F32, +lz: F32, +c: U32, +t1: F32, +sh: U32, +rain: F32, +reach: F32, r: Array<U32> & Grass.Meadow) -> Array<U32> & U32:
   (w, lw) = r
   Grass.Meadow{+tr, +n, +lit, +s, +head, +heart, +t, +hue, +low} = lw
   +at = ((t + 0.001 * t1) / (n + 0.001) : F32)
-  Shafts.over(Shafts.on(fl, base, ly), sh, at, (1.0 - tr : F32), ck, dx, dy, dz, lx, ly, lz,
-    rim_seen((tr < 0.999 : F32) || (low > 0.0 : F32), base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at,
-      Grass.Meadow{tr, n, lit, s, head, heart, t, hue, low}, w))
+  Rain.fall((rain > 0.0 : F32), rain, ck, fw, base, ox, oy, oz, dx, dy, dz, reach, at, tr, ly,
+    Shafts.over(Shafts.on(fl, base, ly), sh, at, (1.0 - tr : F32), ck, dx, dy, dz, lx, ly, lz,
+      rim_seen((tr < 0.999 : F32) || (low > 0.0 : F32), base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at,
+        Grass.Meadow{tr, n, lit, s, head, heart, t, hue, low}, w)))
 
+# the meadow over what the ray met (where on), and the rain over both
 def rimmed(on: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
-           +rim: F32, +t1: F32, +v: U32, +lx: F32, +ly: F32, +lz: F32, +sh: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+           +rim: F32, +t1: F32, +v: U32, +lx: F32, +ly: F32, +lz: F32, +sh: U32, +rain: F32, +reach: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   match on:
     case False{}:
-      r
+      Rain.fall((rain > 0.0 : F32), rain, ck, fw, base, ox, oy, oz, dx, dy, dz, reach, reach, 1.0, ly, r)
     case True{}:
       (w, +c) = r
       +wet = Wet.wetness(Util.on(fl, 1024), ck)
-      rim_met(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, t1, sh, Grass.march((wet > 0.0 : F32), w, base, fw, ck, wet, ox, oy, oz, dx, dy, dz, rim, t1))
+      rim_met(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, t1, sh, rain, reach,
+        Grass.march((wet > 0.0 : F32), w, base, fw, ck, wet, ox, oy, oz, dx, dy, dz, rim, t1))
 
 # the block the mirror's ray met: its type's colour, the texture (a grass
 # top the meadow seen from afar), the face's tone, darker when the face
@@ -1034,7 +1039,7 @@ def mirror_open(+sky: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32,
   Ray{+code, +t, +rim, +rim_end, tr} = ray
   +c = (code % 4 : U32)
   rimmed(Util.on(fl, 2048) && Util.on(fl, 65536) && (rim >= 0.0 : F32), (base .&. 3221225471 : U32), fm, ck, (fl .&. 4294967294 : U32), eye, ox, oy, oz, dx, dy, dz,
-    rim, F32.min(t, rim_end), sky, lx, ly, lz, 0,
+    rim, F32.min(t, rim_end), sky, lx, ly, lz, 0, 0.0, 0.0,
     mirror_met(Util.on(code, 1024), sky, fl, base, fm, ck, ox, oy, oz, dx, dy, dz, far, eye, lx, ly, lz, c, t, w))
 
 def mirror_walk(distant: Bool, +sky: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +px: F32, +py: F32, +pz: F32,
@@ -1261,7 +1266,7 @@ def window(inside: Bool, +fm: U32, +ck: U32, +rain: F32, +fl: U32, +base: U32, +
     case True{}:
       (w, +mirror) = r
       weighed(Water.fresnel(Water.fresnel_on(fl), ct), mirror,
-        Rain.fall((rain > 0.0 : F32), rain, ck, fm, base, px, py, pz, tx, ty, tz, 12.0, ly,
+        Rain.fall((rain > 0.0 : F32), rain, ck, fm, base, px, py, pz, tx, ty, tz, 12.0, 12.0, 1.0, ly,
           shown(behind(Water.mirror_on(base), False{}, fm, ck, fl, base, px, py, pz, 0.0, py, lx, ly, lz,
             Water.Reflection{tx, ty, tz, ct}, (w, 0)))))
 
@@ -1304,11 +1309,10 @@ def seen_lit(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32,
   +out = wet && rises(fl, dy, t, entry, depth)
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147482615 : U32), fl)
   +rain = Rain.falling(Util.on(fl, 512), ck)
-  Rain.fall((rain > 0.0 : F32), rain, ck, fw, base, ox, oy, oz, dx, dy, dz, Bool.pick(F32, wet, entry, t), ly,
   Water.shade(wet, fl, v, Torch.ink(Torch.held(base) || (g > 0.0 : F32), Water.colour(ly), Water.colour(1.0), (F32.max(Torch.over(Torch.held(base), ck, entry, 1.0, 1.0), g) * Torch.night(ly) : F32)), oy, dy, ly, top, t, (hitw > 0 : U32) && Bool.not(out), Water.Trace{entry, depth},
     mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, ck, rain, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
       bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, ck, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
-        beyond(out, rain, fl, depth, Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz)))))
+        beyond(out, rain, fl, depth, Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz))))
 
 # the placed torches' light on the water's top, where the ray went in
 def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +top: Bool, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32,
@@ -1353,12 +1357,13 @@ def after_walk(near: Bool, +c: U32, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: 
 # water it went into, which hides what it holds.
 # The shafts (sh, Shafts) lie over the air the ray crossed to what it met,
 # or to its water, or as far as they reach where the window's walk let it
-# go on.
+# go on; the rain falls in that air, over the grass and behind it.
 def shade_fin(+v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32, +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32,
               +c: U32, +t: F32, +rim: F32, +rim_end: F32, +sh: U32, w: Array<U32>, tr: Water.Trace) -> Array<U32> & U32:
   Water.Trace{+entry, +depth} = tr
+  +end = Bool.pick(F32, (depth > 0.0 : F32), entry, t)
   rimmed(Util.on(fl, 2048) && (rim >= 0.0 : F32),
-    base, fw, ck, fl, oy, ox, oy, oz, dx, dy, dz, rim, F32.min(F32.min(t, rim_end), Bool.pick(F32, (depth > 0.0 : F32), entry, t)), v, lx, ly, lz, sh,
+    base, fw, ck, fl, oy, ox, oy, oz, dx, dy, dz, rim, F32.min(F32.min(t, rim_end), end), v, lx, ly, lz, sh, Rain.falling(Util.on(fl, 512), ck), end,
     Shafts.over(Shafts.on(fl, base, ly), sh, Bool.pick(F32, (depth > 0.0 : F32), entry, Bool.pick(F32, ((c % 4 : U32) > 0 : U32), t, Shafts.open_air(oy, dy))), 1.0,
       ck, dx, dy, dz, lx, ly, lz,
       after_walk(((c % 4 : U32) > 0 : U32) || Util.on(fl, 96) || rises(fl, dy, t, entry, depth), c, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, t, entry, depth, w)))
