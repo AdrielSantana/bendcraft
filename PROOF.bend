@@ -258,3 +258,7 @@ def Laws.a_torch_is_not_solid(): {==}
 def Laws.a_torch_rides_the_leaf_plane(): {==}
 def Laws.the_break_under_a_torch_takes_it(): {==}
 def Laws.water_puts_a_torch_out(): {==}
+def Laws.the_light_follows_the_leaf_plane(): {==}
+def Laws.a_torch_lights_its_cell_fourteen(): {==}
+def Laws.a_word_of_torches_is_all_fourteen(): {==}
+def Laws.no_torch_no_light(): {==}

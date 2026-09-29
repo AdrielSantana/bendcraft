@@ -731,7 +731,98 @@ def vao(+s1: Bool, +s2: Bool, c: Bool) -> F32:
   +n = (Bool.pick(U32, s1, 1, 0) + Bool.pick(U32, s2, 1, 0) + Bool.pick(U32, c, 1, 0) : U32)
   Bool.pick(F32, s1 && s2, 0.4, (1.0 - 0.2 * Util.u2f(n) : F32))
 
-def ao_fin(held: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +lamp: F32, +m: U32, +fu: F32, +fw: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
+# The placed torches' light (World.light_at): the level of the cell
+# before a face and of the eight around it, in the order of the
+# occlusion's bits; a vertex takes the mean of its open cells, the
+# corner's unless both sides close it, and the face blends its four as
+# the occlusion does. A cell outside the window holds none. The levels
+# read are nibbles of a word, from o along u and e: the eight around it
+# after o + u, or the four from o (four) at a point.
+def level_fin(+in: Bool, +y: U32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, +word) = r
+  (w, Bool.pick(U32, in, World.nib_at(word, y), 0))
+
+def level_at(w: Array<U32>, +base: U32, +x: F32, +y: F32, +z: F32) -> Array<U32> & U32:
+  +yi = U32.min(Util.f2u(y), 31)
+  level_fin(World.inside(x, y, z), yi, Array.get(U32, w, (World.light_at(World.col_at(base, Util.f2u(x), Util.f2u(z))) + yi / 8 : U32)))
+
+def levels(n: Nat, +four: Bool, +base: U32, +acc: U32, +i: U32, +ox: F32, +oy: F32, +oz: F32, +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32,
+           r: Array<U32> & U32) -> Array<U32> & U32:
+  match n:
+    case 0n:
+      (w, +l) = r
+      (w, (acc + l * World.pow16(i) : U32))
+    case 1n+k:
+      (w, +l) = r
+      +j = (i + 1 : U32)
+      +a = Bool.pick(F32, four, Util.u2f((j % 2 : U32)), su(j))
+      +b = Bool.pick(F32, four, Util.u2f((j / 2 : U32)), sw(j))
+      levels(k, four, base, (acc + l * World.pow16(i) : U32), j, ox, oy, oz, ux, uy, uz, ex, ey, ez,
+        level_at(w, base, (ox + a * ux + b * ex : F32), (oy + a * uy + b * ey : F32), (oz + a * uz + b * ez : F32)))
+
+def vertex(+lc: U32, +ls: U32, +a: U32, +b: U32, +c: U32, +sa: Bool, +sb: Bool, +sc: Bool) -> F32:
+  +corner = Bool.not(sc || (sa && sb))
+  (Util.u2f((lc + ls / a % 16 + ls / b % 16 + Bool.pick(U32, corner, (ls / c % 16 : U32), 0) : U32))
+    / Util.u2f((1 + Bool.pick(U32, sa, 0, 1) + Bool.pick(U32, sb, 0, 1) + Bool.pick(U32, corner, 1, 0) : U32)) : F32)
+
+def glow_fin(+lc: U32, +m8: U32, +fu: F32, +fw: F32, r: Array<U32> & U32) -> Array<U32> & F32:
+  (w, +ls) = r
+  +pp = vertex(lc, ls, 1, 256, 65536, Util.on(m8, 1), Util.on(m8, 4), Util.on(m8, 16))
+  +mp = vertex(lc, ls, 16, 256, 1048576, Util.on(m8, 2), Util.on(m8, 4), Util.on(m8, 32))
+  +pm = vertex(lc, ls, 1, 4096, 16777216, Util.on(m8, 1), Util.on(m8, 8), Util.on(m8, 64))
+  +mm = vertex(lc, ls, 16, 4096, 268435456, Util.on(m8, 2), Util.on(m8, 8), Util.on(m8, 128))
+  (w, Torch.glow(((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)))
+
+# a cell before the face at level 0 has none over 1 around it: no light
+def glow_lit(lit: Bool, w: Array<U32>, +base: U32, +lc: U32, +m8: U32, +fu: F32, +fw: F32,
+             +ox: F32, +oy: F32, +oz: F32, +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32) -> Array<U32> & F32:
+  match lit:
+    case False{}:
+      (w, 0.0)
+    case True{}:
+      glow_fin(lc, m8, fu, fw, levels(7n, False{}, base, 0, 0, ox, oy, oz, ux, uy, uz, ex, ey, ez, level_at(w, base, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32))))
+
+def glow_read(+on: Bool, +base: U32, +m8: U32, +fu: F32, +fw: F32,
+              +ox: F32, +oy: F32, +oz: F32, +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, r: Array<U32> & U32) -> Array<U32> & F32:
+  (w, +lc) = r
+  glow_lit(on && (lc > 0 : U32), w, base, lc, m8, fu, fw, ox, oy, oz, ux, uy, uz, ex, ey, ez)
+
+# The same light at a point, the meadow's blades or the water's top: its
+# cell's level says whether to read the four cells whose centres are
+# around it, blended as the face's vertices are.
+def quad_fin(+fx: F32, +fz: F32, r: Array<U32> & U32) -> Array<U32> & F32:
+  (w, +ls) = r
+  (w, Torch.glow(((Util.u2f((ls % 16 : U32)) * (1.0 - fx) + Util.u2f((ls / 16 % 16 : U32)) * fx) * (1.0 - fz)
+    + (Util.u2f((ls / 256 % 16 : U32)) * (1.0 - fx) + Util.u2f((ls / 4096 % 16 : U32)) * fx) * fz : F32)))
+
+def glow_quad(lit: Bool, w: Array<U32>, +base: U32, +x: F32, +y: F32, +z: F32) -> Array<U32> & F32:
+  match lit:
+    case False{}:
+      (w, 0.0)
+    case True{}:
+      +bx = F32.floor((x - 0.5 : F32))
+      +bz = F32.floor((z - 0.5 : F32))
+      quad_fin((x - 0.5 - bx : F32), (z - 0.5 - bz : F32), levels(3n, True{}, base, 0, 0, bx, y, bz, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, level_at(w, base, bx, y, bz)))
+
+def glow_gate(+base: U32, +x: F32, +y: F32, +z: F32, r: Array<U32> & U32) -> Array<U32> & F32:
+  (w, +l) = r
+  glow_quad((l > 0 : U32), w, base, x, y, z)
+
+def glow_at(on: Bool, w: Array<U32>, +base: U32, +x: F32, +y: F32, +z: F32) -> Array<U32> & F32:
+  match on:
+    case False{}:
+      (w, 0.0)
+    case True{}:
+      glow_gate(base, x, y, z, level_at(w, base, x, y, z))
+
+# the colour under the sun a, the hand's torch (lamp) and the placed
+# ones' g, which unit weighs as the day leaves it over the day's level
+def lit_fin(held: Bool, +v: U32, +col: U32, +f: F32, +a: F32, +tint: Sky.Tint, +ao: F32, +lamp: F32, +unit: F32, r: Array<U32> & F32) -> Array<U32> & U32:
+  (w, +g) = r
+  (w, Util.mix(Torch.lit(held || (g > 0.0 : F32), col, a, tint, (ao * F32.max(lamp, (g * unit : F32)) : F32)), v, f))
+
+def ao_fin(held: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +lamp: F32, +unit: F32, +base: U32, +m: U32, +fu: F32, +fw: F32,
+           +ox: F32, +oy: F32, +oz: F32, +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, s) = r
   +m8 = Bool.pick(U32, s, (m .|. 128 : U32), m)
   +pp = vao(Util.on(m8, 1), Util.on(m8, 4), Util.on(m8, 16))
@@ -739,37 +830,38 @@ def ao_fin(held: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +tint: Sky.Tint, 
   +pm = vao(Util.on(m8, 1), Util.on(m8, 8), Util.on(m8, 64))
   +mm = vao(Util.on(m8, 2), Util.on(m8, 8), Util.on(m8, 128))
   +ao = ((mm * (1.0 - fu) + pm * fu) * (1.0 - fw) + (mp * (1.0 - fu) + pp * fu) * fw : F32)
-  (w, Util.mix(Torch.lit(held, col, (ao * sun : F32), tint, (ao * lamp : F32)), v, f))
+  lit_fin(held, v, col, f, (ao * sun : F32), tint, ao, lamp, unit,
+    glow_read(Torch.lights(base), base, m8, fu, fw, ox, oy, oz, ux, uy, uz, ex, ey, ez, level_at(w, base, ox, oy, oz)))
 
-def ao(n: Nat, +distant: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +lamp: F32, +base: U32, +fm: U32, +m: U32, +bit: U32, +i: U32,
+def ao(n: Nat, +distant: Bool, +v: U32, +col: U32, +f: F32, +sun: F32, +tint: Sky.Tint, +lamp: F32, +unit: F32, +base: U32, +fm: U32, +m: U32, +bit: U32, +i: U32,
        +ox: F32, +oy: F32, +oz: F32, +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
        r: Array<U32> & Bool) -> Array<U32> & U32:
   match n:
     case 0n:
-      ao_fin(Torch.held(base), v, col, f, sun, tint, lamp, m, fu, fw, r)
+      ao_fin(Torch.held(base), v, col, f, sun, tint, lamp, unit, base, m, fu, fw, ox, oy, oz, ux, uy, uz, ex, ey, ez, r)
     case 1n+k:
       (w, s) = r
       +j = (i + 1 : U32)
       +sj = su(j)
       +wj = sw(j)
-      ao(k, distant, v, col, f, sun, tint, lamp, base, fm, Bool.pick(U32, s, (m .|. bit : U32), m), (bit * 2 : U32), j, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      ao(k, distant, v, col, f, sun, tint, lamp, unit, base, fm, Bool.pick(U32, s, (m .|. bit : U32), m), (bit * 2 : U32), j, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
          solid_in(distant, w, base, fm, (ox + sj * ux + wj * ex : F32), (oy + sj * uy + wj * ey : F32), (oz + sj * uz + wj * ez : F32)))
 
 # after the sun: the first neighbour read, or none with the occlusion off;
 # the sun the face takes and the light's colour from it (hue, bit 17)
 def after_sun(+distant: Bool, +v: U32, +col: U32, +f: F32, +base: U32, +fm: U32, +ox: F32, +oy: F32, +oz: F32,
               +ux: F32, +uy: F32, +uz: F32, +ex: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32, +lit: F32,
-              +hue: Bool, +ndl: F32, +ly: F32, +lamp: F32, aon: Bool, r: Array<U32> & Bool) -> Array<U32> & U32:
+              +hue: Bool, +ndl: F32, +ly: F32, +lamp: F32, +unit: F32, aon: Bool, r: Array<U32> & Bool) -> Array<U32> & U32:
   match aon:
     case True{}:
       (w, +dark) = r
       +sun = Sky.sunned(hue, dark, lit, ndl)
-      ao(7n, distant, v, col, f, sun, Sky.light(hue, sun, ly), lamp, base, fm, 0, 1, 0, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
+      ao(7n, distant, v, col, f, sun, Sky.light(hue, sun, ly), lamp, unit, base, fm, 0, 1, 0, ox, oy, oz, ux, uy, uz, ex, ey, ez, fu, fw,
          solid_in(distant, w, base, fm, (ox + ux : F32), (oy + uy : F32), (oz + uz : F32)))
     case False{}:
       (w, +dark) = r
       +sun = Sky.sunned(hue, dark, lit, ndl)
-      (w, Util.mix(Torch.lit(Torch.held(base), col, sun, Sky.light(hue, sun, ly), lamp), v, f))
+      ao_fin(Torch.held(base), v, col, f, sun, Sky.light(hue, sun, ly), lamp, unit, base, 0, fu, fw, ox, oy, oz, ux, uy, uz, ex, ey, ez, (w, False{}))
 
 def tex_if(on: Bool, +u: F32, +wf: F32) -> F32:
   match on:
@@ -802,16 +894,24 @@ def meadow_top(meadow: Bool, +fm: U32, +x: F32, +z: F32, +t: F32, +c: U32, +tone
 # (src/grass.bend), lit where it met the blades or else the floor under
 # them: in the sun or the shadow of what stands between, fogged and wet
 # as there, the fog seen from the eye at height eye; a torch in hand lights
-# them as it lights a face it meets square.
+# them as it lights a face it meets square, and the placed ones' g.
 def rim_lit(+base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
-            +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, lw: Grass.Meadow, r: Array<U32> & Bool) -> Array<U32> & U32:
+            +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, +g: F32, lw: Grass.Meadow, r: Array<U32> & Bool) -> Array<U32> & U32:
   (w, +dark) = r
   +sg = Sky.side(Sky.moon_on(fl), ly)
   +sun = Bool.pick(F32, dark, 0.6, Clouds.shade(Util.on(fl, 256), fw, ck, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), (sg * lx : F32), (sg * ly : F32), (sg * lz : F32)))
   +level = Sky.level(Sky.moon_on(fl), ly)
   (w, Grass.over(c, v, Sky.fog(fl, at, eye, (oy + dy * at : F32)), sun,
-    Torch.lamp(Torch.held(base), Sky.light(Util.on(fl, 131072), sun, ly), Torch.over(Torch.held(base), ck, at, 1.0, (level * 0.8 : F32))), level,
+    Torch.lamp(Torch.held(base) || (g > 0.0 : F32), Sky.light(Util.on(fl, 131072), sun, ly),
+      (F32.max(Torch.over(Torch.held(base), ck, at, 1.0, (level * 0.8 : F32)), (g / (level * 0.8) : F32)) * Torch.night(ly) : F32)), level,
     Wet.wetness(Util.on(fl, 1024), ck), Grass.dryness(fw, (ox + dx * at : F32), (oz + dz * at : F32)), dx, dy, dz, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32), lw))
+
+def rim_shade(+base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
+              +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, lw: Grass.Meadow, r: Array<U32> & F32) -> Array<U32> & U32:
+  (w, +g) = r
+  +sg = Sky.side(Sky.moon_on(fl), ly)
+  rim_lit(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at, g, lw,
+    shadow_if(Util.on(fl, 1), ((sg * ly : F32) > 0.0 : F32), False{}, w, base, fw, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), (sg * lx : F32), (sg * ly : F32), (sg * lz : F32), sun_gaps(fl), wind_of(fl, ck)))
 
 def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
              +lx: F32, +ly: F32, +lz: F32, +c: U32, +at: F32, lw: Grass.Meadow, w: Array<U32>) -> Array<U32> & U32:
@@ -819,9 +919,8 @@ def rim_seen(seen: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +o
     case False{}:
       (w, c)
     case True{}:
-      +sg = Sky.side(Sky.moon_on(fl), ly)
-      rim_lit(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at, lw,
-        shadow_if(Util.on(fl, 1), ((sg * ly : F32) > 0.0 : F32), False{}, w, base, fw, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32), (sg * lx : F32), (sg * ly : F32), (sg * lz : F32), sun_gaps(fl), wind_of(fl, ck)))
+      rim_shade(base, fw, ck, fl, eye, ox, oy, oz, dx, dy, dz, v, lx, ly, lz, c, at, lw,
+        glow_at(Torch.lights(base), w, base, (ox + dx * at : F32), (oy + dy * at : F32), (oz + dz * at : F32)))
 
 # the blades take the sun's shafts in the air before them (sh, Shafts)
 def rim_met(+base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +v: U32,
@@ -844,25 +943,38 @@ def rimmed(on: Bool, +base: U32, +fw: U32, +ck: U32, +fl: U32, +eye: F32, +ox: F
 
 # the block the mirror's ray met: its type's colour, the texture (a grass
 # top the meadow seen from afar), the face's tone, darker when the face
-# is turned from the sun; over far water the ray walks the far map, to
-# the walk's reach
-def glance_fin(+distant: Bool, +sky: U32, +fl: U32, +fm: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +x: F32, +z: F32, +t: F32,
-               +tone: F32, +tint: Sky.Tint, +f: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+# is turned from the sun, and the placed torches' light, flat, from the
+# cell before the face; over far water the ray walks the far map, to the
+# walk's reach
+def glance_lit(lit: Bool, +top: Bool, +fm: U32, +x: F32, +z: F32, +t: F32, +c: U32, +tone: F32, +sun: F32, +tex: F32, +tint: Sky.Tint, +k: F32) -> U32:
+  match lit:
+    case False{}:
+      Sky.tinted(meadow_top(top, fm, x, z, t, c, (tone * sun : F32), tex), tint)
+    case True{}:
+      Torch.lit(True{}, meadow_top(top, fm, x, z, t, c, tone, tex), sun, tint, k)
+
+def glance_typed(+distant: Bool, +sky: U32, +fl: U32, +fm: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +x: F32, +z: F32, +t: F32,
+                 +tone: F32, +sun: F32, +tint: Sky.Tint, +g: F32, +unit: F32, +f: F32, r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
   +what = Bool.pick(U32, distant, World.far_type(word, hy), World.nib_at(word, hy))
-  (w, Util.mix(Sky.tinted(meadow_top(Util.on(fl, 2048) && U32.is_eq(what, 0) && Bool.not(side), fm, x, z, t, blockcol(what, side, yf), tone, tex_if(Util.on(fl, 4), u, wf)), tint),
-    sky, f))
+  (w, Util.mix(glance_lit((g > 0.0 : F32), Util.on(fl, 2048) && U32.is_eq(what, 0) && Bool.not(side), fm, x, z, t, blockcol(what, side, yf), tone, sun,
+    tex_if(Util.on(fl, 4), u, wf), tint, (g * unit : F32)), sky, f))
+
+def glance_fin(+distant: Bool, +word: U32, +sky: U32, +fl: U32, +base: U32, +fm: U32, +hx: F32, +hy: F32, +hz: F32, +py: F32, +side: Bool, +u: F32, +wf: F32,
+               +px: F32, +pz: F32, +t: F32, +tone: F32, +sun: F32, +tint: Sky.Tint, +unit: F32, +f: F32, r: Array<U32> & U32) -> Array<U32> & U32:
+  (w, +lc) = r
+  glance_typed(distant, sky, fl, fm, Util.f2u(hy), side, Util.fracf(py), u, wf, px, pz, t, tone, sun, tint,
+    Bool.pick(F32, Torch.lights(base) && (lc > 0 : U32), Torch.glow(Util.u2f(lc)), 0.0), unit, f, type_of(distant, w, base, word, hx, hy, hz))
 
 def glance_face(+distant: Bool, +word: U32, +sky: U32, +fl: U32, +base: U32, +fm: U32, +dx: F32, +dy: F32, +dz: F32,
                 +far: F32, +eye: F32, +lx: F32, +ly: F32, +lz: F32, +t: F32, w: Array<U32>, fc: Face) -> Array<U32> & U32:
-  Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, cx, cy, cz, +da, u, wf, +tone} = fc
+  Face{+px, +py, +pz, +ax, +ay, +hx, +hy, +hz, +cx, +cy, +cz, +da, u, wf, +tone} = fc
   +sg = Sky.side(Sky.moon_on(fl), ly)
   +ndl = facing(da, ax, ay, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32))
   +sun = Sky.sunned(Util.on(fl, 131072), (ndl <= 0.0 : F32), 1.0, ndl)
-  glance_fin(distant, sky, fl, fm, Util.f2u(hy), Bool.not(ay), Util.fracf(py), u, wf, px, pz, t,
-    (tone * Sky.level(Sky.moon_on(fl), ly) * sun : F32), Sky.light(Util.on(fl, 131072), sun, ly),
-    F32.max(Sky.fog(fl, t, eye, py), Water.reach((t - far : F32), dx, dy, dz)),
-    type_of(distant, w, base, word, hx, hy, hz))
+  +level = Sky.level(Sky.moon_on(fl), ly)
+  glance_fin(distant, word, sky, fl, base, fm, hx, hy, hz, py, Bool.not(ay), u, wf, px, pz, t, (tone * level : F32), sun, Sky.light(Util.on(fl, 131072), sun, ly), (Torch.night(ly) / level : F32),
+    F32.max(Sky.fog(fl, t, eye, py), Water.reach((t - far : F32), dx, dy, dz)), level_at(w, base, cx, cy, cz))
 
 # a torch the walk met at p: its look there, in the fog f towards the
 # colour v; its flame flickers at a phase of its column's slot, which the
@@ -1031,7 +1143,7 @@ def facing_up(m: Water.Reflection) -> Bool:
 # puddles
 def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy: U32, +side: Bool, +yf: F32, +u: F32, +wf: F32, +tone: F32, +f: F32,
           +cx: F32, +cy: F32, +cz: F32, +ux: F32, +uz: F32, +ey: F32, +ez: F32, +fu: F32, +fw: F32,
-          +lx: F32, +ly: F32, +lz: F32, +ndl: F32, +sx: F32, +sy: F32, +sz: F32, +t: F32, +oy: F32, +lamp: F32, +m: Water.Reflection,
+          +lx: F32, +ly: F32, +lz: F32, +ndl: F32, +sx: F32, +sy: F32, +sz: F32, +t: F32, +oy: F32, +lamp: F32, +unit: F32, +m: Water.Reflection,
           r: Array<U32> & U32) -> Array<U32> & U32:
   (w, +word) = r
   +sg = Sky.side(Sky.moon_on(fl), ly)
@@ -1041,7 +1153,7 @@ def typed(+distant: Bool, +v: U32, +fl: U32, +base: U32, +fm: U32, +ck: U32, +hy
   soak((wet > 0.0 : F32), distant, wet, base, fm, ck, cx, cy, cz,
     Bool.not(side) && ((what < 4 : U32) || U32.is_eq(what, 6)) && facing_up(m), u, wf, t, oy, m, v, f, fl, lx, ly, lz,
     after_sun(distant, v, col, f, base, fm, cx, cy, cz, ux, 0.0, uz, 0.0, ey, ez, fu, fw,
-              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32)), Util.on(fl, 131072), ndl, ly, lamp, Util.on(fl, 2),
+              Clouds.shade(Util.on(fl, 256), fm, ck, sx, sy, sz, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32)), Util.on(fl, 131072), ndl, ly, lamp, unit, Util.on(fl, 2),
               shadow_if(Util.on(fl, 1), (ndl > 0.0 : F32), distant, w, base, fm, sx, sy, sz, (sg * lx : F32), (sg * ly : F32), (sg * lz : F32), sun_gaps(fl), wind_of(fl, ck))))
 
 # the look of the block behind the face: its unit steps of u and w in
@@ -1060,7 +1172,7 @@ def shade_face(+distant: Bool, w: Array<U32>, +base: U32, +fm: U32, +ck: U32, +w
         Bool.pick(F32, ax, (px + nudge : F32), px),
         Bool.pick(F32, ay, (py + nudge : F32), py),
         Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (pz + nudge : F32), pz),
-        t, oy, Torch.over(Torch.held(base), ck, t, da, level), Water.Reflection{Bool.pick(F32, ax, (0.0 - dx : F32), dx), Bool.pick(F32, ay, (0.0 - dy : F32), dy),
+        t, oy, (Torch.over(Torch.held(base), ck, t, da, level) * Torch.night(ly) : F32), (Torch.night(ly) / level : F32), Water.Reflection{Bool.pick(F32, ax, (0.0 - dx : F32), dx), Bool.pick(F32, ay, (0.0 - dy : F32), dy),
           Bool.pick(F32, Bool.not(ax) && Bool.not(ay), (0.0 - dz : F32), dz), Util.absf(da)},
         type_of(distant, w, base, word, hx, hy, hz))
 
@@ -1183,18 +1295,27 @@ def beyond(out: Bool, +rain: F32, +fl: U32, +depth: F32, steps: Bool, hits: Bool
 # What the ray met, under the water it went through: the window's hit or
 # the far walk's (distant), the water's surface met by either, and its
 # mirror walked where the surface was met.
-def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +top: Bool, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32,
-         +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, tr: Water.Trace, w: Array<U32>) -> Array<U32> & U32:
+def seen_lit(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +top: Bool, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32,
+             +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, tr: Water.Trace, r: Array<U32> & F32) -> Array<U32> & U32:
   Water.Trace{+entry, +depth} = tr
+  (w, +g) = r
   +wet = (depth > 0.0 : F32) && Bool.not(Util.on(fl, 96))
   +out = wet && rises(fl, dy, t, entry, depth)
   +ground_flags = Bool.pick(U32, wet, (fl .&. 2147482615 : U32), fl)
   +rain = Rain.falling(Util.on(fl, 512), ck)
   Rain.fall((rain > 0.0 : F32), rain, ck, fw, base, ox, oy, oz, dx, dy, dz, Bool.pick(F32, wet, entry, t), ly,
-  Water.shade(wet, fl, v, Torch.ink(Torch.held(base), Water.colour(ly), Water.colour(1.0), Torch.over(Torch.held(base), ck, entry, 1.0, 1.0)), oy, dy, ly, top, t, (hitw > 0 : U32) && Bool.not(out), Water.Trace{entry, depth},
+  Water.shade(wet, fl, v, Torch.ink(Torch.held(base) || (g > 0.0 : F32), Water.colour(ly), Water.colour(1.0), (F32.max(Torch.over(Torch.held(base), ck, entry, 1.0, 1.0), g) * Torch.night(ly) : F32)), oy, dy, ly, top, t, (hitw > 0 : U32) && Bool.not(out), Water.Trace{entry, depth},
     mirrored(wet && top && Water.reflection_on(fl), mirror_far, fw, ck, rain, fl, base, ox, oy, oz, dx, dy, dz, entry, lx, ly, lz,
       bed(wet && (hitw > 0 : U32) && Water.caustic_on(base) && (ly > (0.0 - 0.12 : F32) : F32), base, ck, (ox + dx * t : F32), (oz + dz * t : F32), Water.drop((oy + dy * t : F32)), dy, ly, thickness(entry, depth, dy),
         beyond(out, rain, fl, depth, Util.on(fl, 32), Util.on(fl, 64), (hitw < 1 : U32), distant, word, w, base, fw, ck, v, ox, oy, oz, dx, dy, dz, hitw, t, n, ground_flags, lx, ly, lz)))))
+
+# the placed torches' light on the water's top, where the ray went in
+def seen(+distant: Bool, +mirror_far: Bool, +word: U32, +hitw: U32, +n: U32, +top: Bool, +v: U32, +fl: U32, +lx: F32, +ly: F32, +lz: F32,
+         +base: U32, +fw: U32, +ck: U32, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: F32, +t: F32, tr: Water.Trace, w: Array<U32>) -> Array<U32> & U32:
+  Water.Trace{+entry, +depth} = tr
+  +e = (F32.max(entry, 0.0) + 0.01 : F32)
+  seen_lit(distant, mirror_far, word, hitw, n, top, v, fl, lx, ly, lz, base, fw, ck, ox, oy, oz, dx, dy, dz, t, Water.Trace{entry, depth},
+    glow_at(Torch.lights(base) && (depth > 0.0 : F32), w, base, (ox + dx * e : F32), (oy + dy * e : F32), (oz + dz * e : F32)))
 
 # the far walk's hit, under the water the window's walk and its own
 # crossed; the surface is the far walk's where the window's walk stayed

@@ -32,19 +32,19 @@ def target_typ(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32
                +prev: U32, +got: U32, +h: U32, +c: U32, r: World.World & U32) -> Player.Game & String:
   (w, t) = r
   (Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag},
-   "hit=" ++ U32.show(got) ++ " prev=" ++ U32.show(prev) ++ " block=(" ++ U32.show(Player.ix_x(h)) ++ "," ++ U32.show(Player.ix_y(h)) ++ "," ++ U32.show(Player.ix_z(h)) ++ ") column=" ++ U32.show(c) ++ " type=" ++ U32.show(t))
+   "hit=" ++ U32.show(got) ++ " prev=" ++ U32.show(prev) ++ " block=(" ++ U32.show(World.ix_x(h)) ++ "," ++ U32.show(World.ix_y(h)) ++ "," ++ U32.show(World.ix_z(h)) ++ ") column=" ++ U32.show(c) ++ " type=" ++ U32.show(t))
 
 def target_col(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
                +prev: U32, +got: U32, +h: U32, r: World.World & U32) -> Player.Game & String:
   (w, c) = r
   target_typ(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, prev, got, h, c,
-             World.voxel(w, Player.ix_x(h), Player.ix_y(h), Player.ix_z(h)))
+             World.voxel(w, World.ix_x(h), World.ix_y(h), World.ix_z(h)))
 
 def target_ph(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
               w: World.World, ph: U32 & U32) -> Player.Game & String:
   (+prev, +got) = ph
   +h = (got - 1 : U32)
-  target_col(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, prev, got, h, wcol(w, Player.ix_x(h), Player.ix_z(h)))
+  target_col(px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag, prev, got, h, wcol(w, World.ix_x(h), World.ix_z(h)))
 
 def target_hit(px: F32, py: F32, pz: F32, yaw: F32, pit: F32, vy: F32, held: U32, edge: U32, sel: U32, res: U32, clock: U32, bag: List<&2, Nat>,
                r: World.World & (U32 & U32)) -> Player.Game & String:

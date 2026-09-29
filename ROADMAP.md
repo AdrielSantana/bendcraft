@@ -254,10 +254,16 @@ The pieces, each behind a flag of `Cam.fl` with its line in `make profile`:
    within the noise with none in the view. Its test in the walk's step
    first stood apart from the leaves' pierce, a second match, and cost 1
    to 5 ms at 1470×796 with no torch anywhere; in one match with the
-   leaves, but computed for every leaf cell, 1 to 2. Then the light grid: a
-   level a cell, 0 to 14, spread from each torch by a flood fill on the
-   host as Minecraft's is, read smoothly at a face's corners, and its
-   laws.
+   leaves, but computed for every leaf cell, 1 to 2. The light grid —
+   done (2026-09-29): a level a cell, 0 to 14, spread from each torch in
+   rounds on the host as Minecraft's is, around blocks and not through
+   them, read smoothly at a face's corners, on the meadow's blades, the
+   water's top and in its mirror (README, "The torch"); within the noise
+   of the frame, and 0.18 ms an edit on the host. Its light first
+   outshone the sun at noon: a cell beside a torch gives 1.08 of the
+   sun's white in red, and 1.35 on a blade, so the brighter of the two
+   let a yellow halo show by day; the day now fades the torches' light
+   out, the hand's too.
 
 **The budget.** At 1470×796 a frame is 47 ms with a ray for every pixel
 and 13 ms at scale 2, which suits the pixel art (2026-09-28, on 2.0.32
@@ -570,7 +576,7 @@ finished world.
 7. vegetation: the meadow, the leaves' holes and the wind in them — done, 2026-09-28
 8. light: the sun's colour, the sun in the camera, its light in the haze
    and the moonlit night — done, 2026-09-29; then the blocks': the torch
-   in the hand and as a block — done, 2026-09-29; the light grid
+   in the hand and as a block, and the light grid — done, 2026-09-29
 9. survival and crafting
 10. mobs and entities
 

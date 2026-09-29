@@ -122,11 +122,8 @@ def feed(evs: List<Event>, g: Game) -> Game:
 # cell past the window is none, so nothing is placed there, and neither
 # is anything against a torch, met inside its cell.
 
-def pk_u(+x: U32, +y: U32, +z: U32) -> U32:
-  ((x * 32 + y) * 128 + z : U32)
-
 def pk(+x: F32, +y: F32, +z: F32) -> U32:
-  pk_u(Util.f2u(x), Util.f2u(y), Util.f2u(z))
+  World.pk_u(Util.f2u(x), Util.f2u(y), Util.f2u(z))
 
 def cell(+x: F32, +y: F32, +z: F32) -> U32:
   Bool.pick(U32, World.inside(x, y, z), (1 + pk(x, y, z) : U32), 0)
@@ -162,17 +159,12 @@ def waim(w: World.World, +ox: F32, +oy: F32, +oz: F32, +dx: F32, +dy: F32, +dz: 
   World.W{ring, +meta} = w
   waim_fin(meta, aim(ring, World.base(meta), ox, oy, oz, dx, dy, dz))
 
-# unpack: word -> lx, y, lz
-def ix_x(+i: U32) -> U32: (i / 4096 : U32)
-def ix_y(+i: U32) -> U32: (i / 128 % 32 : U32)
-def ix_z(+i: U32) -> U32: (i % 128 : U32)
-
 def write_block(act: Bool, w: World.World, +idx: U32, set: Bool, +what: U32) -> World.World:
   match act:
     case False{}:
       w
     case True{}:
-      World.edit(w, ix_x(idx), ix_z(idx), ix_y(idx), set, what)
+      World.edit(w, World.ix_x(idx), World.ix_z(idx), World.ix_y(idx), set, what)
 
 # The receipt changes the ring and the count together. A break credits the
 # actual voxel type, and a place can only debit an empty cell's chosen type.
@@ -188,7 +180,7 @@ def edit_type(+set: Bool, +what: U32, idx: U32, bag: List<&2, Nat>, solid: Bool,
 
 def edit_solid(set: Bool, what: U32, +idx: U32, bag: List<&2, Nat>, r: World.World & Bool) -> World.World & List<&2, Nat>:
   (w, solid) = r
-  edit_type(set, what, idx, bag, solid, World.voxel(w, ix_x(idx), ix_y(idx), ix_z(idx)))
+  edit_type(set, what, idx, bag, solid, World.voxel(w, World.ix_x(idx), World.ix_y(idx), World.ix_z(idx)))
 
 def edit_if(act: Bool, +idx: U32, set: Bool, what: U32, r: World.World & List<&2, Nat>) -> World.World & List<&2, Nat>:
   match act:
@@ -196,7 +188,7 @@ def edit_if(act: Bool, +idx: U32, set: Bool, what: U32, r: World.World & List<&2
       r
     case True{}:
       (w, bag) = r
-      edit_solid(set, what, idx, bag, World.wsolid(w, Util.u2f(ix_x(idx)), Util.u2f(ix_y(idx)), Util.u2f(ix_z(idx))))
+      edit_solid(set, what, idx, bag, World.wsolid(w, Util.u2f(World.ix_x(idx)), Util.u2f(World.ix_y(idx)), Util.u2f(World.ix_z(idx))))
 
 def edit_world(act: Bool, +idx: U32, set: Bool, what: U32, r: World.World & List<&2, Nat>) -> World.World & List<&2, Nat>:
   edit_if(act && (idx < 524288 : U32), idx, set, what, r)
@@ -211,7 +203,7 @@ def torch_fin(+idx: U32, bag: List<&2, Nat>, +open: U32, r: World.World & Bool) 
 
 def torch_open(+idx: U32, bag: List<&2, Nat>, r: World.World & U32) -> World.World & List<&2, Nat>:
   (w, open) = r
-  torch_fin(idx, bag, open, World.wsolid(w, Util.u2f(ix_x(idx)), (Util.u2f(ix_y(idx)) - 1.0 : F32), Util.u2f(ix_z(idx))))
+  torch_fin(idx, bag, open, World.wsolid(w, Util.u2f(World.ix_x(idx)), (Util.u2f(World.ix_y(idx)) - 1.0 : F32), Util.u2f(World.ix_z(idx))))
 
 def torch_put(act: Bool, +idx: U32, r: World.World & List<&2, Nat>) -> World.World & List<&2, Nat>:
   match act:
@@ -219,7 +211,7 @@ def torch_put(act: Bool, +idx: U32, r: World.World & List<&2, Nat>) -> World.Wor
       r
     case True{}:
       (w, bag) = r
-      torch_open(idx, bag, World.probe(w, ix_x(idx), ix_y(idx), ix_z(idx)))
+      torch_open(idx, bag, World.probe(w, World.ix_x(idx), World.ix_y(idx), World.ix_z(idx)))
 
 # ---------- the bucket ----------
 # The ninth slot moves water instead of a block. A left click takes all
@@ -254,7 +246,7 @@ def pail(act: Bool, put: Bool, +idx: U32, r: World.World & List<&2, Nat>) -> Wor
       r
     case True{}:
       (w, bag) = r
-      pail_fin(put, ix_x(idx), ix_y(idx), ix_z(idx), bag, World.probe(w, ix_x(idx), ix_y(idx), ix_z(idx)))
+      pail_fin(put, World.ix_x(idx), World.ix_y(idx), World.ix_z(idx), bag, World.probe(w, World.ix_x(idx), World.ix_y(idx), World.ix_z(idx)))
 
 # ---------- one tick ----------
 # The player is 1.8 blocks tall with the eye at 1.6, so they stand in the
@@ -298,8 +290,8 @@ def step_edit(+npx: F32, +npy: F32, +npz: F32, nvy: F32, nyaw: F32, npit: F32,
   (+prev, +hit) = ph
   +got = (hit > 0 : U32)
   +tgt = (prev - 1 : U32)
-  +onme = U32.is_eq(ix_x(tgt), Util.f2u(npx)) && U32.is_eq(ix_z(tgt), Util.f2u(npz))
-    && (ix_y(tgt) >= Util.f2u((npy - eye() : F32)) : U32) && (ix_y(tgt) <= Util.f2u((npy + 0.2 : F32)) : U32)
+  +onme = U32.is_eq(World.ix_x(tgt), Util.f2u(npx)) && U32.is_eq(World.ix_z(tgt), Util.f2u(npz))
+    && (World.ix_y(tgt) >= Util.f2u((npy - eye() : F32)) : U32) && (World.ix_y(tgt) <= Util.f2u((npy + 0.2 : F32)) : U32)
   +pail_on = U32.is_eq(sel, 8)
   +brk = got && Util.on(edge, 1024)
   +use = got && (prev > 0 : U32) && Util.on(edge, 2048)

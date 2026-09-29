@@ -102,7 +102,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `0f2a98a8e202ecbb061694f4351abd56` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `3272fb825efe031d24f52f7d5b42888e` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -229,7 +229,7 @@ looks `Cam.fl` has no room for: `Render.looks_base()` holds the ones on
 by default and `Water.with_looks` puts them in; 27 is the world in the
 water's mirror, 28 the caustic on its bed, 29 says the window holds
 partial water (`Render.with_partial`, from `World.partials`; the DDA is
-specialized on it, `~partial`), 30 the shafts, the sun's light in the haze (`src/shafts.bend`), 31 the torch's light; bit 26 says the eye holds the torch (`Torch.in_hand`, from `Cam.sel` with bit 31 on). Bits 14..25 are spare.
+specialized on it, `~partial`), 30 the shafts, the sun's light in the haze (`src/shafts.bend`), 31 the torches' light, in the hand and placed; bit 26 says the eye holds the torch (`Torch.in_hand`, from `Cam.sel` with bit 31 on). Bits 14..25 are spare.
 - A walk is the unit of cost: a DDA step is about 0.1 ms a frame at
 1470×796 (0.16 on 2.0.25) wherever it happens (primary 60, shadow 24, mirror 32, the shafts'
 six glances of 16 at a tile's four corners), because
@@ -249,8 +249,9 @@ count).
 - The world: a ring of 128x128 columns in the low 2^18 words of one
 `Array<U32>` of 2^20, sixteen words a column (solid mask, four type words, water mask, eight
 words of water amounts 0..255 in bytes, the flow's marks at slot 14,
-the partial mask at 15, none spare, so the leaf mask lies apart in the
-leaf plane, `World.leaf_at`); the water mask's bit is set
+the partial mask at 15, none spare, so the leaf mask and the light lie
+apart, `World.leaf_at`, `World.light_at`); a local cell as one word is
+`World.pk_u`, the pick's and the light's rounds'; the water mask's bit is set
 exactly when the amount is over zero (`World.pour` keeps both), the
 partial mask's exactly when it is 1..254 (`put_col` derives it and
 keeps the window's count); edits in a `Map`; terrain from a seeded
@@ -326,8 +327,14 @@ Bool; both take the clock as `wind` (0 for still leaves), and
 column keeps whatever the window. The leaf plane (`World.leaf_at`): a
 word a column past the meadow's map, bit y a leaf block or, where the
 cell is not solid, a torch (`World.plane`), written by `put_col`; the eye's
-walk reads it with every column, the glance only when it pierces; the
-array's words from 540672 are spare.
+walk reads it with every column, the glance only when it pierces. The
+light plane (`World.light_at`): four words a column from 540672, a
+nibble a height, the torches' levels 0..14, which the host spreads in
+rounds (`World.relight`: an edit relights the 27x27 columns it can
+reach, a shift the row that came in, the birth the window); the render
+reads the cell before a face and the eight around it only where that
+cell is lit (`Render.glow_read`), and the day fades the light out
+(`Torch.night`). The array's words from 606208 are spare.
 - The flow (`src/flow.bend`): `Flow.tick(w, odd, budget)` steps the
 queued columns' marked cells, bottom up; `Flow.advance` runs it from
 `Player.advance` every 256 ms of the day's clock (4096 a turn, so the

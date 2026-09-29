@@ -218,11 +218,15 @@ def meadow(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
   Player.G{w, px, 21.6, pz, 2.4, (0.0 - 0.3 : F32), vy, held, edge, sel, res, clock, bag}
 
-# The meadow at night from the hill with the torch in hand: its light on
-# the slope's blocks and blades.
+def torch_on(w: World.World, +x: U32, +z: U32) -> World.World:
+  World.edit(w, x, z, World.terrain((1048512 + x : U32), (1048512 + z : U32)), True{}, 9)
+
+# The meadow at night from the hill with the torch in hand and five on
+# the ground ahead: their light on the slope's blocks and blades.
 def torch(g: Player.Game) -> Player.Game:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, bag} = g
-  Player.G{w, px, 21.6, pz, 2.4, (0.0 - 0.3 : F32), vy, held, edge, Torch.slot(), res, 786432, bag}
+  Player.G{torch_on(torch_on(torch_on(torch_on(torch_on(w, 65, 62), 66, 62), 67, 60), 70, 62), 67, 57),
+    px, 21.6, pz, 2.4, (0.0 - 0.3 : F32), vy, held, edge, Torch.slot(), res, 786432, bag}
 
 def main() -> IO(Unit):
   do IO<Unit>:
@@ -232,7 +236,7 @@ def main() -> IO(Unit):
     profile_size("1470 x 796 (a 14-inch MacBook, every pixel a ray)", 1470, 796)
     profile_view("Meadow at 1470 x 796, standing on the hill", 1470, 796, meadow(wide()))
     profile_view("Night at 1470 x 796, looking at the moon", 1470, 796, night(wide()))
-    profile_view("Night over the meadow at 1470 x 796, a torch in hand", 1470, 796, torch(wide()))
+    profile_view("Night over the meadow at 1470 x 796, a torch in hand and five on the ground", 1470, 796, torch(wide()))
     profile_view("Rain at 1470 x 796, the second morning", 1470, 796, rain(wide()))
     profile_view("Lake in the rain at 1470 x 796", 1470, 796, rain_lake(wide()))
     profile_view("Lake at 1470 x 796, looking west", 1470, 796, lake(wide()))

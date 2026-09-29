@@ -11,7 +11,7 @@ click breaks · right click places (or `J` / `L`) · `1`–`8` or the wheel choo
 to place (grass, dirt, stone, sand, wood, leaves, brick, snow) · `9` the
 bucket: a click takes a cell of water, a right click pours one · `0` the
 torch: in the hand it lights what is near as you walk, and a right click
-stands one on the ground · `P`
+stands one on the ground, which lights what is around it · `P`
 saves · `F` shows the frame's time · `Esc` quits and saves.
 
 You start with an empty inventory. Break a block to collect its type;
@@ -67,8 +67,8 @@ make publish                                   # the same onto the gh-pages bran
 owner. Since 2.0.22 an `@unsafe` def may hand one array to both sides of a
 fork anyway, two handles to one block that `Array.join` gives back, so the
 columns around the player live in the low 2^18 words of an `Array<U32>`
-of 2^20 (above them, the far map, the clouds' map, the meadow's and the
-leaf plane, below): sixteen
+of 2^20 (above them, the far map, the clouds' map, the meadow's, the
+leaf plane and the light's, below): sixteen
 words a column, the first a mask whose bit `y` says "there is a block at height
 `y`", the next four the types of its 32 solid blocks, four bits each. Word
 six is a separate water mask; words seven to fourteen hold the amount of
@@ -448,9 +448,11 @@ sees it reaches: it casts no shadow and walks nothing. It is near the
 day's within a few blocks and gone smoothly at 14, less on a face the ray
 grazes, and it flickers with the flame. A lit colour takes the brighter
 of its own light and the torch's, channel by channel, as Minecraft takes
-the brighter of the sky's light and a block's, so the day hides it and
-the shade and the night show it. The blocks, the meadow's blades and the
-water's own colour take it (`Torch.lit`, `Torch.lamp`, `Torch.ink`).
+the brighter of the sky's light and a block's, and the day fades it out,
+whole once the sun is 0.12 under the horizon and gone from 0.17 over it
+(`Torch.night`): a torch's warm red outshines the sun's white by its own.
+The blocks, the meadow's blades and the water's own colour take it
+(`Torch.lit`, `Torch.lamp`, `Torch.ink`).
 With no torch in hand every pixel takes the path it took before, byte for
 byte.
 
@@ -471,8 +473,27 @@ the cell, so the meadow's blades before it stand over it, and its look
 comes from the stick there (`Torch.look`), in the fog, near and in the
 water's mirror. The picking is the eye's walk, 40 steps, so the
 crosshair finds a torch and a click on the ground behind it passes it
-by; nothing is placed against a torch. It lights nothing yet: the light of
-the blocks is the next step.
+by; nothing is placed against a torch.
+
+A placed torch's light is Minecraft's block light: a level a cell, 0 to
+14, a nibble a height in four words a column past the leaf plane
+(`World.light_at`). A torch's cell holds 14, and the light spreads
+through the cells that are not solid, one less a step, a cell holding the
+most any path brings it: it goes around a block and not through a wall.
+The host spreads it in rounds from 14 down, a round's cells giving one
+less to their open neighbours that hold less (`World.relight`). An edit
+relights the 27 × 27 columns around it, all the cells it can reach, from
+their own torches and the lit cells around them; a shift of the window
+lights the row that came into view and spreads from it; the world's
+birth lights the whole window. A face takes the level of the cell before
+it and of the eight around it, a vertex the mean of its open cells, and
+blends its four as the occlusion does (`Render.glow_fin`); the meadow's
+blades and the water's top take the four cells whose centres are around
+their point, blended, and the water's mirror the cell before the face it
+meets. A level l lights as the torch in the hand does 14 − l blocks away
+(`Torch.glow`), the brighter of it and the colour's own, and the day
+fades it out as it does the hand's. With no torch's light in the window
+every pixel takes the path it took before, byte for byte.
 
 **The clouds** are cumulus in a slab from y=62 to 78, over the world's
 columns, not the window's (`src/clouds.bend`). A coverage over the
@@ -642,7 +663,7 @@ src/inventory.bend natural counts, conserved cell/item transfers, packed HUD cou
 src/sky.bend       sky gradient, sun, glow and halo, stars, moon, distance/height fog, the light's colour, the body that lights the world
 src/lens.bend      the sun in the camera: the glare and the flare over a pixel
 src/shafts.bend    the sun's light in the haze a pixel looks through, from its tile's shafts
-src/torch.bend     the torch: in the hand, its light on what the eye sees; as a block, its stick and flame
+src/torch.bend     the torch: in the hand, its light on what the eye sees; as a block, its stick and flame; the light's fall and the day's fade
 src/clouds.bend    the clouds' coverage and its map, their march along a sky ray, their shadow, the weather
 src/rain.bend      the rain's drops in the world, under the cloud over the eye and the open sky
 src/wet.bend       how wet the world is, where puddles lie, their rings, the sheen; the render reads the air and walks the mirror
@@ -650,7 +671,7 @@ src/meadow.bend    the meadow's map: how wild it grows, its flowers, the wind's 
 src/grass.bend     the meadow's blades and flowers, the walks that meet them, the meadow from afar
 src/water.bend     wet intervals, tint, fog, Fresnel, reflected sky, ripple normals, the rain's rings, the mirror, the caustic
 src/util.bend      conversions, bit tests, smoothstep, a colour mixed, dimmed or lit as a screen does
-src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid
+src/world.bend     noise, terrain, the ring, the map, loads, shifts, edits, solid, the torches' light
 src/render.bend    the DDA, the sun, the texture, the occlusion, the mirror's walk, a pixel, the sun the eye sees, a tile's shafts
 src/frame.bend     the frame's tree, its one `!` and the game's view: all that relies on @unsafe
 src/player.bend    Game, events, picking, the tick
@@ -680,6 +701,7 @@ test/far.bend      the far walk over a map written by hand: sides, tops, canopie
 test/meadow.bend   the meadow's map, and rays through the grass, over it, over stone and down onto it
 test/leaves.bend   the leaf plane, and walks through a leaf block's open texels and stopped by the rest
 test/torch.bend    a torch stands, is taken, put out and saved; walks meet its stick and pass beside it
+test/light.bend    the torches' light: 14 at a torch, one less a step, around a block, gone with the torch, the break under it and water, back with the window, loaded, faded by day
 test/readout.bend  the readout's corner of a frame, printed a character a pixel
 test/page.mjs      the page in headless Chrome: drag, click, place, jump
 test/fps.mjs       the page's fps on N threads
@@ -755,7 +777,7 @@ with numbers for pixels, how many rays reach a block and how many DDA
 steps a ray walks to its hit, each pixel weighed by the square it stands
 for. Its views are the bench's at four sizes, then at 1470×796 the
 meadow from the start's hill, night looking at the moon, the meadow at
-night with a torch in hand, the rain of the
+night with a torch in hand and five on the ground, the rain of the
 second morning, the lake in that rain, a lake looking west, under its
 water, the night lake with the moon in it, and the lake with partial
 water in the window. The least of four rounds on a busy machine
@@ -810,7 +832,15 @@ the build before it read the bench's view 58.6 against 57.6, the meadow
 66.2 against 65.0, the lake 71.2 against 72.8, and 15.4 both at 735×398;
 tested beside the leaves' pierce, a second match in the step, it read 1
 to 5 ms more at 1470×796, and in the leaves' branch, where every leaf
-cell paid for the stick's test, 1 to 2. In the bench's view 49% of the rays
+cell paid for the stick's test, 1 to 2. The placed torches' light, a read
+of the cell before a face (and eight more near a torch), of a blade's and
+of the water's top, reads within the noise too: eight rounds alternated
+with the build before it read the bench's view 59.2 against 62.2, the
+meadow 67.0 against 67.2, the lake 72.0 against 73.0, the meadow at
+midnight with five torches on the ground 64.8 against 68.0, and 15.8
+against 15.6 at 735×398. On the host an edit takes 0.18 ms more, its
+27 × 27 columns relit, and a shift of the window 0.06 more (0.34 ms
+against 0.28), three runs of 200 edits and 200 shifts. In the bench's view 49% of the rays
 reach a block, after 41.4 steps with a sky ray's 60; at the lake 77%,
 after 31.3.
 
@@ -881,7 +911,8 @@ is the same bit for bit: the bench's checksums and its times did not move.
 ## Laws
 
 `LAWS.bend` states what the checker can decide: integer and bit rules on the
-values the game uses. The pick word packs and unpacks; a 128×128 window of
+values the game uses. A cell's word, the pick's and the light's rounds',
+packs and unpacks; a 128×128 window of
 the ring spans its 16384 column slots exactly; placing sets one bit,
 breaking clears it, breaking air changes nothing; a type's nibble writes
 and reads back without touching its neighbours, and the device's read (a
@@ -943,8 +974,10 @@ wild the meadow grows, its flower and the wind's phase. Two leaf laws:
 the leaf plane follows the meadow's map, and a column's leaf mask marks
 its solid leaves alone. Four torch laws: a torch is in neither mask, it
 rides the leaf plane, the break of the block under it takes it, and water
-puts it out. There are 138 laws: eight universal claims and
-130 concrete
+puts it out. Four light laws: the light's words follow the leaf plane, a
+torch's cell holds 14 at its height in the word, a word of torches is all
+14, and a column with none holds no light of its own. There are 142
+laws: eight universal claims and 134 concrete
 checks. Integration tests exercise the actual ring edits, all eight types,
 both actions in one tick, and save/load through `P` and `Esc`.
 The historical physics fixture supplies its one sand placement explicitly;

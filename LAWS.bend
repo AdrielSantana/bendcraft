@@ -16,27 +16,28 @@ import ./src/water.bend as Water
 import ./src/flow.bend as Flow
 import ./src/meadow.bend as Meadow
 
-# --- the pick word: (lx * 32 + y) * 128 + lz, and back --------------------
-# (the checker computes integers, not floats: the laws are on the integer
-# packing, and pk is that packing of the floored coordinates)
+# --- a cell as one word: (lx * 32 + y) * 128 + lz, and back ---------------
+# The pick's and the light's rounds'. The checker computes integers, not
+# floats: the laws are on the integer packing, and Player.pk is that
+# packing of the floored coordinates.
 
 law pick_origin:
-  {Player.ix_x(Player.pk_u(0, 0, 0)) == 0 : U32}
+  {World.ix_x(World.pk_u(0, 0, 0)) == 0 : U32}
 
 law pick_far_corner:
-  {Player.ix_x(Player.pk_u(127, 31, 127)) == 127 : U32}
+  {World.ix_x(World.pk_u(127, 31, 127)) == 127 : U32}
 
 law pick_far_corner_y:
-  {Player.ix_y(Player.pk_u(127, 31, 127)) == 31 : U32}
+  {World.ix_y(World.pk_u(127, 31, 127)) == 31 : U32}
 
 law pick_far_corner_z:
-  {Player.ix_z(Player.pk_u(127, 31, 127)) == 127 : U32}
+  {World.ix_z(World.pk_u(127, 31, 127)) == 127 : U32}
 
 law pick_inside:
-  {Player.ix_y(Player.pk_u(64, 19, 65)) == 19 : U32}
+  {World.ix_y(World.pk_u(64, 19, 65)) == 19 : U32}
 
 law pick_inside_z:
-  {Player.ix_z(Player.pk_u(64, 19, 65)) == 65 : U32}
+  {World.ix_z(World.pk_u(64, 19, 65)) == 65 : U32}
 
 # --- the ring: a 128x128 window falls one-to-one on the 16384 columns ------
 # world column (x, z) at slot (x * 128 + z) * 16 mod 2^18 (the ring is the
@@ -567,3 +568,20 @@ law the_break_under_a_torch_takes_it:
 
 law water_puts_a_torch_out:
   {World.plane(World.pour_col(World.edit_col(World.col6(1, 0, 0, 0, 0, 0), 1, True{}, 9), 1, 255)) == 0 : U32}
+
+# --- the blocks' light: a nibble a cell, past the leaf plane ---------------
+# A column's own light holds 14 in a torch's cell and none elsewhere; the
+# rounds spread it one less a step from there, which test/light.bend
+# checks on worlds the checker cannot hold.
+
+law the_light_follows_the_leaf_plane:
+  {(World.light_at(0), (World.light_at(262128) + 3 : U32)) == ((World.leaf_at(262128) + 1 : U32), 606207) : U32 & U32}
+
+law a_torch_lights_its_cell_fourteen:
+  {(World.lit_byte(8n, 1, 0, 0), World.lit_byte(8n, 128, 0, 0)) == (14, 3758096384) : U32 & U32}
+
+law a_word_of_torches_is_all_fourteen:
+  {World.lit_byte(8n, 255, 0, 0) == 4008636142 : U32}
+
+law no_torch_no_light:
+  {World.lit_byte(8n, 0, 0, 0) == 0 : U32}

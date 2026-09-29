@@ -64,6 +64,15 @@ def tnoise(+u: F32, +v: F32) -> F32:
 def col_at(+base: U32, +x: U32, +z: U32) -> U32:
   (((base + x * 128 + z) * 16) .&. 262143 : U32)
 
+# a local cell as one word, (lx * 32 + y) * 128 + lz, and back: the
+# pick's (Player.aim) and the light's rounds'
+def pk_u(+x: U32, +y: U32, +z: U32) -> U32:
+  ((x * 32 + y) * 128 + z : U32)
+
+def ix_x(+i: U32) -> U32: (i / 4096 : U32)
+def ix_y(+i: U32) -> U32: (i / 128 % 32 : U32)
+def ix_z(+i: U32) -> U32: (i % 128 : U32)
+
 # the leaf plane of the column at a slot, apart since its sixteen words
 # are taken: bit y where its block is leaves, or a torch where it is not
 # solid, a word a column from 2^19 on, past the meadow's map
@@ -395,6 +404,151 @@ def mark_around(w: World, +lx: U32, +y: U32, +lz: U32) -> World:
   mark(mark(mark(mark(mark(w, lx, lz, U32.shln(3, U32.to_nat(y))),
     (lx + 1 : U32), lz, bit), (lx - 1 : U32), lz, bit), lx, (lz + 1 : U32), bit), lx, (lz - 1 : U32), bit)
 
+# ---------- the blocks' light ----------
+# A cell's light from the torches, 0 to 14, as Minecraft's block light: a
+# torch's cell holds 14, and the light spreads through the cells that are
+# not solid, one less a step; a cell holds the most any path brings it.
+# A nibble a height, as the types are, four words a column from 540672
+# on, past the leaf plane.
+def light_at(+slot: U32) -> U32:
+  (540672 + slot / 4 : U32)
+
+# the nibbles of 14 under a byte's torches
+def lit_byte(n: Nat, +bits: U32, +i: U32, +acc: U32) -> U32:
+  match n:
+    case 0n:
+      acc
+    case 1n+k:
+      lit_byte(k, bits, (i + 1 : U32), (acc + Bool.pick(U32, Util.on(bits, U32.shln(1, U32.to_nat(i))), nib_set(0, i, 14), 0) : U32))
+
+# a column's own light: 14 in a torch's cell, none elsewhere
+def own_fin(+slot: U32, +solid: U32, r: Array<U32> & U32) -> Array<U32>:
+  (ring, +plane) = r
+  +t = (plane .&. U32.not(solid) : U32)
+  +a = light_at(slot)
+  Array.set(U32, Array.set(U32, Array.set(U32, Array.set(U32, ring,
+    a, lit_byte(8n, (t % 256 : U32), 0, 0)), (a + 1 : U32), lit_byte(8n, (t / 256 % 256 : U32), 0, 0)),
+    (a + 2 : U32), lit_byte(8n, (t / 65536 % 256 : U32), 0, 0)), (a + 3 : U32), lit_byte(8n, (t / 16777216 : U32), 0, 0))
+
+def own(+slot: U32, r: Array<U32> & U32) -> Array<U32>:
+  (ring, +solid) = r
+  own_fin(slot, solid, Array.get(U32, ring, leaf_at(slot)))
+
+# n columns of a box nz deep from local (x0, z0), the ith on
+def owned(n: Nat, ring: Array<U32>, +base: U32, +x0: U32, +z0: U32, +nz: U32, +i: U32) -> Array<U32>:
+  match n:
+    case 0n:
+      ring
+    case 1n+k:
+      +slot = col_at(base, (x0 + i / nz : U32), (z0 + i % nz : U32))
+      owned(k, own(slot, Array.get(U32, ring, slot)), base, x0, z0, nz, (i + 1 : U32))
+
+# A lit cell is a seed: its word (pk_u) times 16, plus its level.
+def seeds_word(n: Nat, +word: U32, +id: U32, +i: U32, +acc: List<&2, U32>) -> List<&2, U32>:
+  match n:
+    case 0n:
+      acc
+    case 1n+k:
+      +l = nib_get(word, i)
+      seeds_word(k, word, id, (i + 1 : U32), Bool.pick(List<&2, U32>, (l > 0 : U32), (((id + i * 128) * 16 + l : U32) <> acc), acc))
+
+def seeds_of(+id: U32, acc: List<&2, U32>, r: Array<U32> & U32) -> Array<U32> & List<&2, U32>:
+  (ring, +word) = r
+  (ring, seeds_word(8n, word, id, 0, acc))
+
+def seeds_col(n: Nat, +a: U32, +id: U32, r: Array<U32> & List<&2, U32>) -> Array<U32> & List<&2, U32>:
+  match n:
+    case 0n:
+      r
+    case 1n+k:
+      (ring, acc) = r
+      seeds_col(k, (a + 1 : U32), (id + 1024 : U32), seeds_of(id, acc, Array.get(U32, ring, a)))
+
+def gathered(n: Nat, +base: U32, +x0: U32, +z0: U32, +nz: U32, +i: U32, r: Array<U32> & List<&2, U32>) -> Array<U32> & List<&2, U32>:
+  match n:
+    case 0n:
+      r
+    case 1n+k:
+      +x = (x0 + i / nz : U32)
+      +z = (z0 + i % nz : U32)
+      gathered(k, base, x0, z0, nz, (i + 1 : U32), seeds_col(4n, light_at(col_at(base, x, z)), pk_u(x, 0, z), r))
+
+# a cell gives l to its neighbour n, in the window (ok), not solid and
+# holding less, and n joins the next round
+def give_set(go: Bool, +n: U32, +y: U32, +a: U32, +word: U32, +l: U32, next: List<&2, U32>, ring: Array<U32>) -> Array<U32> & List<&2, U32>:
+  match go:
+    case False{}:
+      (ring, next)
+    case True{}:
+      (Array.set(U32, ring, a, nib_set(word, y, l)), n <> next)
+
+def give_word(+open: Bool, +n: U32, +y: U32, +a: U32, +l: U32, next: List<&2, U32>, r: Array<U32> & U32) -> Array<U32> & List<&2, U32>:
+  (ring, +word) = r
+  give_set(open && (nib_get(word, y) < l : U32), n, y, a, word, l, next, ring)
+
+def give_solid(+ok: Bool, +n: U32, +y: U32, +a: U32, +l: U32, next: List<&2, U32>, r: Array<U32> & U32) -> Array<U32> & List<&2, U32>:
+  (ring, +solid) = r
+  give_word(ok && Bool.not(Util.on(solid, U32.shln(1, U32.to_nat(y)))), n, y, a, l, next, Array.get(U32, ring, a))
+
+def give(+ok: Bool, +n: U32, +base: U32, +l: U32, r: Array<U32> & List<&2, U32>) -> Array<U32> & List<&2, U32>:
+  (ring, next) = r
+  +slot = col_at(base, ix_x(n), ix_z(n))
+  give_solid(ok, n, ix_y(n), (light_at(slot) + ix_y(n) / 8 : U32), l, next, Array.get(U32, ring, slot))
+
+def spread(+id: U32, +base: U32, +l: U32, r: Array<U32> & List<&2, U32>) -> Array<U32> & List<&2, U32>:
+  +x = ix_x(id)
+  +y = ix_y(id)
+  +z = ix_z(id)
+  give((x < 127 : U32), (id + 4096 : U32), base, l, give((x > 0 : U32), (id - 4096 : U32), base, l,
+    give((y < 31 : U32), (id + 128 : U32), base, l, give((y > 0 : U32), (id - 128 : U32), base, l,
+      give((z < 127 : U32), (id + 1 : U32), base, l, give((z > 0 : U32), (id - 1 : U32), base, l, r))))))
+
+def round(f: List<&2, U32>, +base: U32, +l: U32, r: Array<U32> & List<&2, U32>) -> Array<U32> & List<&2, U32>:
+  match f:
+    case []:
+      r
+    case id <> t:
+      round(t, base, l, spread(id, base, l, r))
+
+# the seeds at level l, into the frontier f
+def picked(s: List<&2, U32>, +l: U32, +f: List<&2, U32>) -> List<&2, U32>:
+  match s:
+    case []:
+      f
+    case +h <> t:
+      picked(t, l, Bool.pick(List<&2, U32>, U32.is_eq((h % 16 : U32), l), ((h / 16 : U32) <> f), f))
+
+# the rounds from level 14 down to 2: a round's frontier is the cells the
+# one before lit and the seeds at its level, each giving one less
+def rounds(n: Nat, +base: U32, +seeds: List<&2, U32>, +l: U32, r: Array<U32> & List<&2, U32>) -> Array<U32>:
+  match n:
+    case 0n:
+      (ring, f) = r
+      ring
+    case 1n+k:
+      (ring, f) = r
+      rounds(k, base, seeds, (l - 1 : U32), round(picked(seeds, l, f), base, (l - 1 : U32), (ring, [])))
+
+def relit(+base: U32, r: Array<U32> & List<&2, U32>) -> Array<U32>:
+  (ring, +seeds) = r
+  rounds(13n, base, seeds, 14, (ring, []))
+
+# The window's columns [x0, x1) x [z0, z1) hold their own light again,
+# and the rounds spread it from their torches and from the lit cells of
+# the columns around them, which a change inside cannot have reached.
+def relight(w: World, +x0: U32, +x1: U32, +z0: U32, +z1: U32) -> World:
+  W{ring, +meta} = w
+  +b = base(meta)
+  +ex = (x0 - U32.min(x0, 1) : U32)
+  +ez = (z0 - U32.min(z0, 1) : U32)
+  +nz = (U32.min((z1 + 1 : U32), 128) - ez : U32)
+  W{relit(b, gathered(U32.to_nat(((U32.min((x1 + 1 : U32), 128) - ex) * nz : U32)), b, ex, ez, nz, 0,
+      (owned(U32.to_nat(((x1 - x0) * (z1 - z0) : U32)), ring, b, x0, z0, (z1 - z0 : U32), 0), []))), meta}
+
+# the light a change at a column can reach: 13 columns each way
+def relight_near(w: World, +lx: U32, +lz: U32) -> World:
+  relight(w, (lx - U32.min(lx, 13) : U32), U32.min((lx + 14 : U32), 128), (lz - U32.min(lz, 13) : U32), U32.min((lz + 14 : U32), 128))
+
 # ---------- loading ----------
 
 # a column comes back from the edits if the player ever touched it, else
@@ -578,7 +732,7 @@ def load_grid(n: Nat, ring: Array<U32>, +x: U32) -> Array<U32>:
 # from a corner
 def load_world(w: World, +x: U32, +z: U32) -> World:
   W{ring, meta} = w
-  load_all(128n, W{Meadow.load(256n, Clouds.load(256n, load_grid(64n, load_far(256n, ring, far_corner(x), far_corner(z)), 0), 0), 0), meta}, x, z)
+  relight(load_all(128n, W{Meadow.load(256n, Clouds.load(256n, load_grid(64n, load_far(256n, ring, far_corner(x), far_corner(z)), 0), 0), 0), meta}, x, z), 0, 128, 0, 128)
 
 # the far map for the render: its corner's remainders by 256, x's over z's
 def far_cam(meta: Meta) -> U32:
@@ -587,22 +741,24 @@ def far_cam(meta: Meta) -> U32:
 
 # the corner moves one column along an axis, up (pos) or down, and the
 # row that came into view loads, the window's, and the far map's with
-# its line of cells
+# its line of cells; the light spreads into the row and from it
+def edge(+pos: Bool) -> U32: Bool.pick(U32, pos, 127, 0)
+
 def shift_x(+pos: Bool, w: World) -> World:
   W{ring, meta} = w
   Meta{m, +ox, +oz, q, np, gone} = meta
   +nox = Bool.pick(U32, pos, (ox + 1 : U32), (ox - 1 : U32))
   +fx = (far_corner(nox) + Bool.pick(U32, pos, 255, 0) : U32)
-  load_line(128n, W{load_cells(64n, load_far_line(256n, ring, fx, far_corner(oz), 0, 1), (fx - fx % 4 : U32), 0, 0, 1), Meta{m, nox, oz, q, np, gone}},
-    Bool.pick(U32, pos, (ox + 128 : U32), nox), oz, 0, 1)
+  relight(load_line(128n, W{load_cells(64n, load_far_line(256n, ring, fx, far_corner(oz), 0, 1), (fx - fx % 4 : U32), 0, 0, 1), Meta{m, nox, oz, q, np, gone}},
+    Bool.pick(U32, pos, (ox + 128 : U32), nox), oz, 0, 1), edge(pos), (edge(pos) + 1 : U32), 0, 128)
 
 def shift_z(+pos: Bool, w: World) -> World:
   W{ring, meta} = w
   Meta{m, +ox, +oz, q, np, gone} = meta
   +noz = Bool.pick(U32, pos, (oz + 1 : U32), (oz - 1 : U32))
   +fz = (far_corner(noz) + Bool.pick(U32, pos, 255, 0) : U32)
-  load_line(128n, W{load_cells(64n, load_far_line(256n, ring, far_corner(ox), fz, 1, 0), 0, (fz - fz % 4 : U32), 1, 0), Meta{m, ox, noz, q, np, gone}},
-    ox, Bool.pick(U32, pos, (oz + 128 : U32), noz), 1, 0)
+  relight(load_line(128n, W{load_cells(64n, load_far_line(256n, ring, far_corner(ox), fz, 1, 0), 0, (fz - fz % 4 : U32), 1, 0), Meta{m, ox, noz, q, np, gone}},
+    ox, Bool.pick(U32, pos, (oz + 128 : U32), noz), 1, 0), 0, 128, edge(pos), (edge(pos) + 1 : U32))
 
 def shift(along_x: Bool, pos: Bool, w: World) -> World:
   match along_x:
@@ -672,18 +828,27 @@ def edit_col(c: Col, +y: U32, +set: Bool, +what: U32) -> Col:
 
 # The amount at a cell, set, the mask's bit following it (set exactly
 # when the amount is over zero); a solid cell holds none, 255 is the most
-# a cell holds, and water puts out a torch. The flow's one write.
+# a cell holds, and water puts out a torch, and its light. The flow's
+# one write.
 def pour_col(c: Col, +y: U32, +a: U32) -> Col:
   Col{+m, ta, tb, tc, td, +water, +lv} = c
   +bit = U32.shln(1, U32.to_nat(y))
   +amt = Bool.pick(U32, Util.on(m, bit), 0, U32.min(a, full()))
   unlit_col((amt > 0 : U32), Col{m, ta, tb, tc, td, setbit(water, bit, (amt > 0 : U32)), edit_levels(lv, y, (y / 4 : U32), amt)}, y)
 
+def relit_if(go: Bool, w: World, +lx: U32, +lz: U32) -> World:
+  match go:
+    case False{}:
+      w
+    case True{}:
+      relight_near(w, lx, lz)
+
 def pour_fin(meta: Meta, +x: U32, +z: U32, +y: U32, +a: U32, r: Array<U32> & Col) -> World:
-  Meta{m, ox, oz, q, +np, gone} = meta
-  (ring, c) = r
+  Meta{m, +ox, +oz, q, +np, gone} = meta
+  (ring, +c) = r
   +nc = pour_col(c, y, a)
-  put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, gone}, put_col(ring, col_at(0, x, z), nc, np))
+  relit_if((a > 0 : U32) && Util.on((plane(c) .&. U32.not(first(c)) : U32), U32.shln(1, U32.to_nat(y))),
+    put_fin(Meta{Map.set(&2, Col, m, key(x, z), nc), ox, oz, q, np, gone}, put_col(ring, col_at(0, x, z), nc, np)), (x - ox : U32), (z - oz : U32))
 
 def pour(w: World, +lx: U32, +y: U32, +lz: U32, +a: U32) -> World:
   W{ring, +meta} = w
@@ -759,6 +924,15 @@ def amount_fin(+y: U32, r: World & U32) -> World & U32:
 
 def amount_at(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
   amount_fin(y, word_at(w, lx, lz, (6 + y / 4 : U32)))
+
+# the light of a local cell, 0 to 14
+def light_fin(+y: U32, r: World & U32) -> World & U32:
+  (w, word) = r
+  (w, nib_get(word, y))
+
+def light(w: World, +lx: U32, +y: U32, +lz: U32) -> World & U32:
+  W{ring, +meta} = w
+  light_fin(y, word_fin(meta, Array.get(U32, ring, (light_at(col_at(base(meta), lx, lz)) + y / 8 : U32))))
 
 # the units that dried (Flow.settle) or found no room (shove), counted
 def dry(w: World, +k: U32) -> World:
@@ -859,7 +1033,7 @@ def edit(w: World, +lx: U32, +lz: U32, +y: U32, set: Bool, +what: U32) -> World:
   Meta{m, +ox, +oz, q, np, gone} = meta
   +x = (ox + lx : U32)
   +z = (oz + lz : U32)
-  edit_fin(meta, x, z, y, set, what, get_col(ring, col_at(0, x, z)))
+  relight_near(edit_fin(meta, x, z, y, set, what, get_col(ring, col_at(0, x, z))), lx, lz)
 
 # ---------- a point in water ----------
 # whether a point is in water: its cell holds some, and the point is under

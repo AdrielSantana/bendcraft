@@ -227,7 +227,7 @@ def pailed(r: World.World & List<&2, Nat>) -> World.World & U32:
   (w, U32.from_nat(Inventory.count(bag, 8n)))
 
 def bucket(put: Bool, +x: U32, +y: U32, +z: U32, units: Nat, w: World.World) -> World.World & U32:
-  pailed(Player.pail(True{}, put, Player.pk_u(x, y, z), (w, List.set(&2, Nat, Inventory.empty(), 8n, units))))
+  pailed(Player.pail(True{}, put, World.pk_u(x, y, z), (w, List.set(&2, Nat, Inventory.empty(), 8n, units))))
 
 def told(qs: List<&2, Ask>, r: World.World & U32) -> List<&2, U32>:
   (w, u) = r

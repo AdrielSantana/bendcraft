@@ -9,7 +9,7 @@ import ./sky.bend as Sky
 # point the eye sees it reaches, and no shadow is walked. A lit colour
 # takes the brighter of its own light and the torch's, channel by
 # channel, as Minecraft takes the brighter of the sky's light and a
-# block's: the day hides it.
+# block's, and the day fades it out (night).
 
 # the hotbar's tenth slot, and the torch block's type
 def slot() -> U32: 9
@@ -18,11 +18,14 @@ def reach() -> F32: 14.0
 
 def held(+base: U32) -> Bool: Util.on(base, 67108864)
 
+# the torches' look, bit 31: the light in the hand and the placed ones'
+def lights(+base: U32) -> Bool: Util.on(base, 2147483648)
+
 def chosen(+sel: U32) -> Bool: U32.is_eq((sel % 16 : U32), slot())
 
 # the camera's base with the torch in hand when the choice is its slot
 def in_hand(+base: U32, +sel: U32) -> U32:
-  Bool.pick(U32, chosen(sel) && Util.on(base, 2147483648), (base .|. 67108864 : U32), base)
+  Bool.pick(U32, chosen(sel) && lights(base), (base .|. 67108864 : U32), base)
 
 # how bright the flame burns at the clock ck: three waves a minute
 # repeats whole, so the loop never jumps
@@ -30,11 +33,24 @@ def flicker(+ck: U32) -> F32:
   +s = (U32.to_f32((ck % 60000 : U32)) * 0.0062831853 : F32)
   (0.88 + 0.06 * F32.sin(s) + 0.04 * F32.sin((s * 2.5 : F32)) + 0.02 * F32.sin((s * 5.9 : F32)) : F32)
 
-# its light on a face t from the eye, which the ray meets at the cosine
-# da: near the day's within a few blocks, gone smoothly at reach()
-def light(+ck: U32, +t: F32, +da: F32) -> F32:
+# how a torch's light falls t blocks away: near whole within a few,
+# gone smoothly at reach()
+def fall(+t: F32) -> F32:
   +f = (1.0 - F32.min((t * t * 0.0051020407 : F32), 1.0) : F32)
-  (0.8 * flicker(ck) * f * f * (0.55 + 0.45 * Util.absf(da)) : F32)
+  (0.8 * f * f : F32)
+
+# its light on a face t from the eye, which the ray meets at the cosine da
+def light(+ck: U32, +t: F32, +da: F32) -> F32:
+  (fall(t) * flicker(ck) * (0.55 + 0.45 * Util.absf(da)) : F32)
+
+# a placed torch's light where the grid's level is l (World.light_at), as
+# the hand's 14 - l blocks away
+def glow(+l: F32) -> F32: fall((14.0 - l : F32))
+
+# what the day leaves of the torches' light, the sun at height sy: all of
+# it once the sun is 0.12 under the horizon, none from 0.17 over it, since
+# a torch's warm red outshines the sun's white by its own
+def night(+sy: F32) -> F32: (1.0 - Sky.daylight(sy) : F32)
 
 # the same over a surface of level l, none out of the hand
 def over(held: Bool, +ck: U32, +t: F32, +da: F32, +l: F32) -> F32:

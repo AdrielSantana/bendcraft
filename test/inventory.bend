@@ -66,12 +66,12 @@ def cell_type(ok: Bool, expected: U32, r: World.World & U32) -> Bool:
 
 def cell_solid(+idx: U32, ok: Bool, solid: Bool, kind: U32, r: World.World & Bool) -> Bool:
   (w, actual) = r
-  cell_type(ok && Bool.not(Bool.xor(solid, actual)), kind, World.voxel(w, Player.ix_x(idx), Player.ix_y(idx), Player.ix_z(idx)))
+  cell_type(ok && Bool.not(Bool.xor(solid, actual)), kind, World.voxel(w, World.ix_x(idx), World.ix_y(idx), World.ix_z(idx)))
 
 def cell(g: Player.Game, xs: List<&2, Nat>, +idx: U32, solid: Bool, kind: U32) -> Bool:
   Player.G{w, px, py, pz, yaw, pit, vy, held, edge, sel, res, clock, actual} = g
   cell_solid(idx, same(actual, xs), solid, kind,
-    World.wsolid(w, Util.u2f(Player.ix_x(idx)), Util.u2f(Player.ix_y(idx)), Util.u2f(Player.ix_z(idx))))
+    World.wsolid(w, Util.u2f(World.ix_x(idx)), Util.u2f(World.ix_y(idx)), Util.u2f(World.ix_z(idx))))
 
 def edited(r: World.World & List<&2, Nat>) -> Player.Game:
   (w, xs) = r
@@ -95,8 +95,8 @@ def types(n: Nat) -> Bool:
       +kind = U32.from_nat(p)
       +expected = Inventory.edited(Inventory.edit(Inventory.empty(), p, False{}, True{}))
       w = World.edit(empty_world(), 64, 66, 10, True{}, kind)
-      cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), False{}, 0, (w, Inventory.empty()))),
-        expected, Player.pk_u(64, 10, 66), False{}, 0) && types(p)
+      cell(edited(Player.edit_world(True{}, World.pk_u(64, 10, 66), False{}, 0, (w, Inventory.empty()))),
+        expected, World.pk_u(64, 10, 66), False{}, 0) && types(p)
 
 def still_playing(m: Maybe<Player.Game>) -> Bool:
   match m:
@@ -134,33 +134,33 @@ def main() -> IO(Unit):
     Lib.expect(counts(Inventory.edit([1n, 2n, 3n], 8n, False{}, True{}), 1n, 2n, False{}), "invalid slot rejects edit")
     Lib.expect(counts(Inventory.edit([1000n], 0n, False{}, True{}), 0n, 1001n, True{}), "counts exceed HUD range")
     Lib.expect(same(bag(Player.start()), Inventory.empty()), "new game starts empty")
-    Lib.expect(cell(press(106, fixture(Inventory.empty(), 0)), sand(), Player.pk_u(64, 10, 66), False{}, 0), "break credits actual sand, not selected grass")
-    Lib.expect(cell(press(108, fixture(Inventory.empty(), 3)), Inventory.empty(), Player.pk_u(64, 10, 65), False{}, 0), "empty inventory cannot create a block")
-    Lib.expect(cell(press(108, fixture(sand(), 3)), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "placement spends one sand and writes sand")
-    Lib.expect(cell(Player.step(press(106, fixture(Inventory.empty(), 0))), sand(), Player.pk_u(64, 10, 67), True{}, 6), "held break does not collect the next block")
-    Lib.expect(cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), False{}, 0,
-      world_of(press(106, fixture(Inventory.empty(), 0))))), sand(), Player.pk_u(64, 10, 66), False{}, 0), "breaking the same air twice gives one item")
-    Lib.expect(cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), True{}, 3,
-      world_of(fixture(sand(), 3)))), sand(), Player.pk_u(64, 10, 66), True{}, 3), "occupied cell does not spend")
+    Lib.expect(cell(press(106, fixture(Inventory.empty(), 0)), sand(), World.pk_u(64, 10, 66), False{}, 0), "break credits actual sand, not selected grass")
+    Lib.expect(cell(press(108, fixture(Inventory.empty(), 3)), Inventory.empty(), World.pk_u(64, 10, 65), False{}, 0), "empty inventory cannot create a block")
+    Lib.expect(cell(press(108, fixture(sand(), 3)), Inventory.empty(), World.pk_u(64, 10, 65), True{}, 3), "placement spends one sand and writes sand")
+    Lib.expect(cell(Player.step(press(106, fixture(Inventory.empty(), 0))), sand(), World.pk_u(64, 10, 67), True{}, 6), "held break does not collect the next block")
+    Lib.expect(cell(edited(Player.edit_world(True{}, World.pk_u(64, 10, 66), False{}, 0,
+      world_of(press(106, fixture(Inventory.empty(), 0))))), sand(), World.pk_u(64, 10, 66), False{}, 0), "breaking the same air twice gives one item")
+    Lib.expect(cell(edited(Player.edit_world(True{}, World.pk_u(64, 10, 66), True{}, 3,
+      world_of(fixture(sand(), 3)))), sand(), World.pk_u(64, 10, 66), True{}, 3), "occupied cell does not spend")
     Lib.expect(cell(edited(Player.edit_world(True{}, 524288, True{}, 3,
-      world_of(fixture(sand(), 3)))), sand(), Player.pk_u(64, 10, 65), False{}, 0), "out of bounds placement does not spend")
+      world_of(fixture(sand(), 3)))), sand(), World.pk_u(64, 10, 65), False{}, 0), "out of bounds placement does not spend")
     Lib.expect(cell(Player.step_edit(64.5, 10.5, 64.5, 0.0, 0.0, 0.0, 0, 2048, 3, Player.res512(), 786432, sand(),
-      empty_world(), ((1 + Player.pk_u(64, 10, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
-      sand(), Player.pk_u(64, 10, 64), False{}, 0), "placement on player does not spend")
-    Lib.expect(cell(both(), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "same tick break can fund one placement")
-    Lib.expect(cell(both(), Inventory.empty(), Player.pk_u(64, 10, 66), False{}, 0), "same tick funded placement removes source")
-    Lib.expect(cell(restored(Save.text(both())), Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "save keeps world and depleted inventory together")
+      empty_world(), ((1 + World.pk_u(64, 10, 64) : U32), (1 + World.pk_u(64, 10, 66) : U32))),
+      sand(), World.pk_u(64, 10, 64), False{}, 0), "placement on player does not spend")
+    Lib.expect(cell(both(), Inventory.empty(), World.pk_u(64, 10, 65), True{}, 3), "same tick break can fund one placement")
+    Lib.expect(cell(both(), Inventory.empty(), World.pk_u(64, 10, 66), False{}, 0), "same tick funded placement removes source")
+    Lib.expect(cell(restored(Save.text(both())), Inventory.empty(), World.pk_u(64, 10, 65), True{}, 3), "save keeps world and depleted inventory together")
     Lib.expect(same(bag(restored(Save.text(fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], 6)))),
       [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n]), "save preserves all nine full counts, the bucket's units the ninth")
     Lib.expect(types(8n), "each block type is collected into its own slot")
-    Lib.expect(cell(edited(Player.edit_world(True{}, Player.pk_u(64, 10, 66), True{}, 3,
-      world_of(press(106, fixture(Inventory.empty(), 0))))), Inventory.empty(), Player.pk_u(64, 10, 66), True{}, 3), "break then replace restores cell type and count")
+    Lib.expect(cell(edited(Player.edit_world(True{}, World.pk_u(64, 10, 66), True{}, 3,
+      world_of(press(106, fixture(Inventory.empty(), 0))))), Inventory.empty(), World.pk_u(64, 10, 66), True{}, 3), "break then replace restores cell type and count")
     Lib.expect(cell(Player.step_edit(64.5, 10.9, 64.5, 0.0, 0.0, 0.0, 0, 2048, 3, Player.res512(), 786432, sand(),
-      empty_world(), ((1 + Player.pk_u(64, 10, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
-      sand(), Player.pk_u(64, 10, 64), False{}, 0), "placement between head and feet does not spend")
+      empty_world(), ((1 + World.pk_u(64, 10, 64) : U32), (1 + World.pk_u(64, 10, 66) : U32))),
+      sand(), World.pk_u(64, 10, 64), False{}, 0), "placement between head and feet does not spend")
     Lib.expect(cell(Player.step_edit(64.5, 10.59, 64.5, 0.0, 0.0, 0.0, 0, 2048, 3, Player.res512(), 786432, sand(),
-      empty_world(), ((1 + Player.pk_u(64, 8, 64) : U32), (1 + Player.pk_u(64, 10, 66) : U32))),
-      sand(), Player.pk_u(64, 8, 64), False{}, 0), "placement at the bottom of the feet does not spend")
+      empty_world(), ((1 + World.pk_u(64, 8, 64) : U32), (1 + World.pk_u(64, 10, 66) : U32))),
+      sand(), World.pk_u(64, 8, 64), False{}, 0), "placement at the bottom of the feet does not spend")
     Lib.expect(packing(102n), "all display counts read back in every slot")
     Lib.expect(U32.is_eq(Inventory.hud_pail(Inventory.empty()), 0) && U32.is_eq(Inventory.hud_pail(List.set(&2, Nat, Inventory.empty(), 8n, 254n)), 0)
       && U32.is_eq(Inventory.hud_pail(List.set(&2, Nat, Inventory.empty(), 8n, 255n)), 1) && U32.is_eq(Inventory.hud_pail(List.set(&2, Nat, Inventory.empty(), 8n, 25500n)), 100)
@@ -176,31 +176,31 @@ def main() -> IO(Unit):
       && U32.is_eq(selected(wheel(3.0, 0.0, fixture(Inventory.empty(), 3))), 3),
       "the wheel chooses a slot on an event, up the one before, around the ten, and sideways none")
     Lib.expect(U32.is_eq(amount(press(106, wet(255, 0n)), 64, 10, 65), 0) && Nat.is_eq(pail_of(press(106, wet(255, 0n))), 255n)
-      && cell(press(106, wet(255, 0n)), List.set(&2, Nat, Inventory.empty(), 8n, 255n), Player.pk_u(64, 10, 66), True{}, 3),
+      && cell(press(106, wet(255, 0n)), List.set(&2, Nat, Inventory.empty(), 8n, 255n), World.pk_u(64, 10, 66), True{}, 3),
       "a click with the bucket takes the water cell before the sand whole, 255 units, and breaks no sand")
     Lib.expect(U32.is_eq(amount(press(106, wet(100, 20n)), 64, 10, 65), 0) && Nat.is_eq(pail_of(press(106, wet(100, 20n))), 120n),
       "a partial cell is worth its amount: a hundred units join the twenty")
     Lib.expect(U32.is_eq(amount(press(108, wet(0, 255n)), 64, 10, 65), 255) && Nat.is_eq(pail_of(press(108, wet(0, 255n))), 0n)
-      && cell(press(108, wet(0, 255n)), Inventory.empty(), Player.pk_u(64, 10, 65), False{}, 8),
+      && cell(press(108, wet(0, 255n)), Inventory.empty(), World.pk_u(64, 10, 65), False{}, 8),
       "a right click with the bucket pours a full cell into the air before the sand, 255 units out, and places no block")
     Lib.expect(U32.is_eq(amount(press(108, wet(0, 254n)), 64, 10, 65), 0) && Nat.is_eq(pail_of(press(108, wet(0, 254n))), 254n)
       && U32.is_eq(amount(press(108, wet(200, 55n)), 64, 10, 65), 255) && Nat.is_eq(pail_of(press(108, wet(200, 55n))), 0n)
       && U32.is_eq(amount(press(108, wet(200, 54n)), 64, 10, 65), 200) && Nat.is_eq(pail_of(press(108, wet(200, 54n))), 54n),
       "a pour needs what the cell lacks: nothing from 254 into air; 55 fill a cell holding 200, 54 do not")
-    Lib.expect(cell(press(106, fixture(sand(), 8)), sand(), Player.pk_u(64, 10, 66), True{}, 3)
-      && cell(press(108, fixture(sand(), 8)), sand(), Player.pk_u(64, 10, 65), False{}, 0),
+    Lib.expect(cell(press(106, fixture(sand(), 8)), sand(), World.pk_u(64, 10, 66), True{}, 3)
+      && cell(press(108, fixture(sand(), 8)), sand(), World.pk_u(64, 10, 65), False{}, 0),
       "the bucket over dry ground breaks nothing and places nothing, and the sand count stays")
     Lib.expect(U32.is_eq(Render.hud_if(False{}, 0, 0, 0, 0, 171, 269, 512, 288), 0), "HUD flag hides counts")
     saved : Player.Game <- Save.save_to("build/inventory-test.save", fixture([0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], 6))
     loaded : Player.Game <- Save.load_from("build/inventory-test.save", Player.res512())
-    Lib.expect(cell(loaded, [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], Player.pk_u(64, 10, 66), True{}, 3), "file roundtrip keeps counts and cell type")
+    Lib.expect(cell(loaded, [0n, 1n, 9n, 10n, 99n, 100n, 1001n, 42n, 300n], World.pk_u(64, 10, 66), True{}, 3), "file roundtrip keeps counts and cell type")
     stale : Player.Game <- Save.save_to("build/inventory-key.save", fixture(Inventory.empty(), 0))
     playing : Maybe<Player.Game> <- Save.tick_to("build/inventory-key.save", [Key{106, True{}}, Key{112, True{}}], fixture(Inventory.empty(), 0))
     Lib.expect(still_playing(playing), "P saves without quitting")
     keyed : Player.Game <- Save.load_from("build/inventory-key.save", Player.res512())
-    Lib.expect(cell(keyed, sand(), Player.pk_u(64, 10, 66), False{}, 0), "P saves the same tick's collection")
+    Lib.expect(cell(keyed, sand(), World.pk_u(64, 10, 66), False{}, 0), "P saves the same tick's collection")
     previous : Player.Game <- Save.save_to("build/inventory-quit.save", fixture(sand(), 3))
     stopped : Maybe<Player.Game> <- Save.tick_to("build/inventory-quit.save", [Key{108, True{}}, Key{27, True{}}], fixture(sand(), 3))
     Lib.expect(Bool.not(still_playing(stopped)), "Esc saves and quits")
     quit : Player.Game <- Save.load_from("build/inventory-quit.save", Player.res512())
-    Lib.expect(cell(quit, Inventory.empty(), Player.pk_u(64, 10, 65), True{}, 3), "Esc saves the same tick's placement")
+    Lib.expect(cell(quit, Inventory.empty(), World.pk_u(64, 10, 65), True{}, 3), "Esc saves the same tick's placement")
