@@ -60,10 +60,6 @@ and the page in the browser, which waits to run on WebGPU.
   column and a word a step, where the window's walk steps every block's
   face), or ride the primary walk's idle steps, since a ray that met the
   lake's bed walks the rest of its 60 with its state frozen.
-- **The puddles in the meadow** cost a dry frame about 3 ms at 1470×796
-  that no copy of the walks took away: the rain's code in the frame's
-  program, most likely in registers, not yet confirmed. Measure on a quiet
-  machine.
 - **The bucket** scoops from the bottom, the cell before the solid the
   crosshair meets; a scoop at the surface waits for the next change to the
   water.
@@ -207,20 +203,21 @@ done. Next:
 ## The budget
 
 At 1470×796 a frame is 51 ms with a ray for every pixel and 14 at scale 2,
-which suits the pixel art (the bench's fastest frames, 2026-09-29). At 60
+which suits the pixel art (the bench's fastest frames, 2026-09-30). At 60
 frames a second that leaves under 3 ms at scale 2 for the looks still to
 come, and none at 120. What each look took is in engine.md; what a ray
 caster can do to cost less, and what was tried, in [perf.md](perf.md).
 
 ## Bend: waiting on a decision
 
-The game builds with 2.0.34 and the PR below, from the `bendcraft` branch
-of AdrielSantana/bend (the Makefile's `BEND`); once it is released it goes
-back to the stock `bend`.
+The game builds with 2.0.34 and the two changes below, from the
+`bendcraft` branch of AdrielSantana/bend (the Makefile's `BEND`); once
+they are released it goes back to the stock `bend`.
 
 | | what it is | state | if yes | if no |
 |---|---|---|---|---|
 | [PR #1132](https://github.com/bendlang/bend/pull/1132) | Metal: the work pass after a grow runs each lane's own ring, [#925](https://github.com/bendlang/bend/issues/925)'s answer; 2.5-2.8 times faster frames on 2.0.34 | open | the stock `bend` | our branch, rebased at every release |
+| d84f292c, our branch's | a def that a loop calls is inlined whatever its size; the meadow 14% faster ([perf.md](perf.md), 23) | not yet proposed: an issue or a PR to weigh | the stock `bend` | our branch |
 | [#1143](https://github.com/bendlang/bend/issues/1143) | Metal: `heap_free`'s error check, 7-12% of the allocating benches; numbers and risks, no PR | open | nothing here: the frame does not allocate | — |
 | [#1195](https://github.com/bendlang/bend/issues/1195) | a generic def at a Data record builds it on the device heap: a `Bool.pick` of two records kept Metal's compiler past 11 minutes | open | records may be picked | pick scalars, or match in a def of its own |
 | [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | `make full` sizes the window to the screen |

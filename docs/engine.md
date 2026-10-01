@@ -502,19 +502,20 @@ basin over ticks.
 **The bench.** `make bench` times the `!` alone, five frames a size with
 the camera turning, on an Apple M5 with the game closed; its thirty
 checksums are the same on every build that changes nothing visible. The
-fastest frames (2026-09-29):
+fastest frames of eight alternated rounds on a busy machine (2026-09-30):
 
-| render | a frame |
-|---|---|
-| 512×512 | 9 ms |
-| 512×512, 300 blocks placed | 9 ms |
-| 735×398, a 14" MacBook at scale 2 | 14 ms |
-| 960×540, a 1920×1080 window at scale 2 | 26 ms |
-| 1470×796, a 14" MacBook at every pixel | 51 ms |
-| 1920×1080 | 87 ms |
+| render | a frame | stock 2.0.34 |
+|---|---|---|
+| 512×512 | 9 ms | 20 ms |
+| 512×512, 300 blocks placed | 9 ms | 18 ms |
+| 735×398, a 14" MacBook at scale 2 | 14 ms | 38 ms |
+| 960×540, a 1920×1080 window at scale 2 | 26 ms | 70 ms |
+| 1470×796, a 14" MacBook at every pixel | 51 ms | 144 ms |
+| 1920×1080 | 93 ms | 275 ms |
 
-On stock Bend 2.0.34 the same frames take 2.5 to 2.8 times as long; the
-difference is [#1132](https://github.com/bendlang/bend/pull/1132).
+The difference is [#1132](https://github.com/bendlang/bend/pull/1132) and
+the loop's inlining ([perf.md](perf.md), 23); without the inlining the
+same rounds read 10, 9, 15, 28, 54 and 95.
 
 **The profile.** `make profile` renders a view five times with every look
 on, then with each look off in turn, then the rays alone, and prints the
@@ -561,8 +562,7 @@ was measured alone, against the build before it or with its bit off, at
   whole frame is; **their shadow** 1.
 - **The rain** about 5 where it rains, and nothing where it does not; **the
   wet** about 3.5 more. **The puddles in the meadow** 5 to 15 more where it
-  grows in the rain, and about 3 on a dry day, unexplained: the rain's
-  code in the frame's program costs it unrun, most likely in registers.
+  grows in the rain, and nothing on a dry day ([perf.md](perf.md), 23).
 - **Partial water** a sixth more on the lake (34 → 41 ms), three tenths on
   a lake partial everywhere.
 - **The lens** up to 3, and none; **the shafts** 8, and 2; **the moon's

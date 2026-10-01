@@ -256,6 +256,24 @@ means revisiting that rule first. What the runtime allows, from
     combined compiler at ../bend), not the game's, and the meadow says it
     would buy little: its frame is throughput-bound (above), and the work
     taken from its slowest rays came back as a millisecond at most.
+- **23. No call at every step** — kept (2026-09-30), in the compiler.
+    Bend emits a def whose C passes 256 lines (`SPIN_FAR` in comp.ts) as
+    a real call, and the grass walk called a cell's blades (434 lines) at
+    every step; on Metal the call spills the walk's state around it and
+    passes the blades' outputs through memory. Our branch inlines what a
+    loop calls, whatever its size (AdrielSantana/bend d84f292c). Eight
+    alternated rounds at 1470×796, the same checksums: the meadow 68.8 →
+    59.4 ms, the bench's view 58.2 → 54.4, the rain 66.4 → 64.2, the lake
+    70.8 → 67.2; the bench 54 → 51 and 95 → 93 at 1920×1080. The puddles'
+    3 ms on a dry day, unexplained since 7122825, were this call: under
+    the rule the build before them and theirs read alike (meadow 62.0 and
+    62.2, lake 69.2 and 68.4). Every one of the frame's 20 calls inlined
+    on Metal was slower (meadow 66.0 → 69.8): a call into a long walk
+    gives the walk the registers to itself. Each of the render's nine
+    inlined alone, the blades were the one gain, and the shadow's glance
+    cost 2 ms; the six walks still inlined, made calls, gained nothing.
+    Metal's spilled bytes (xctrace's compiler spill events) fell as
+    the frame slowed (3312 → 2208 all inlined) and say nothing of time.
 
 ## Tried, and worth nothing here
 

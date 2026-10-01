@@ -20,8 +20,8 @@ from Bend 1. Read before you write:
 - `bend guide` (the language), `bend guide shaders` (what makes a `!` fast
 or slow, written by AIs for AIs from a 120 FPS demo) and `bend base` (the
 Base library's source). All ship with the compiler, which here is the
-Makefile's `BEND`: 2.0.34 with #1132, not yet released, from a
-checkout at `../bend` (README, "Build and run"), so `bend guide` reads
+Makefile's `BEND`: 2.0.34 with #1132 and a loop's callee inlined, neither
+yet released, from a checkout at `../bend` (README, "Build and run"), so `bend guide` reads
 `bun ../bend/bend2/main.ts guide`. An older installed `bend` lacks what
 the game uses.
 - `docs/engine.md` (how the game works, the numbers, what costs what, the
@@ -190,6 +190,12 @@ through U32 (the far look west and north of the window, 2026-09-25).
 four `t2`, straight-line). A long walk is never unrolled into a row of
 non-recursive defs: the emitted program explodes. The DDA's 60 steps are
 one recursive def with fuel.
+- A def whose emitted C passes 256 lines is a real call, unless a loop
+calls it (our branch's rule, 2026-09-30): the grass walk's call to a
+cell's blades at every step cost the meadow 14%. A call into a long walk
+is free or better, since the walk gets the registers to itself: inlining
+every call was slower (`docs/perf.md`, 23). The spilled bytes Metal
+reports do not follow the frame's time.
 - A `Bool.pick` of a Data record, or any generic def at a record type,
 builds the record on the device heap and inlines the heap's drop at every
 site: a pick of two `Sky.Tint`s kept Metal's compiler past 11 minutes

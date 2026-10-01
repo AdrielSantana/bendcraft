@@ -78,9 +78,10 @@ placing spends one of the chosen type.
 
 ## Build and run
 
-Bend 2.0.34 with a fix that is not released yet,
+Bend 2.0.34 with two changes not released yet:
 [bendlang/bend#1132](https://github.com/bendlang/bend/pull/1132) (the lanes
-after a grow): a frame takes 2.5 to 2.8 times less than on stock 2.0.34.
+after a grow), and a def that a loop calls inlined whatever its size. A
+frame takes 2.7 to 2.8 times less than on stock 2.0.34.
 The Makefile runs it with `bun` from a checkout beside this one;
 `make BEND=bend` builds with the installed Bend.
 
@@ -104,7 +105,7 @@ pixel art. A version in the browser is not ready yet: it waits to run on
 WebGPU.
 
 How fast, on an Apple M5, the fastest of five frames with the camera
-turning (`make bench`, 2026-09-29):
+turning (`make bench`, 2026-09-30):
 
 | render | a frame |
 |---|---|
