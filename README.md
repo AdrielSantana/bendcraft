@@ -78,12 +78,12 @@ placing spends one of the chosen type.
 
 ## Build and run
 
-Bend 2.0.34 with three changes not released yet:
+Bend 2.0.34 with four changes not released yet:
 [bendlang/bend#1132](https://github.com/bendlang/bend/pull/1132) (the lanes
-after a grow), and two of ours to the code it emits: a def that a loop
-calls is inlined whatever its size, and a loop over a Nat checks for
-errors once, as it enters. A frame takes 2.7 to 2.8 times less than on
-stock 2.0.34.
+after a grow), and three of ours: a def that a loop calls is inlined
+whatever its size, a loop over a Nat checks for errors once, as it enters,
+and `--relaxed-math` lets Metal reorder and fuse floats. A frame takes 3.2
+times less than on stock 2.0.34.
 The Makefile runs it with `bun` from a checkout beside this one;
 `make BEND=bend` builds with the installed Bend.
 
@@ -107,13 +107,13 @@ pixel art. A version in the browser is not ready yet: it waits to run on
 WebGPU.
 
 How fast, on an Apple M5, the fastest of five frames with the camera
-turning (`make bench`, 2026-09-30):
+turning (`make bench`, 2026-10-01):
 
 | render | a frame |
 |---|---|
-| 735×398, a 14" MacBook at half the rays a side | 14 ms |
-| 960×540, a 1920×1080 window at half the rays a side | 26 ms |
-| 1470×796, a 14" MacBook at a ray every pixel | 51 ms |
+| 735×398, a 14" MacBook at half the rays a side | 12 ms |
+| 960×540, a 1920×1080 window at half the rays a side | 22 ms |
+| 1470×796, a 14" MacBook at a ray every pixel | 45 ms |
 
 ## How it works, briefly
 

@@ -1,8 +1,9 @@
 # Bendcraft. `make` builds the native game; `make run` starts it on the GPU.
-# Bend 2.0.34 with bendlang/bend#1132 and two changes of ours to the code it
-# emits, until they are released (docs/roadmap.md, "Bend: waiting on a decision"):
+# Bend 2.0.34 with bendlang/bend#1132 and three changes of ours, until they
+# are released (docs/roadmap.md, "Bend: waiting on a decision"); the third is
+# --relaxed-math, Metal's floats reordered and fused:
 # git clone -b bendcraft https://github.com/AdrielSantana/bend ../bend
-BEND ?= bun ../bend/bend2/main.ts
+BEND ?= bun ../bend/bend2/main.ts --relaxed-math
 PYTHON ?= python3
 # the web-wasm fork of the compiler (bendlang/bend#866), for the page
 BEND_WEB ?= ../bend-web/bend2/main.ts

@@ -20,8 +20,8 @@ from Bend 1. Read before you write:
 - `bend guide` (the language), `bend guide shaders` (what makes a `!` fast
 or slow, written by AIs for AIs from a 120 FPS demo) and `bend base` (the
 Base library's source). All ship with the compiler, which here is the
-Makefile's `BEND`: 2.0.34 with #1132 and two changes of ours to the code it
-emits (`docs/roadmap.md`), none yet released, from a checkout at `../bend` (README, "Build and run"), so `bend guide` reads
+Makefile's `BEND`: 2.0.34 with #1132 and three changes of ours
+(`docs/roadmap.md`), none yet released, from a checkout at `../bend` (README, "Build and run"), so `bend guide` reads
 `bun ../bend/bend2/main.ts guide`. An older installed `bend` lacks what
 the game uses.
 - `docs/engine.md` (how the game works, the numbers, what costs what, the
@@ -103,7 +103,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `3272fb825efe031d24f52f7d5b42888e` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `beb2e8f06c9d0fd67881976af7b751a1` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -200,6 +200,9 @@ reports do not follow the frame's time.
 it enters, not every turn (our branch, `docs/perf.md`, 24): the check a
 turn was 2 to 5% of every view. A loop over a list or a tree still checks
 every turn; keep the walks' state words, records and arrays.
+- Metal reorders and fuses the frame's floats (`--relaxed-math` in the
+Makefile's `BEND`, `docs/perf.md`, 25): 5 to 13% a frame, and a GPU frame
+is no longer the CPU's bit for bit.
 - A `Bool.pick` of a Data record, or any generic def at a record type,
 builds the record on the device heap and inlines the heap's drop at every
 site: a pick of two `Sky.Tint`s kept Metal's compiler past 11 minutes

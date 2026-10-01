@@ -289,6 +289,20 @@ means revisiting that rule first. What the runtime allows, from
     the same checksums: the meadow 61.2 → 58.0 ms, the bench's view 54.6 →
     53.2, the rain 63.8 → 60.6, the lake 67.4 → 64.8, as fast as no check
     at all.
+- **25. Metal's relaxed floats** — kept (2026-10-01), in the compiler.
+    Bend asks Metal to compute every float as written
+    (`MTLMathModeSafe`); our branch's `--relaxed-math`, in the Makefile's
+    `BEND`, asks for `MTLMathModeRelaxed`, which may reorder and fuse them
+    and keeps infinities. Eight alternated rounds at 1470×796: the meadow
+    60.8 → 57.8 ms, the start's view 52.6 → 48.6, the rain 64.8 → 61.2,
+    the lake 70.4 → 61.8; the bench 55 → 48. `MTLMathModeFast`, which
+    assumes no infinity, read slower than Relaxed (58.6, 52.0, 63.6,
+    66.0). 1 to 11% of the pixels change, nearly all by one or two levels,
+    most on the water's surface and in the shafts; at most 28 a frame by
+    more than 16, single pixels at a blade's or a mirror's edge. Side by
+    side, the two cannot be told apart by eye. The checksums hold from run
+    to run and build to build, but a GPU frame is no longer the CPU's bit
+    for bit.
 
 ## Tried, and worth nothing here
 

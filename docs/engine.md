@@ -502,23 +502,19 @@ basin over ticks.
 **The bench.** `make bench` times the `!` alone, five frames a size with
 the camera turning, on an Apple M5 with the game closed; its thirty
 checksums are the same on every build that changes nothing visible. The
-fastest frames of eight alternated rounds on a busy machine (2026-09-30):
+fastest frames of eight alternated rounds on a busy machine (2026-10-01):
 
 | render | a frame | stock 2.0.34 |
 |---|---|---|
 | 512×512 | 9 ms | 20 ms |
-| 512×512, 300 blocks placed | 9 ms | 18 ms |
-| 735×398, a 14" MacBook at scale 2 | 14 ms | 38 ms |
-| 960×540, a 1920×1080 window at scale 2 | 26 ms | 70 ms |
-| 1470×796, a 14" MacBook at every pixel | 51 ms | 144 ms |
-| 1920×1080 | 93 ms | 275 ms |
+| 512×512, 300 blocks placed | 8 ms | 19 ms |
+| 735×398, a 14" MacBook at scale 2 | 12 ms | 38 ms |
+| 960×540, a 1920×1080 window at scale 2 | 22 ms | 72 ms |
+| 1470×796, a 14" MacBook at every pixel | 45 ms | 146 ms |
+| 1920×1080 | 80 ms | 280 ms |
 
 The difference is [#1132](https://github.com/bendlang/bend/pull/1132) and
-our two changes to the code Bend emits. Without the loop's inlining
-([perf.md](perf.md), 23) the same rounds read 10, 9, 15, 28, 54 and 95.
-The table came before the error check a loop ([perf.md](perf.md), 24); on
-a busier machine, sixteen alternated rounds read 9, 9, 13, 26, 52 and 107
-with it and 10, 9, 15, 27, 56 and 106 without.
+our three changes to the compiler ([perf.md](perf.md), 23 to 25).
 
 **The profile.** `make profile` renders a view five times with every look
 on, then with each look off in turn, then the rays alone, and prints the
