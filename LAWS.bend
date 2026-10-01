@@ -18,26 +18,18 @@ import ./src/meadow.bend as Meadow
 
 # --- a cell as one word: (lx * 32 + y) * 128 + lz, and back ---------------
 # The pick's and the light's rounds'. The checker computes integers, not
-# floats: the laws are on the integer packing, and Player.pk is that
-# packing of the floored coordinates.
+# floats: the law is on the integer packing, and Player.pk is that
+# packing of the floored coordinates. It holds for every cell of the
+# window, x and z under 128 and y under 32.
 
-law pick_origin:
-  {World.ix_x(World.pk_u(0, 0, 0)) == 0 : U32}
-
-law pick_far_corner:
-  {World.ix_x(World.pk_u(127, 31, 127)) == 127 : U32}
-
-law pick_far_corner_y:
-  {World.ix_y(World.pk_u(127, 31, 127)) == 31 : U32}
-
-law pick_far_corner_z:
-  {World.ix_z(World.pk_u(127, 31, 127)) == 127 : U32}
-
-law pick_inside:
-  {World.ix_y(World.pk_u(64, 19, 65)) == 19 : U32}
-
-law pick_inside_z:
-  {World.ix_z(World.pk_u(64, 19, 65)) == 65 : U32}
+law cell_reads_back:
+  for +x: U32
+  for +y: U32
+  for +z: U32
+  for hx: {(x < 128 : U32) == True{} : Bool}
+  for hy: {(y < 32 : U32) == True{} : Bool}
+  for hz: {(z < 128 : U32) == True{} : Bool}
+  {(World.ix_x(World.pk_u(x, y, z)), (World.ix_y(World.pk_u(x, y, z)), World.ix_z(World.pk_u(x, y, z)))) == (x, (y, z)) : U32 & (U32 & U32)}
 
 # --- the ring: a 128x128 window falls one-to-one on the 16384 columns ------
 # world column (x, z) at slot (x * 128 + z) * 16 mod 2^18 (the ring is the

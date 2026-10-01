@@ -475,7 +475,11 @@ and masks (no table, no variable shift).
 `LAWS.bend` states what the checker can decide: integer and bit rules on
 the values the game uses, stated on integer defs since the checker
 computes no floats. `bend PROOF.bend` closes them, and `make check` runs
-it. Nine hold for every input: for every `U32` clock word the day's phase
+it. Ten hold for every input: every cell of the window, x and z under 128
+and y under 32, reads back from its word (through the naturals, a word's
+product, sum, quotient and remainder being theirs: lemmas of
+[bend-collections](https://github.com/Giulio2002/bend-collections), which
+`bend PROOF.bend` fetches from BendHub once); for every `U32` clock word the day's phase
 returns after a whole turn (by induction over its low 20 bits), the
 ripples' too, and with no key held the clock runs as ever; and six of the
 inventory's, for every count and every list of actions, among them that a
@@ -484,7 +488,7 @@ the game uses.
 
 | the laws of | what they say | how many |
 |---|---|---|
-| the world's words | a cell's word packs and unpacks; a 128×128 window spans the ring's 16384 slots exactly; a break or a place is one bit; a type's nibble reads back without touching its neighbours, the device's read agreeing with the host's; the terrain's layers, trees and lake floors are what they should be; the far map's addresses, columns and sea; the meadow's map and the leaf plane read back | 47 |
+| the world's words | a cell's word packs and unpacks; a 128×128 window spans the ring's 16384 slots exactly; a break or a place is one bit; a type's nibble reads back without touching its neighbours, the device's read agreeing with the host's; the terrain's layers, trees and lake floors are what they should be; the far map's addresses, columns and sea; the meadow's map and the leaf plane read back | 42 |
 | water | generation, displacement and banks; a cell's amount is a byte whose writes read back and whose mask follows; one transfer of the flow; the bucket moves water and never makes it; a solid placed in water shoves it up | 50 |
 | water's looks | the surface's packed bits for every step count and face; the ripples' period; each look has its own bit and is on by default | 16 |
 | the inventory | conservation for every list of actions; nothing spent from zero; break then place restores; the HUD's packed counts; save and quit survive the step | 13 |

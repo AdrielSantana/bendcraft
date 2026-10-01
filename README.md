@@ -19,9 +19,10 @@ every decision with its measurements.
 
 What makes that safe is the other half of Bend. The rules the game
 promises are laws in [`LAWS.bend`](LAWS.bend), and `bend PROOF.bend`
-proves all 145 of them before every commit. Nine hold for every input;
+proves all 140 of them before every commit. Ten hold for every input;
 the rest are checked on the exact values the game uses. For example:
 
+- every cell of the window reads back from the one word that names it;
 - a cell and its inventory count keep the same total after any list of
   breaks and places;
 - the sun comes back to the same place after a whole day, for every value

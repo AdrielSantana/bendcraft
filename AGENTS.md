@@ -146,6 +146,16 @@ def's first lines with plain names, `(a, b) = r`.
 `M.T`, `M.C{..}`. A def is declared before its use in a module.
 - `Nat.mul/div/mod` and `U32.from_nat/to_nat` exist; `U32.from_nat` is
 linear in its argument, cap it with `Nat.min` first.
+- A packing's law for every input goes through the naturals: in
+`PROOF.bend`, `pack_val` (a * d + b in words is that sum while it fits),
+`digit` and `rest` (its low digit, and the rest), over bend-collections'
+lemmas on Base's words, imported from BendHub by name and fetched once
+into `~/.bend/lib`. `Laws.cell_reads_back` shows the way.
+- The checker counts a closed `Nat` out in unary, and past some thousands
+its stack overflows (2^19 did, 4096 did not): keep a large bound a power,
+`SC.pow2(k)`, spelt the same on both sides so that nothing expands it
+(`shift_lt`). A hypothesis used twice takes `+`, and a def that names its
+type returns `Data`, not `Type` (`Under`).
 - `@unsafe` is for IO recursion the checker cannot see end (the benches).
 Do not reach for it in game code. The one exception is `src/frame.bend`,
 the frame's tree, which hands the ring to both halves of a fork: the laws

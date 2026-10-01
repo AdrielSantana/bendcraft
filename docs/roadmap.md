@@ -192,6 +192,10 @@ deciding now; the frame's budget is comfortable.
 Every rule the game adds gets its law in `LAWS.bend` before the feature is
 done. Next:
 
+- *For every input:* a cell's word reads back for every cell
+  (2026-10-01); a type's nibble, the ring's column, the far map's address
+  and the water's bytes still check the values the game uses. The digits'
+  lemmas in `PROOF.bend` are there for them.
 - *Crafting:* a recipe changes the counts by exactly its vector, and does
   nothing when an input is short.
 - *Water:* a tick never raises the amount of water; water never moves up.
@@ -202,9 +206,9 @@ done. Next:
 
 ## The budget
 
-At 1470×796 a frame is 51 ms with a ray for every pixel and 14 at scale 2,
-which suits the pixel art (the bench's fastest frames, 2026-09-30). At 60
-frames a second that leaves under 3 ms at scale 2 for the looks still to
+At 1470×796 a frame is 45 ms with a ray for every pixel and 12 at scale 2,
+which suits the pixel art (the bench's fastest frames, 2026-10-01). At 60
+frames a second that leaves under 5 ms at scale 2 for the looks still to
 come, and none at 120. What each look took is in engine.md; what a ray
 caster can do to cost less, and what was tried, in [perf.md](perf.md).
 

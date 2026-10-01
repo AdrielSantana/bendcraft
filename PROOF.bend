@@ -1,20 +1,26 @@
 # PROOF.bend: every law of LAWS.bend, closed. `bend PROOF.bend` prints
 # ALL PROOFS CHECK when the rules hold, and SOME PROOFS FAIL with the first
 # that does not. Concrete laws reduce to the same value; the day period is proved
-# for every word by induction over its low bits, below.
+# for every word by induction over its low bits, and a cell's word for every
+# cell through the naturals, below.
 
 import Base
 import ./LAWS.bend as Laws
 import ./src/day.bend as Day
 import ./src/inventory.bend as Inventory
 import ./src/water.bend as Water
+import ./src/world.bend as World
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/nat.bend as N
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/u32.bend as U
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/u32div.bend as UD
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/lemmas/proofs/nat_algebra.bend as NA
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/lemmas/proofs/natural_products.bend as PR
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/lemmas/proofs/word_multiplication.bend as Mul
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/lemmas/proofs/word_addition.bend as Add
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/lemmas/proofs/division_quotient.bend as DQ
+import bend-collections-laws-containers@1.0.0.0/proofs/lib/lemmas/spec/numeric.bend as S
+import bend-collections-laws-containers@1.0.0.0/spec/lib/common.bend as SC
 
-def Laws.pick_origin(): {==}
-def Laws.pick_far_corner(): {==}
-def Laws.pick_far_corner_y(): {==}
-def Laws.pick_far_corner_z(): {==}
-def Laws.pick_inside(): {==}
-def Laws.pick_inside_z(): {==}
 def Laws.ring_window_spans_the_slots(): {==}
 def Laws.ring_rows_are_consecutive(): {==}
 def Laws.place_sets_the_bit(): {==}
@@ -268,3 +274,133 @@ def Laws.the_light_follows_the_leaf_plane(): {==}
 def Laws.a_torch_lights_its_cell_fourteen(): {==}
 def Laws.a_word_of_torches_is_all_fourteen(): {==}
 def Laws.no_torch_no_light(): {==}
+
+# --- a cell's word reads back, for every cell ------------------------------
+# A word is worth a natural (U32.to_nat), and there the packing is a
+# number's digits: a * d + b is that sum while it fits the word, its low
+# digit is b and the rest a. That a word's product, sum, quotient and
+# remainder are the naturals' is proved in bend-collections (BendHub,
+# github.com/Giulio2002/bend-collections), whose lemmas the imports name.
+
+# a digit r under its base d, over q digits under n: q * d + r < n * d
+def digit_lt(+q: Nat, +n: Nat, +d: Nat, +r: Nat, hq: {Nat.is_lt(q, n) == True{} : Bool}, hr: {Nat.is_lt(r, d) == True{} : Bool}) -> {Nat.is_lt(Nat.add(Nat.mul(q, d), r), Nat.mul(n, d)) == True{} : Bool}:
+  match q n:
+    case 0n 0n:
+      Empty.absurd({Nat.is_lt(Nat.add(Nat.mul(0n, d), r), Nat.mul(0n, d)) == True{} : Bool}, N.lt_zero_absurd(0n, hq))
+    case 1n+p 0n:
+      Empty.absurd({Nat.is_lt(Nat.add(Nat.mul(1n+p, d), r), Nat.mul(0n, d)) == True{} : Bool}, N.lt_zero_absurd(1n+p, hq))
+    case 0n 1n+m:
+      N.lt_le_trans(r, d, Nat.add(d, Nat.mul(m, d)), hr, N.le_add_right(d, Nat.mul(m, d)))
+    case 1n+p 1n+m:
+      %Equal.sym(Nat, Nat.add(Nat.add(d, Nat.mul(p, d)), r), Nat.add(d, Nat.add(Nat.mul(p, d), r)), NA.add_assoc(d, Nat.mul(p, d), r)) : {Nat.is_lt(_, Nat.add(d, Nat.mul(m, d))) == True{} : Bool}
+      N.lt_add_left(Nat.add(Nat.mul(p, d), r), Nat.mul(m, d), d, digit_lt(p, m, d, r, hq, hr))
+
+# a word made of a natural under 2^k, k <= 32, is worth that natural
+def val(+v: Nat, +k: Nat, +hk: {Nat.is_le(k, 32n) == True{} : Bool}, +hv: {Nat.is_lt(v, SC.pow2(k)) == True{} : Bool}) -> {U32.to_nat(U32{S.from_nat(32n, v)}) == v : Nat}:
+  Equal.trans(Nat, U32.to_nat(U32{S.from_nat(32n, v)}), S.unsigned(32n, S.from_nat(32n, v)), v, U.to_nat_word(S.from_nat(32n, v)), U.from_nat_value_k(32n, k, v, hk, hv))
+
+def mul_val(+a: U32, +b: U32, +k: Nat, +hk: {Nat.is_le(k, 32n) == True{} : Bool}, +hv: {Nat.is_lt(Nat.mul(U32.to_nat(a), U32.to_nat(b)), SC.pow2(k)) == True{} : Bool}) -> {U32.to_nat(U32.mul(a, b)) == Nat.mul(U32.to_nat(a), U32.to_nat(b)) : Nat}:
+  Equal.trans(Nat, U32.to_nat(U32.mul(a, b)), U32.to_nat(U32{S.from_nat(32n, Nat.mul(U32.to_nat(a), U32.to_nat(b)))}), Nat.mul(U32.to_nat(a), U32.to_nat(b)),
+    Equal.cong(U32, Nat, t => U32.to_nat(t), U32.mul(a, b), U32{S.from_nat(32n, Nat.mul(U32.to_nat(a), U32.to_nat(b)))}, Mul.u32_refines(a, b)),
+    val(Nat.mul(U32.to_nat(a), U32.to_nat(b)), k, hk, hv))
+
+def add_val(+a: U32, +b: U32, +k: Nat, +hk: {Nat.is_le(k, 32n) == True{} : Bool}, +hv: {Nat.is_lt(Nat.add(U32.to_nat(a), U32.to_nat(b)), SC.pow2(k)) == True{} : Bool}) -> {U32.to_nat(U32.add(a, b)) == Nat.add(U32.to_nat(a), U32.to_nat(b)) : Nat}:
+  Equal.trans(Nat, U32.to_nat(U32.add(a, b)), U32.to_nat(U32{S.from_nat(32n, Nat.add(U32.to_nat(a), U32.to_nat(b)))}), Nat.add(U32.to_nat(a), U32.to_nat(b)),
+    Equal.cong(U32, Nat, t => U32.to_nat(t), U32.add(a, b), U32{S.from_nat(32n, Nat.add(U32.to_nat(a), U32.to_nat(b)))}, Add.u32_refines(a, b)),
+    val(Nat.add(U32.to_nat(a), U32.to_nat(b)), k, hk, hv))
+
+def pack_bound(+a: U32, +c: U32, +b: U32, +k: Nat, em: {U32.to_nat(U32.mul(a, c)) == Nat.mul(U32.to_nat(a), U32.to_nat(c)) : Nat}, hv: {Nat.is_lt(Nat.add(Nat.mul(U32.to_nat(a), U32.to_nat(c)), U32.to_nat(b)), SC.pow2(k)) == True{} : Bool}) -> {Nat.is_lt(Nat.add(U32.to_nat(U32.mul(a, c)), U32.to_nat(b)), SC.pow2(k)) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(U32.mul(a, c)), Nat.mul(U32.to_nat(a), U32.to_nat(c)), em) : {Nat.is_lt(Nat.add(_, U32.to_nat(b)), SC.pow2(k)) == True{} : Bool}
+  hv
+
+# a * c + b in words is a * c + b in naturals, while it stays under 2^k
+def pack_val(+a: U32, +c: U32, +b: U32, +k: Nat, +hk: {Nat.is_le(k, 32n) == True{} : Bool}, +hv: {Nat.is_lt(Nat.add(Nat.mul(U32.to_nat(a), U32.to_nat(c)), U32.to_nat(b)), SC.pow2(k)) == True{} : Bool}) -> {U32.to_nat(U32.add(U32.mul(a, c), b)) == Nat.add(Nat.mul(U32.to_nat(a), U32.to_nat(c)), U32.to_nat(b)) : Nat}:
+  +em = mul_val(a, c, k, hk, N.le_lt_trans(Nat.mul(U32.to_nat(a), U32.to_nat(c)), Nat.add(Nat.mul(U32.to_nat(a), U32.to_nat(c)), U32.to_nat(b)), SC.pow2(k), N.le_add_right(Nat.mul(U32.to_nat(a), U32.to_nat(c)), U32.to_nat(b)), hv))
+  Equal.trans(Nat, U32.to_nat(U32.add(U32.mul(a, c), b)), Nat.add(U32.to_nat(U32.mul(a, c)), U32.to_nat(b)), Nat.add(Nat.mul(U32.to_nat(a), U32.to_nat(c)), U32.to_nat(b)),
+    add_val(U32.mul(a, c), b, k, hk, pack_bound(a, c, b, k, em, hv)),
+    Equal.cong(Nat, Nat, t => Nat.add(t, U32.to_nat(b)), U32.to_nat(U32.mul(a, c)), Nat.mul(U32.to_nat(a), U32.to_nat(c)), em))
+
+def under(+a: U32, +b: U32, h: {U32.is_lt(a, b) == True{} : Bool}) -> {Nat.is_lt(U32.to_nat(a), U32.to_nat(b)) == True{} : Bool}:
+  %U.is_lt_nat(a, b) : {_ == True{} : Bool}
+  h
+
+def digit_nat(+p: U32, +qv: Nat, +d: U32, +r: U32, ep: {U32.to_nat(p) == Nat.add(Nat.mul(qv, U32.to_nat(d)), U32.to_nat(r)) : Nat}, hr: {Nat.is_lt(U32.to_nat(r), U32.to_nat(d)) == True{} : Bool}) -> {Nat.mod(U32.to_nat(p), U32.to_nat(d)) == U32.to_nat(r) : Nat}:
+  %Equal.sym(Nat, U32.to_nat(p), Nat.add(Nat.mul(qv, U32.to_nat(d)), U32.to_nat(r)), ep) : {Nat.mod(_, U32.to_nat(d)) == U32.to_nat(r) : Nat}
+  UD.mod_identify(qv, U32.to_nat(d), U32.to_nat(r), hr)
+
+# p = qv * d + r with r < d: the low digit of p is r
+def digit(+p: U32, +qv: Nat, +d: U32, +r: U32, +hd: {U32.is_zero(d) == False{} : Bool}, ep: {U32.to_nat(p) == Nat.add(Nat.mul(qv, U32.to_nat(d)), U32.to_nat(r)) : Nat}, hr: {Nat.is_lt(U32.to_nat(r), U32.to_nat(d)) == True{} : Bool}) -> {U32.mod(p, d) == r : U32}:
+  U.injective(U32.mod(p, d), r, Equal.trans(Nat, U32.to_nat(U32.mod(p, d)), Nat.mod(U32.to_nat(p), U32.to_nat(d)), U32.to_nat(r), UD.mod_nat(p, d, hd), digit_nat(p, qv, d, r, ep, hr)))
+
+def rest_nat(+p: U32, +q: U32, +d: U32, +rv: Nat, ep: {U32.to_nat(p) == Nat.add(Nat.mul(U32.to_nat(q), U32.to_nat(d)), rv) : Nat}, hr: {Nat.is_lt(rv, U32.to_nat(d)) == True{} : Bool}) -> {Nat.div(U32.to_nat(p), U32.to_nat(d)) == U32.to_nat(q) : Nat}:
+  %Equal.sym(Nat, U32.to_nat(p), Nat.add(Nat.mul(U32.to_nat(q), U32.to_nat(d)), rv), ep) : {Nat.div(_, U32.to_nat(d)) == U32.to_nat(q) : Nat}
+  DQ.identify(U32.to_nat(q), U32.to_nat(d), rv, hr)
+
+# p = q * d + rv with rv < d: the digits of p over the low one are q
+def rest(+p: U32, +q: U32, +d: U32, +rv: Nat, +hd: {U32.is_zero(d) == False{} : Bool}, ep: {U32.to_nat(p) == Nat.add(Nat.mul(U32.to_nat(q), U32.to_nat(d)), rv) : Nat}, hr: {Nat.is_lt(rv, U32.to_nat(d)) == True{} : Bool}) -> {U32.div(p, d) == q : U32}:
+  U.injective(U32.div(p, d), q, Equal.trans(Nat, U32.to_nat(U32.div(p, d)), Nat.div(U32.to_nat(p), U32.to_nat(d)), U32.to_nat(q), UD.div_nat(p, d, hd), rest_nat(p, q, d, rv, ep, hr)))
+
+# a word's value is under n
+def Under(+a: U32, +n: Nat) -> Data:
+  {Nat.is_lt(U32.to_nat(a), n) == True{} : Bool}
+
+# (a * d1 + b) * d2 + c is a * (d1 * d2) + (b * d2 + c)
+def spread(+a: Nat, +b: Nat, +c: Nat, +d1: Nat, +d2: Nat) -> {Nat.add(Nat.mul(Nat.add(Nat.mul(a, d1), b), d2), c) == Nat.add(Nat.mul(a, Nat.mul(d1, d2)), Nat.add(Nat.mul(b, d2), c)) : Nat}:
+  %NA.add_assoc(Nat.mul(a, Nat.mul(d1, d2)), Nat.mul(b, d2), c) : {Nat.add(Nat.mul(Nat.add(Nat.mul(a, d1), b), d2), c) == _ : Nat}
+  %NA.mul_assoc(a, d1, d2) : {Nat.add(Nat.mul(Nat.add(Nat.mul(a, d1), b), d2), c) == Nat.add(Nat.add(_, Nat.mul(b, d2)), c) : Nat}
+  %NA.mul_add_right(Nat.mul(a, d1), b, d2) : {Nat.add(Nat.mul(Nat.add(Nat.mul(a, d1), b), d2), c) == Nat.add(_, c) : Nat}
+  {==}
+
+# the cell's word, (x * 32 + y) * 128 + z: its column part x * 32 + y
+def col_val(+x: U32, +y: U32, hx: Under(x, 128n), hy: Under(y, 32n)) -> {U32.to_nat(U32.add(U32.mul(x, 32), y)) == Nat.add(Nat.mul(U32.to_nat(x), 32n), U32.to_nat(y)) : Nat}:
+  pack_val(x, 32, y, 12n, {==}, digit_lt(U32.to_nat(x), 128n, 32n, U32.to_nat(y), hx, hy))
+
+def col_lt(+x: U32, +y: U32, +hx: Under(x, 128n), +hy: Under(y, 32n)) -> {Nat.is_lt(U32.to_nat(U32.add(U32.mul(x, 32), y)), 4096n) == True{} : Bool}:
+  %Equal.sym(Nat, U32.to_nat(U32.add(U32.mul(x, 32), y)), Nat.add(Nat.mul(U32.to_nat(x), 32n), U32.to_nat(y)), col_val(x, y, hx, hy)) : {Nat.is_lt(_, 4096n) == True{} : Bool}
+  digit_lt(U32.to_nat(x), 128n, 32n, U32.to_nat(y), hx, hy)
+
+def pow2_add(+a: Nat, +b: Nat) -> {Nat.mul(SC.pow2(a), SC.pow2(b)) == SC.pow2(Nat.add(a, b)) : Nat}:
+  match a:
+    case 0n:
+      NA.add_zero(SC.pow2(b))
+    case 1n+p:
+      Equal.trans(Nat, Nat.mul(Nat.double(SC.pow2(p)), SC.pow2(b)), Nat.double(Nat.mul(SC.pow2(p), SC.pow2(b))), Nat.double(SC.pow2(Nat.add(p, b))),
+        PR.double_product(SC.pow2(p), SC.pow2(b)),
+        Equal.cong(Nat, Nat, t => Nat.double(t), Nat.mul(SC.pow2(p), SC.pow2(b)), SC.pow2(Nat.add(p, b)), pow2_add(p, b)))
+
+# digit_lt on powers of two, d being 2^b: the bound stays a power, which
+# the checker never counts out
+def shift_lt(+q: Nat, +r: Nat, +a: Nat, +b: Nat, +d: Nat, hd: {SC.pow2(b) == d : Nat}, hq: {Nat.is_lt(q, SC.pow2(a)) == True{} : Bool}, hr: {Nat.is_lt(r, d) == True{} : Bool}) -> {Nat.is_lt(Nat.add(Nat.mul(q, d), r), SC.pow2(Nat.add(a, b))) == True{} : Bool}:
+  %pow2_add(a, b) : {Nat.is_lt(Nat.add(Nat.mul(q, d), r), _) == True{} : Bool}
+  %Equal.sym(Nat, SC.pow2(b), d, hd) : {Nat.is_lt(Nat.add(Nat.mul(q, d), r), Nat.mul(SC.pow2(a), _)) == True{} : Bool}
+  digit_lt(q, SC.pow2(a), d, r, hq, hr)
+
+def cell_val(+x: U32, +y: U32, +z: U32, +hx: Under(x, 128n), +hy: Under(y, 32n), hz: Under(z, 128n)) -> {U32.to_nat(World.pk_u(x, y, z)) == Nat.add(Nat.mul(U32.to_nat(U32.add(U32.mul(x, 32), y)), 128n), U32.to_nat(z)) : Nat}:
+  pack_val(U32.add(U32.mul(x, 32), y), 128, z, Nat.add(12n, 7n), {==}, shift_lt(U32.to_nat(U32.add(U32.mul(x, 32), y)), U32.to_nat(z), 12n, 7n, U32.to_nat(128), {==}, col_lt(x, y, hx, hy), hz))
+
+def cell_z(+x: U32, +y: U32, +z: U32, +hx: Under(x, 128n), +hy: Under(y, 32n), +hz: Under(z, 128n)) -> {World.ix_z(World.pk_u(x, y, z)) == z : U32}:
+  digit(World.pk_u(x, y, z), U32.to_nat(U32.add(U32.mul(x, 32), y)), 128, z, {==}, cell_val(x, y, z, hx, hy, hz), hz)
+
+def cell_col(+x: U32, +y: U32, +z: U32, +hx: Under(x, 128n), +hy: Under(y, 32n), +hz: Under(z, 128n)) -> {U32.div(World.pk_u(x, y, z), 128) == U32.add(U32.mul(x, 32), y) : U32}:
+  rest(World.pk_u(x, y, z), U32.add(U32.mul(x, 32), y), 128, U32.to_nat(z), {==}, cell_val(x, y, z, hx, hy, hz), hz)
+
+def cell_y(+x: U32, +y: U32, +z: U32, +hx: Under(x, 128n), +hy: Under(y, 32n), +hz: Under(z, 128n)) -> {World.ix_y(World.pk_u(x, y, z)) == y : U32}:
+  %Equal.sym(U32, U32.div(World.pk_u(x, y, z), 128), U32.add(U32.mul(x, 32), y), cell_col(x, y, z, hx, hy, hz)) : {U32.mod(_, 32) == y : U32}
+  digit(U32.add(U32.mul(x, 32), y), U32.to_nat(x), 32, y, {==}, col_val(x, y, hx, hy), hy)
+
+def cell_x_val(+x: U32, +y: U32, +z: U32, +hx: Under(x, 128n), +hy: Under(y, 32n), hz: Under(z, 128n)) -> {U32.to_nat(World.pk_u(x, y, z)) == Nat.add(Nat.mul(U32.to_nat(x), Nat.mul(32n, 128n)), Nat.add(Nat.mul(U32.to_nat(y), 128n), U32.to_nat(z))) : Nat}:
+  %spread(U32.to_nat(x), U32.to_nat(y), U32.to_nat(z), 32n, 128n) : {U32.to_nat(World.pk_u(x, y, z)) == _ : Nat}
+  %col_val(x, y, hx, hy) : {U32.to_nat(World.pk_u(x, y, z)) == Nat.add(Nat.mul(_, 128n), U32.to_nat(z)) : Nat}
+  cell_val(x, y, z, hx, hy, hz)
+
+def cell_x(+x: U32, +y: U32, +z: U32, +hx: Under(x, 128n), +hy: Under(y, 32n), +hz: Under(z, 128n)) -> {World.ix_x(World.pk_u(x, y, z)) == x : U32}:
+  rest(World.pk_u(x, y, z), x, 4096, Nat.add(Nat.mul(U32.to_nat(y), 128n), U32.to_nat(z)), {==}, cell_x_val(x, y, z, hx, hy, hz), digit_lt(U32.to_nat(y), 32n, 128n, U32.to_nat(z), hy, hz))
+
+def Laws.cell_reads_back(x, y, z, hx, hy, hz):
+  +nx = under(x, 128, hx)
+  +ny = under(y, 32, hy)
+  +nz = under(z, 128, hz)
+  %cell_x(x, y, z, nx, ny, nz) : {(World.ix_x(World.pk_u(x, y, z)), (World.ix_y(World.pk_u(x, y, z)), World.ix_z(World.pk_u(x, y, z)))) == (_, (y, z)) : U32 & (U32 & U32)}
+  %cell_y(x, y, z, nx, ny, nz) : {(World.ix_x(World.pk_u(x, y, z)), (World.ix_y(World.pk_u(x, y, z)), World.ix_z(World.pk_u(x, y, z)))) == (World.ix_x(World.pk_u(x, y, z)), (_, z)) : U32 & (U32 & U32)}
+  %cell_z(x, y, z, nx, ny, nz) : {(World.ix_x(World.pk_u(x, y, z)), (World.ix_y(World.pk_u(x, y, z)), World.ix_z(World.pk_u(x, y, z)))) == (World.ix_x(World.pk_u(x, y, z)), (World.ix_y(World.pk_u(x, y, z)), _)) : U32 & (U32 & U32)}
+  {==}
