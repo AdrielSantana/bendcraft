@@ -34,24 +34,26 @@ check:
 	done
 	$(BEND) PROOF.bend
 
+TESTS = physics save day inventory water flow ripples mirror terrain readout far meadow leaves torch light
+
 # the game without a window: events through feed and step
 test:
 	@mkdir -p build
-	$(BEND) test/physics.bend
-	$(BEND) test/save.bend
-	$(BEND) test/day.bend
-	$(BEND) test/inventory.bend
-	$(BEND) test/water.bend
-	$(BEND) test/flow.bend
-	$(BEND) test/ripples.bend
-	$(BEND) test/mirror.bend
-	$(BEND) test/terrain.bend
-	$(BEND) test/readout.bend
-	$(BEND) test/far.bend
-	$(BEND) test/meadow.bend
-	$(BEND) test/leaves.bend
-	$(BEND) test/torch.bend
-	$(BEND) test/light.bend
+	@for t in $(TESTS); do $(BEND) test/$$t.bend || exit 1; done
+
+# the same tests built to C, the path the game's host runs on: each prints
+# the lines it prints above, since a compiler can be right in one backend
+# and wrong in the other. The `!` runs on the cores: the GPU's frame is the
+# bench's digest
+test-native:
+	@mkdir -p build/native
+	@for t in $(TESTS); do \
+	  $(BEND) test/$$t.bend -o build/native/$$t || exit 1; \
+	  ./build/native/$$t --gpu off > build/native/$$t.out 2>&1; \
+	  $(BEND) test/$$t.bend 2>&1 | cmp -s - build/native/$$t.out \
+	    || { echo "test/$$t.bend: the native build prints other lines"; exit 1; }; \
+	  echo "ok test/$$t.bend, native"; \
+	done
 
 # five frames on the GPU, untouched and with 300 blocks placed, with checksums
 bench: test/bench.bend src/*.bend
@@ -128,4 +130,4 @@ page-test:
 	node test/fps.mjs 'http://127.0.0.1:8770/index.html?threads=1' 8; \
 	kill $$(cat build/serve.pid); rm -f build/serve.pid
 
-.PHONY: mirror run full check test bench profile sky clouds water page publish page-test
+.PHONY: mirror run full check test test-native bench profile sky clouds water page publish page-test

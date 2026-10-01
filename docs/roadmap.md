@@ -232,7 +232,7 @@ The page's compiler is a fork of its own (`BEND_WEB`, the web target of
 [#866](https://github.com/bendlang/bend/pull/866), which was closed). The
 page is not ready until it runs on WebGPU.
 
-**The routine, for every `bend update`:** `make check test bench profile`;
+**The routine, for every `bend update`:** `make check test test-native bench profile`;
 the thirty checksums and the physics hash stay the same, or the update
 says why; `test/trace.py` once, whose snippets match the runtime's text
 and may need an update.

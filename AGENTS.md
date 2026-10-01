@@ -99,6 +99,7 @@ ray, or of the game's state, gives the same thing.
 ```sh
 make check      # every module and test type-checks; PROOF.bend closes the laws
 make test       # physics, save and load, terrain, the readout, windowless
+make test-native  # the same tests built to C, the game's path: the same lines
 make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```

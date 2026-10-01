@@ -617,6 +617,7 @@ site/               the page: notes.mjs post-processes the built index.html
 ```sh
 make check      # the modules, the tests, the laws
 make test       # the windowless tests
+make test-native  # the same tests built to C, the game's path: the same lines
 make bench      # five frames on Metal at six sizes, untouched and with 300 blocks placed
 make profile    # each look off, by size; then night, rain, the lake in the rain, lake, submerged, night lake, partial water
 make sky        # six views and build/sky-contact.png (Pillow)
