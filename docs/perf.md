@@ -297,12 +297,18 @@ means revisiting that rule first. What the runtime allows, from
     60.8 → 57.8 ms, the start's view 52.6 → 48.6, the rain 64.8 → 61.2,
     the lake 70.4 → 61.8; the bench 55 → 48. `MTLMathModeFast`, which
     assumes no infinity, read slower than Relaxed (58.6, 52.0, 63.6,
-    66.0). 1 to 11% of the pixels change, nearly all by one or two levels,
-    most on the water's surface and in the shafts; at most 28 a frame by
-    more than 16, single pixels at a blade's or a mirror's edge. Side by
-    side, the two cannot be told apart by eye. The checksums hold from run
-    to run and build to build, but a GPU frame is no longer the CPU's bit
-    for bit.
+    66.0). The two modes' pictures differed in 1 to 11% of the pixels, by
+    one level of blue, which no eye could tell. `Util.lerp` cut its float
+    off, and far from the sun its halo mixes the sky's blue (236) toward
+    the sun's (216) by a weight near 3e-7: a last bit chose 235 or 236,
+    and the fog carried that colour over the frame (the rays alone agree
+    in every pixel; with the sky's gradient or the halo off, 0.7% differ).
+    A channel now takes the nearest level (`Util.near`), at no cost in
+    eight alternated rounds (the bench 46 → 44 ms at 1470×796, 80 → 80 at
+    1920×1080), and the modes differ in 0.01 to 0.26% of the pixels, some
+    by more than a level at a blade's or a mirror's edge. The checksums
+    hold from run to run and build to build, but a GPU frame is no longer
+    the CPU's bit for bit.
 
 ## Tried, and worth nothing here
 

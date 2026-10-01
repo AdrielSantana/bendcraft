@@ -24,8 +24,13 @@ def smooth(+f: F32) -> F32:
 def rgb(r: U32, g: U32, b: U32) -> U32:
   (r * 65536 + g * 256 + b : U32)
 
+# the integer nearest a float: cut off instead, a colour's level falls
+# one under whenever a mix lands a last bit short of it
+def near(+v: F32) -> U32:
+  F32.to_u32((v + 0.5 : F32))
+
 def lerp(+x: U32, +y: U32, +f: F32) -> U32:
-  F32.to_u32((U32.to_f32(x) * (1.0 - f) + U32.to_f32(y) * f : F32))
+  near((U32.to_f32(x) * (1.0 - f) + U32.to_f32(y) * f : F32))
 
 def mix(+a: U32, +b: U32, +f: F32) -> U32:
   rgb(lerp((a / 65536 : U32), (b / 65536 : U32), f),
@@ -33,11 +38,11 @@ def mix(+a: U32, +b: U32, +f: F32) -> U32:
       lerp((a % 256 : U32), (b % 256 : U32), f))
 
 def scale(+c: U32, +k: F32) -> U32:
-  F32.to_u32(F32.min((U32.to_f32(c) * k : F32), 255.0))
+  near(F32.min((U32.to_f32(c) * k : F32), 255.0))
 
 # light a added over a channel c as a screen does: toward white, never past it
 def screen(+c: U32, +a: F32) -> U32:
-  F32.to_u32((U32.to_f32(c) + (255.0 - U32.to_f32(c)) * F32.clamp(a, 0.0, 1.0) : F32))
+  near((U32.to_f32(c) + (255.0 - U32.to_f32(c)) * F32.clamp(a, 0.0, 1.0) : F32))
 
 def dim(+c: U32, +k: F32) -> U32:
   rgb(scale((c / 65536 : U32), k), scale((c / 256 % 256 : U32), k), scale((c % 256 : U32), k))

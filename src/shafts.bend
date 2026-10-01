@@ -37,7 +37,7 @@ def weighed(n: Nat, +tl: U32, +tr: U32, +bl: U32, +br: U32, +fx: F32, +fy: F32, 
       +top = (nib(tl) + (nib(tr) - nib(tl)) * fx : F32)
       +low = (nib(bl) + (nib(br) - nib(bl)) * fx : F32)
       weighed(k, (tl / 16 : U32), (tr / 16 : U32), (bl / 16 : U32), (br / 16 : U32), fx, fy, (q * 16 : U32),
-        (acc + q * F32.to_u32((top + (low - top) * fy + 0.5 : F32)) : U32))
+        (acc + q * Util.near((top + (low - top) * fy : F32)) : U32))
 
 def profile(b: Beams, +fx: F32, +fy: F32) -> U32:
   Beams{+tl, +tr, +bl, +br} = b

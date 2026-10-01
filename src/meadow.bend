@@ -28,8 +28,8 @@ def phase(+word: U32) -> U32:
 def word_at(+x: U32, +z: U32) -> U32:
   +xw = (U32.to_f32(x) + 0.5 : F32)
   +zw = (U32.to_f32(z) + 0.5 : F32)
-  pack(F32.to_u32((wild(xw, zw) * 255.0 + 0.5 : F32)), (Sky.star_hash((x / 8 : U32), (z / 8 + 929 : U32)) % 5 : U32),
-    F32.to_u32(((F32.sin((zw * 0.23 : F32)) + 1.0) * 127.5 + 0.5 : F32)))
+  pack(Util.near((wild(xw, zw) * 255.0 : F32)), (Sky.star_hash((x / 8 : U32), (z / 8 + 929 : U32)) % 5 : U32),
+    Util.near(((F32.sin((zw * 0.23 : F32)) + 1.0) * 127.5 : F32)))
 
 def load_line(n: Nat, w: Array<U32>, +x: U32, +z: U32) -> Array<U32>:
   match n:

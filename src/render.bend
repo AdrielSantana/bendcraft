@@ -1791,7 +1791,7 @@ def sunlit(near: Bool, w: Array<U32>, +base: U32, +open: U32, +wind: U32, +x: F3
 
 def beamed(+q: U32, +bits: U32, +cloud: F32, r: Array<U32> & F32) -> Array<U32> & U32:
   (w, +sun) = r
-  (w, (bits + q * F32.to_u32((sun * cloud * 15.0 + 0.5 : F32)) : U32))
+  (w, (bits + q * Util.near((sun * cloud * 15.0 : F32)) : U32))
 
 def beam(n: Nat, +base: U32, +fm: U32, +ck: U32, +clouds: Bool, +open: U32, +wind: U32, +ox: F32, +oy: F32, +oz: F32,
          +dx: F32, +dy: F32, +dz: F32, +lx: F32, +ly: F32, +lz: F32, +i: U32, +q: U32, r: Array<U32> & U32) -> Array<U32> & U32:

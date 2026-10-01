@@ -103,7 +103,7 @@ make bench      # five frames at six sizes on Metal, a checksum a frame
 make profile    # what each look costs, at four sizes
 ```
 
-- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `beb2e8f06c9d0fd67881976af7b751a1` today. A change that should not alter
+- **The picture's digest.** `make bench | grep -o 'checksum=[0-9]*' | cut -d= -f2 | md5` is `54fe688ea6f4e89951ef8bd167036ffd` today. A change that should not alter
 the game's default picture must leave it as it is. A change that alters
 the picture on purpose says so, and its commit message carries the new
 digest. `bend test/physics.bend | md5` is `0067cc16ea75...`; same rule.
@@ -202,7 +202,10 @@ turn was 2 to 5% of every view. A loop over a list or a tree still checks
 every turn; keep the walks' state words, records and arrays.
 - Metal reorders and fuses the frame's floats (`--relaxed-math` in the
 Makefile's `BEND`, `docs/perf.md`, 25): 5 to 13% a frame, and a GPU frame
-is no longer the CPU's bit for bit.
+is no longer the CPU's bit for bit. A float becomes a colour's level by
+`Util.near`, never cut off: `Util.lerp` cutting off left the sky's blue a
+last bit under 236, and 11% of the lake's pixels a level apart between
+Metal's two modes.
 - A `Bool.pick` of a Data record, or any generic def at a record type,
 builds the record on the device heap and inlines the heap's drop at every
 site: a pick of two `Sky.Tint`s kept Metal's compiler past 11 minutes
