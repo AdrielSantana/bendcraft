@@ -514,8 +514,11 @@ fastest frames of eight alternated rounds on a busy machine (2026-09-30):
 | 1920×1080 | 93 ms | 275 ms |
 
 The difference is [#1132](https://github.com/bendlang/bend/pull/1132) and
-the loop's inlining ([perf.md](perf.md), 23); without the inlining the
-same rounds read 10, 9, 15, 28, 54 and 95.
+our two changes to the code Bend emits. Without the loop's inlining
+([perf.md](perf.md), 23) the same rounds read 10, 9, 15, 28, 54 and 95.
+The table came before the error check a loop ([perf.md](perf.md), 24); on
+a busier machine, sixteen alternated rounds read 9, 9, 13, 26, 52 and 107
+with it and 10, 9, 15, 27, 56 and 106 without.
 
 **The profile.** `make profile` renders a view five times with every look
 on, then with each look off in turn, then the rays alone, and prints the

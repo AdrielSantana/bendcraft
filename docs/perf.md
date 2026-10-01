@@ -274,6 +274,21 @@ means revisiting that rule first. What the runtime allows, from
     cost 2 ms; the six walks still inlined, made calls, gained nothing.
     Metal's spilled bytes (xctrace's compiler spill events) fell as
     the frame slowed (3312 → 2208 all inlined) and say nothing of time.
+- **24. An error check a loop, not a turn** — kept (2026-09-30), in the
+    compiler. Every turn of a loop on the GPU counted towards a read of
+    the error word (`err_spun`: a count, a mask and a branch a turn, a read
+    every 4096), so that a lane stops soon after another fails: 2 to 5% of
+    every view. The read's volatile local, the 64-bit fuel and the return
+    through every caller, each taken away alone, cost nothing. The check
+    cannot just go: a lane out of heap goes on at one shared cell, and a
+    list built there is a cycle. A loop of a checked def whose one Nat is
+    all it can descend on, its other parameters words, records of words and
+    arrays, ends within that Nat's count whatever an error leaves, so our
+    branch reads the error word once, as it enters; 26 of the frame's 33
+    loops, every one of the render's. Ten alternated rounds at 1470×796,
+    the same checksums: the meadow 61.2 → 58.0 ms, the bench's view 54.6 →
+    53.2, the rain 63.8 → 60.6, the lake 67.4 → 64.8, as fast as no check
+    at all.
 
 ## Tried, and worth nothing here
 
@@ -281,5 +296,13 @@ means revisiting that rule first. What the runtime allows, from
   the 159 generic `Bool.pick` of the renderer, the world and the player,
   which `bend guide shaders` says box their words (2026-09-21): same
   checksums, same fastest frame at all six sizes, four alternated rounds.
+- The puddles' noise hashed once a block column (2026-09-30): the grass's
+  rain copy hashes the noise's two cells at every cell it tests, some 10
+  ms of the lake in the rain; the walk's patch carried the eight corners
+  instead, each cell only blending them, the same checksums. Ten
+  alternated rounds at 1470×796: the meadow dry 60.8 → 64.8 ms, the rain
+  63.2 → 79.4, the lake in the rain 108.4 → 122.2. Eight more words in
+  the walk's state cost more than the hashes they spare, even in the dry
+  copy, which never reads them.
 - The GPU's own lessons (the fork's shape, early exits, divisions in a
   walk) are in AGENTS.md.

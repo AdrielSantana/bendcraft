@@ -210,7 +210,7 @@ caster can do to cost less, and what was tried, in [perf.md](perf.md).
 
 ## Bend: waiting on a decision
 
-The game builds with 2.0.34 and the two changes below, from the
+The game builds with 2.0.34 and the three changes below, from the
 `bendcraft` branch of AdrielSantana/bend (the Makefile's `BEND`); once
 they are released it goes back to the stock `bend`.
 
@@ -218,6 +218,7 @@ they are released it goes back to the stock `bend`.
 |---|---|---|---|---|
 | [PR #1132](https://github.com/bendlang/bend/pull/1132) | Metal: the work pass after a grow runs each lane's own ring, [#925](https://github.com/bendlang/bend/issues/925)'s answer; 2.5-2.8 times faster frames on 2.0.34 | open | the stock `bend` | our branch, rebased at every release |
 | d84f292c, our branch's | a def that a loop calls is inlined whatever its size; the meadow 14% faster ([perf.md](perf.md), 23) | not yet proposed: an issue or a PR to weigh | the stock `bend` | our branch |
+| 9c4be1a1, our branch's | a loop over a Nat checks the error word as it enters, not every turn; 2 to 5% of every view ([perf.md](perf.md), 24) | not yet proposed, with the one above; comp.ts passes its 64k ttok cap | the stock `bend` | our branch |
 | [#1143](https://github.com/bendlang/bend/issues/1143) | Metal: `heap_free`'s error check, 7-12% of the allocating benches; numbers and risks, no PR | open | nothing here: the frame does not allocate | — |
 | [#1195](https://github.com/bendlang/bend/issues/1195) | a generic def at a Data record builds it on the device heap: a `Bool.pick` of two records kept Metal's compiler past 11 minutes | open | records may be picked | pick scalars, or match in a def of its own |
 | [#923](https://github.com/bendlang/bend/issues/923) | Window: full screen | open | a key for it | `make full` sizes the window to the screen |

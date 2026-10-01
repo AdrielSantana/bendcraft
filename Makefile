@@ -1,6 +1,6 @@
 # Bendcraft. `make` builds the native game; `make run` starts it on the GPU.
-# Bend 2.0.34 with bendlang/bend#1132 and a loop's callee inlined, until
-# they are released (docs/roadmap.md, "Bend: waiting on a decision"):
+# Bend 2.0.34 with bendlang/bend#1132 and two changes of ours to the code it
+# emits, until they are released (docs/roadmap.md, "Bend: waiting on a decision"):
 # git clone -b bendcraft https://github.com/AdrielSantana/bend ../bend
 BEND ?= bun ../bend/bend2/main.ts
 PYTHON ?= python3

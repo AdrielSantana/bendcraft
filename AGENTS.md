@@ -20,8 +20,8 @@ from Bend 1. Read before you write:
 - `bend guide` (the language), `bend guide shaders` (what makes a `!` fast
 or slow, written by AIs for AIs from a 120 FPS demo) and `bend base` (the
 Base library's source). All ship with the compiler, which here is the
-Makefile's `BEND`: 2.0.34 with #1132 and a loop's callee inlined, neither
-yet released, from a checkout at `../bend` (README, "Build and run"), so `bend guide` reads
+Makefile's `BEND`: 2.0.34 with #1132 and two changes of ours to the code it
+emits (`docs/roadmap.md`), none yet released, from a checkout at `../bend` (README, "Build and run"), so `bend guide` reads
 `bun ../bend/bend2/main.ts guide`. An older installed `bend` lacks what
 the game uses.
 - `docs/engine.md` (how the game works, the numbers, what costs what, the
@@ -196,6 +196,10 @@ cell's blades at every step cost the meadow 14%. A call into a long walk
 is free or better, since the walk gets the registers to itself: inlining
 every call was slower (`docs/perf.md`, 23). The spilled bytes Metal
 reports do not follow the frame's time.
+- A loop whose one Nat is all it can descend on checks the error word as
+it enters, not every turn (our branch, `docs/perf.md`, 24): the check a
+turn was 2 to 5% of every view. A loop over a list or a tree still checks
+every turn; keep the walks' state words, records and arrays.
 - A `Bool.pick` of a Data record, or any generic def at a record type,
 builds the record on the device heap and inlines the heap's drop at every
 site: a pick of two `Sky.Tint`s kept Metal's compiler past 11 minutes
